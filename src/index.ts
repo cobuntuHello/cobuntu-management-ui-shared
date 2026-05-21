@@ -26,4 +26,7 @@ export type {
   DiscountOption,
 } from "./ui/DiscountModeRadio";
 
+export { GatePage } from "./ui/GatePage";
+export type { GatePageProps, GateReason } from "./ui/GatePage";
+
 export { cn } from "./lib/cn";
