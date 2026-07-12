@@ -51,8 +51,11 @@ describe("GatePage", () => {
       "/apply?returnTo=%2Fevents%2Fsfn-01",
     );
     // No separate secondary "Apply" CTA — the primary already does it.
+    // The muted "Back to {community}" escape button is always present, so
+    // the link count is primary + back = 2.
     const allLinks = screen.getAllByRole("link");
-    expect(allLinks).toHaveLength(1);
+    expect(allLinks).toHaveLength(2);
+    expect(screen.getByRole("link", { name: /back to PBN/i })).toHaveAttribute("href", "/hub");
   });
 
   // ─── page_members_only ─────────────────────────────────────────────
@@ -199,7 +202,7 @@ describe("GatePage", () => {
   });
 
   // ─── Optional props ────────────────────────────────────────────────
-  it("renders communityLogoUrl when provided", () => {
+  it("renders communityLogoUrl when provided, linked to the home route", () => {
     render(
       <GatePage
         gate={{ kind: "community_private", communityName: "PBN" }}
@@ -209,6 +212,19 @@ describe("GatePage", () => {
     );
     const img = screen.getByAltText(/PBN logo/i);
     expect(img).toHaveAttribute("src", "https://cdn.example/pbn-logo.png");
+    // The logo is an escape hatch — clickable back to /hub (default).
+    expect(img.closest("a")).toHaveAttribute("href", "/hub");
+  });
+
+  it("renders a muted 'Back to {community}' escape button (default /hub, overridable)", () => {
+    const { rerender } = render(
+      <GatePage gate={{ kind: "page_members_only", communityName: "PBN", pageName: "Members" }} returnTo="/members" />,
+    );
+    expect(screen.getByRole("link", { name: /back to PBN/i })).toHaveAttribute("href", "/hub");
+    rerender(
+      <GatePage gate={{ kind: "page_members_only", communityName: "PBN", pageName: "Members" }} returnTo="/members" homeHref="/" />,
+    );
+    expect(screen.getByRole("link", { name: /back to PBN/i })).toHaveAttribute("href", "/");
   });
 
   it("applies brandColor to the primary CTA background", () => {

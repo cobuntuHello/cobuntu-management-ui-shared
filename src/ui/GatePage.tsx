@@ -74,6 +74,11 @@ export interface GatePageProps {
   communityLogoUrl?: string;
   /** Optional brand color — applied to the primary CTA background. */
   brandColor?: string;
+  /** Community home route — the escape hatch out of the gate (which is a
+   *  full-screen takeover with no header/nav). The logo links here and a
+   *  muted "Back to {community}" button renders below the CTAs. Defaults
+   *  to "/hub". Without an escape the gate is a dead-end. */
+  homeHref?: string;
 }
 
 interface CopyVariant {
@@ -176,7 +181,7 @@ function buildCopy(props: GatePageProps): CopyVariant {
  * (The middleware sets `X-Robots-Tag: noindex` as belt-and-suspenders.)
  */
 export function GatePage(props: GatePageProps) {
-  const { gate, communityLogoUrl, brandColor } = props;
+  const { gate, communityLogoUrl, brandColor, homeHref = "/hub" } = props;
   const copy = buildCopy(props);
   const accent = brandColor ?? "#18181b"; // zinc-900 default
 
@@ -184,11 +189,13 @@ export function GatePage(props: GatePageProps) {
     <div className="min-h-screen flex items-center justify-center px-6 py-16 bg-zinc-50">
       <div className="w-full max-w-md">
         {communityLogoUrl && (
-          <img
-            src={communityLogoUrl}
-            alt={`${gate.communityName} logo`}
-            className="mx-auto h-12 w-12 rounded-xl object-cover mb-6"
-          />
+          <a href={homeHref} className="block w-fit mx-auto mb-6" aria-label={`Back to ${gate.communityName}`}>
+            <img
+              src={communityLogoUrl}
+              alt={`${gate.communityName} logo`}
+              className="h-12 w-12 rounded-xl object-cover"
+            />
+          </a>
         )}
         <div className="text-center">
           <h1 className="text-[20px] font-semibold text-zinc-900 leading-tight">
@@ -237,6 +244,15 @@ export function GatePage(props: GatePageProps) {
               {copy.secondaryCta.label}
             </a>
           )}
+          {/* Escape hatch — the gate is a full-screen takeover with no
+              header/nav, so without this a visitor who won't sign in/join is
+              stuck. Muted (tertiary) button back to the community home. */}
+          <a
+            href={homeHref}
+            className="block w-full text-center px-4 py-2.5 rounded-lg text-[13px] font-medium text-zinc-500 hover:bg-zinc-100 transition-colors cursor-pointer"
+          >
+            Back to {gate.communityName}
+          </a>
         </div>
 
         <p className="mt-6 text-center text-[11px] text-zinc-400">
