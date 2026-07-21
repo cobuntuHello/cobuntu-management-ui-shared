@@ -239,6 +239,37 @@ describe("GatePage", () => {
     expect(cta).toHaveStyle({ backgroundColor: "#D4AF37" });
   });
 
+  it("defaults to a light zinc surface when no theme is passed (admin / un-themed communities unchanged)", () => {
+    const { container } = render(
+      <GatePage gate={{ kind: "community_private", communityName: "PBN" }} returnTo="/" />,
+    );
+    const surface = container.firstChild as HTMLElement;
+    // zinc-50 bg / zinc-900 text — the previous hardcoded look, preserved.
+    expect(surface).toHaveStyle({ backgroundColor: "#fafafa", color: "#18181b" });
+  });
+
+  it("applies a passed community theme to the surface, headline font, and CTA text", () => {
+    const { container } = render(
+      <GatePage
+        gate={{ kind: "page_members_only", communityName: "Bela Escala", pageName: "Members" }}
+        returnTo="/members"
+        bgColor="#0A0A0A"
+        textColor="#E0E0E0"
+        headingFont="Playfair Display"
+        brandColor="#D4AF37"
+        brandTextColor="#0A0A0A"
+      />,
+    );
+    const surface = container.firstChild as HTMLElement;
+    // Dark community (e.g. Bela Escala) → the gate matches its theme.
+    expect(surface).toHaveStyle({ backgroundColor: "#0A0A0A", color: "#E0E0E0" });
+    expect(
+      screen.getByRole("heading", { name: /Members is for members/i }),
+    ).toHaveStyle({ fontFamily: "Playfair Display" });
+    const cta = screen.getByRole("link", { name: /sign in/i });
+    expect(cta).toHaveStyle({ backgroundColor: "#D4AF37", color: "#0A0A0A" });
+  });
+
   it("honors custom signInHref / upgradeHref / applyHref overrides", () => {
     // Community-app could mount /signin instead of /login, /tiers instead
     // of /membership, etc. The component must respect overrides.
