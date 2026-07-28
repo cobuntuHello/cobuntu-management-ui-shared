@@ -72,25 +72,31 @@ export function ModalShell({
     >
       <div
         className={cn(
-          "bg-white rounded-xl shadow-xl text-zinc-900 flex flex-col",
+          "rounded-xl shadow-xl flex flex-col",
           widthClass,
           className,
         )}
-        style={{ maxHeight }}
+        // Theme-aware: consuming apps that set --bg-color / --text-color / --brand-color
+        // (the community-app, per community) get the community's theme; apps that don't
+        // (the admin) fall back to the original white/zinc light look.
+        style={{ maxHeight, background: "var(--bg-color, #ffffff)", color: "var(--text-color, #18181b)" }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
       >
         {(title || headerExtra || !hideCloseButton) && (
-          <header className="flex items-start gap-3 px-6 pt-5 pb-4 border-b border-zinc-100">
+          <header
+            className="flex items-start gap-3 px-6 pt-5 pb-4 border-b"
+            style={{ borderColor: "color-mix(in srgb, var(--text-color, #18181b) 10%, transparent)" }}
+          >
             <div className="flex-1 min-w-0">
               {title && (
-                <h2 className="text-[15px] font-semibold text-zinc-900 leading-tight truncate">
+                <h2 className="text-[15px] font-semibold leading-tight truncate">
                   {title}
                 </h2>
               )}
               {subtitle && (
-                <p className="text-[13px] text-zinc-500 mt-0.5">{subtitle}</p>
+                <p className="text-[13px] mt-0.5" style={{ color: "color-mix(in srgb, var(--text-color, #18181b) 55%, transparent)" }}>{subtitle}</p>
               )}
               {headerExtra && <div className="mt-3">{headerExtra}</div>}
             </div>
@@ -99,7 +105,8 @@ export function ModalShell({
                 type="button"
                 onClick={onClose}
                 aria-label="Close"
-                className="shrink-0 -mr-1 -mt-1 p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+                className="shrink-0 -mr-1 -mt-1 p-1.5 rounded-lg cursor-pointer transition-colors"
+                style={{ color: "color-mix(in srgb, var(--text-color, #18181b) 45%, transparent)" }}
               >
                 <X className="size-4" />
               </button>
@@ -112,7 +119,13 @@ export function ModalShell({
         </div>
 
         {footer && (
-          <footer className="px-6 py-4 border-t border-zinc-100 bg-zinc-50/60 rounded-b-xl">
+          <footer
+            className="px-6 py-4 border-t rounded-b-xl"
+            style={{
+              borderColor: "color-mix(in srgb, var(--text-color, #18181b) 10%, transparent)",
+              background: "color-mix(in srgb, var(--text-color, #18181b) 3%, transparent)",
+            }}
+          >
             {footer}
           </footer>
         )}
