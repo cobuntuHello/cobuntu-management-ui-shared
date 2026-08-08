@@ -77,3 +77,31 @@ describe("ModalShell", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Regression guard for the 2026-08-08 report: the tier modal's backdrop left
+ * the community app's left sidebar lit and clickable.
+ *
+ * The assertion is a RANGE, not an equality, because both ends are real
+ * constraints and a future bump could silently break either:
+ *   floor  — must clear the community sidebar (z-[60] at its highest)
+ *   ceiling— must stay under popovers that open FROM INSIDE a modal, or they
+ *            render behind it (community Select z-[200], admin DatePicker
+ *            z-[9999])
+ */
+describe("ModalShell backdrop stacking", () => {
+  it("sits above app chrome but below in-modal popovers", () => {
+    const { container } = render(
+      <ModalShell onClose={() => {}}>content</ModalShell>,
+    );
+    const backdrop = container.ownerDocument.body.querySelector(".fixed.inset-0");
+    expect(backdrop).not.toBeNull();
+
+    const zClass = Array.from(backdrop!.classList).find((c) => c.startsWith("z-"));
+    expect(zClass).toBeDefined();
+
+    const z = parseInt(zClass!.replace(/^z-\[?|\]?$/g, ""), 10);
+    expect(z).toBeGreaterThan(60);    // community sidebar
+    expect(z).toBeLessThan(200);      // community Select / admin DatePicker
+  });
+});

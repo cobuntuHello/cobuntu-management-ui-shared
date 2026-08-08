@@ -67,7 +67,20 @@ export function ModalShell({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+      /*
+       * z-[120], not z-50. The community app's left sidebar sits at z-[52]
+       * / z-[53] / z-[60], so at z-50 the backdrop dimmed the page but the
+       * nav stayed lit and clickable — reported 2026-08-08 against the tier
+       * modal on /marketplace/new. The admin app never showed it because its
+       * rail is z-30.
+       *
+       * The ceiling matters as much as the floor. This has to stay BELOW the
+       * portalled popovers that open from inside a modal, or they render
+       * behind it: the community app's Select is z-[200] and the admin's
+       * DatePicker is z-[9999]. 120 clears every app shell and stays under
+       * both. Anything opening from inside a modal must be above this.
+       */
+      className="fixed inset-0 bg-black/40 flex items-center justify-center z-[120] p-4"
       onClick={dismissOnBackdrop ? onClose : undefined}
     >
       <div
