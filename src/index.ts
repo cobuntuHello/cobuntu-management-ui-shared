@@ -30,3 +30,11 @@ export { GatePage } from "./ui/GatePage";
 export type { GatePageProps, GateReason } from "./ui/GatePage";
 
 export { cn } from "./lib/cn";
+
+export { resolveSubmitActions, willAutoApprove } from "./lib/submitActions";
+export type {
+  SubmitAction,
+  SubmitActionKind,
+  SubmitActionsInput,
+  MemberFeeModel,
+} from "./lib/submitActions";
