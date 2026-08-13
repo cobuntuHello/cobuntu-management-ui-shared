@@ -6,7 +6,11 @@ import {
   tierIsIncluded,
   toggleTier,
   tierAccessSummary,
+  ceilingFor,
+  clampToCeiling,
+  tierAccessConsequence,
 } from "../lib/tierAccess";
+import type { TierAccessValue } from "../lib/tierAccess";
 
 /**
  * The editor shows one list; the database stores an enum plus rows. These pin
@@ -107,5 +111,112 @@ describe("the collapsed summary", () => {
   it("says All members when the selection names nothing real", () => {
     // A tier deleted after being granted leaves an id that matches no name.
     expect(tierAccessSummary({ mode: "tiers", tierIds: ["gone"] }, TIERS)).toBe("All members");
+  });
+});
+
+/**
+ * ── Buying is a subset of seeing ────────────────────────────────────
+ *
+ * The two settings were independent state, so a listing could be saved as
+ * "visible to Founding only" AND "anyone can buy it". The view gate runs
+ * first so nobody could actually buy it, but the card asserted the opposite
+ * of what it did.
+ */
+describe("ceilingFor", () => {
+  it("constrains nothing when the listing is public", () => {
+    expect(ceilingFor({ mode: "public", tierIds: [] })).toEqual({
+      allowPublic: true, allowAll: true, tierIds: null,
+    });
+  });
+
+  it("forbids Public once the listing is members-only", () => {
+    expect(ceilingFor({ mode: "all", tierIds: [] })).toEqual({
+      allowPublic: false, allowAll: true, tierIds: null,
+    });
+  });
+
+  it("forbids both shortcuts and names the visible tiers", () => {
+    expect(ceilingFor({ mode: "tiers", tierIds: ["t1", "t2"] })).toEqual({
+      allowPublic: false, allowAll: false, tierIds: ["t1", "t2"],
+    });
+  });
+
+  it("returns null rather than [] for 'no tier restriction'", () => {
+    // [] would read as "no tier may buy", which is the opposite.
+    expect(ceilingFor({ mode: "all", tierIds: [] }).tierIds).toBeNull();
+  });
+});
+
+describe("clampToCeiling", () => {
+  it("pulls a public buy setting down when view goes members-only", () => {
+    const c = ceilingFor({ mode: "all", tierIds: [] });
+    expect(clampToCeiling({ mode: "public", tierIds: [] }, c)).toEqual({ mode: "all", tierIds: [] });
+  });
+
+  it("lands on the ceiling itself, the widest thing still allowed", () => {
+    // The seller narrowed who can SEE it and said nothing about buying, so
+    // buying stays as open as seeing rather than collapsing to one tier.
+    const c = ceilingFor({ mode: "tiers", tierIds: ["t1", "t2"] });
+    expect(clampToCeiling({ mode: "public", tierIds: [] }, c)).toEqual({ mode: "tiers", tierIds: ["t1", "t2"] });
+    expect(clampToCeiling({ mode: "all", tierIds: [] }, c)).toEqual({ mode: "tiers", tierIds: ["t1", "t2"] });
+  });
+
+  it("drops tiers that are no longer visible, keeping the rest", () => {
+    const c = ceilingFor({ mode: "tiers", tierIds: ["t1", "t2"] });
+    expect(clampToCeiling({ mode: "tiers", tierIds: ["t1", "t3"] }, c)).toEqual({ mode: "tiers", tierIds: ["t1"] });
+  });
+
+  it("falls back to the ceiling when every named tier went invisible", () => {
+    // An empty list would be "nobody can buy it", which nobody means.
+    const c = ceilingFor({ mode: "tiers", tierIds: ["t1"] });
+    expect(clampToCeiling({ mode: "tiers", tierIds: ["t3"] }, c)).toEqual({ mode: "tiers", tierIds: ["t1"] });
+  });
+
+  it("leaves a value that already fits alone", () => {
+    const c = ceilingFor({ mode: "public", tierIds: [] });
+    const v: TierAccessValue = { mode: "tiers", tierIds: ["t2"] };
+    expect(clampToCeiling(v, c)).toBe(v);
+  });
+});
+
+describe("toggleTier under a ceiling", () => {
+  it("collapses to the ceiling instead of to 'all', which would be wider", () => {
+    const c = ceilingFor({ mode: "tiers", tierIds: ["t1", "t2"] });
+    expect(toggleTier({ mode: "tiers", tierIds: ["t1"] }, "t2", ["t1", "t2"], c))
+      .toEqual({ mode: "tiers", tierIds: ["t1", "t2"] });
+  });
+
+  it("still collapses to 'all' when no ceiling forbids it", () => {
+    expect(toggleTier({ mode: "tiers", tierIds: ["t1"] }, "t2", ["t1", "t2"]))
+      .toEqual({ mode: "all", tierIds: [] });
+  });
+});
+
+describe("tierAccessConsequence", () => {
+  const T = [
+    { id: "t1", name: "Founding" },
+    { id: "t2", name: "Standard" },
+    { id: "t3", name: "Alumni" },
+  ];
+  const V = (mode: any, tierIds: string[] = []) => ({ mode, tierIds }) as TierAccessValue;
+
+  it("says nothing about a fully public listing", () => {
+    expect(tierAccessConsequence(V("public"), V("public"), T)).toBeNull();
+  });
+
+  it("names the split when anyone can see but only members can buy", () => {
+    expect(tierAccessConsequence(V("public"), V("all"), T))
+      .toBe("Anyone can find it, but only members can buy it.");
+  });
+
+  it("names who is left out, which is the whole point of the line", () => {
+    const s = tierAccessConsequence(V("all"), V("tiers", ["t1"]), T)!;
+    expect(s).toContain("Only Founding can buy it");
+    expect(s).toContain("Standard and Alumni will see it but not be able to buy");
+  });
+
+  it("reads back a tier-restricted view as an absence, not a restriction", () => {
+    expect(tierAccessConsequence(V("tiers", ["t1"]), V("tiers", ["t1"]), T))
+      .toBe("Only Founding can find it. Nobody else sees it anywhere in the community.");
   });
 });
