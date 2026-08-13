@@ -61,7 +61,14 @@ export function MembershipTierPicker({
         subtitle={publicLabel}
       />
       <Row
-        checked={value.mode !== "public"}
+        /*
+         * Ticked when it is TRUE, not merely when Public is off. An earlier
+         * cut used `mode !== "public"`, which left this ticked while a single
+         * tier was selected below - the row claimed "all members" while the
+         * listing was granted to one. Under Public it stays ticked because
+         * Public genuinely implies it.
+         */
+        checked={value.mode !== "tiers"}
         // Already implied by Public, so this cannot be unticked from there -
         // the way out is to untick Public itself.
         locked={value.mode === "public"}
