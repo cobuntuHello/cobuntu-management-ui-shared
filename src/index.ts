@@ -54,3 +54,6 @@ export {
   tierAccessConsequence,
 } from "./lib/tierAccess";
 export type { TierAccessMode, TierAccessValue, Visibility, TierAccessCeiling } from "./lib/tierAccess";
+
+export { fetchMembershipTiers } from "./lib/fetchMembershipTiers";
+export type { MembershipTierOption } from "./lib/fetchMembershipTiers";
