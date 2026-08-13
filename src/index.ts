@@ -45,8 +45,12 @@ export {
   toTierAccessValue,
   fromTierAccessValue,
   tierRowsLocked,
+  tierRowsImplied,
   tierIsIncluded,
   toggleTier,
   tierAccessSummary,
+  ceilingFor,
+  clampToCeiling,
+  tierAccessConsequence,
 } from "./lib/tierAccess";
-export type { TierAccessMode, TierAccessValue, Visibility } from "./lib/tierAccess";
+export type { TierAccessMode, TierAccessValue, Visibility, TierAccessCeiling } from "./lib/tierAccess";
