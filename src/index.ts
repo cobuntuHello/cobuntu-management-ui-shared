@@ -38,3 +38,15 @@ export type {
   SubmitActionsInput,
   MemberFeeModel,
 } from "./lib/submitActions";
+
+export { MembershipTierPicker } from "./ui/MembershipTierPicker";
+export type { MembershipTierPickerProps, MembershipTier } from "./ui/MembershipTierPicker";
+export {
+  toTierAccessValue,
+  fromTierAccessValue,
+  tierRowsLocked,
+  tierIsIncluded,
+  toggleTier,
+  tierAccessSummary,
+} from "./lib/tierAccess";
+export type { TierAccessMode, TierAccessValue, Visibility } from "./lib/tierAccess";
