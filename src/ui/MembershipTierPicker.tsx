@@ -20,14 +20,18 @@ import {
  * answers, so a nested tier can indent its label without dragging its control
  * along - which is what let the indent rail and its 26px offset go.
  *
- * ── Implied rows carry a tag, not a dead checkbox ───────────────────
+ * ── Every row is a checkbox, implied ones disabled ──────────────────
  *
  * Public and All members are shortcuts, not peers of the tiers below them:
  * both already imply every tier, and there must never be a state where the
- * heading says "Public" while the rows say something narrower. That used to be
- * drawn as ticked-and-greyed checkboxes, which reads as BROKEN rather than as
- * included. An implied row is now a label with an "Included" tag; the checkbox
- * appears only where clicking it does something.
+ * heading says "Public" while the rows say something narrower.
+ *
+ * That was drawn as an "Included" tag for a while, on the reasoning that a
+ * control which refuses the click is worse than no control. Correct about the
+ * semantics, wrong about reading: a column alternating between a box and a
+ * word cannot be scanned, so the eye has to parse every row individually to
+ * learn one thing. An implied row is a ticked, DISABLED box now - same answer,
+ * uniform column, still unclickable and still announced as disabled.
  *
  * ── The tier list hides below two tiers ─────────────────────────────
  *
@@ -103,9 +107,8 @@ export function MembershipTierPicker({
            * listing was granted to one.
            */
           checked={value.mode !== "tiers"}
-          // Under Public this is already included, so it gets the tag rather
-          // than a checkbox that would have to refuse the click. The way out
-          // is to untick Public itself.
+          // Under Public this is already included, so its box is ticked and
+          // disabled. The way out is to untick Public itself.
           implied={value.mode === "public"}
           onToggle={() => onChange({ mode: "all", tierIds: [] })}
           disabled={disabled}
@@ -182,24 +185,31 @@ function Row({
         )}
       </span>
 
-      {/* The control column. An implied row spends it on a word instead of a
-          checkbox that would have to refuse the click. */}
+      {/*
+        * The control column: ALWAYS a checkbox, one per row.
+        *
+        * An implied row used to spend it on the word "Included" instead. That
+        * was right about the semantics - the row is not a control, it is a
+        * consequence - and wrong about reading: a column that alternates
+        * between a box and a word cannot be scanned, and the eye has to parse
+        * each row individually to learn the same thing.
+        *
+        * So an implied row now shows a ticked, DISABLED box. Same answer,
+        * uniform column, and `disabled` plus the parent's aria-disabled still
+        * tell assistive tech it cannot be changed here.
+        */}
       <span className="shrink-0 ml-4">
-        {implied ? (
-          <span className="text-[11px] font-medium text-zinc-400 whitespace-nowrap">Included</span>
-        ) : (
-          <span
-            className={`w-[18px] h-[18px] rounded-[5px] border-[1.5px] grid place-items-center transition-colors ${
-              checked ? "bg-zinc-900 border-zinc-900" : "bg-white border-zinc-200"
-            } ${disabled ? "opacity-45" : ""}`}
-          >
-            {checked && (
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            )}
-          </span>
-        )}
+        <span
+          className={`w-[18px] h-[18px] rounded-[5px] border-[1.5px] grid place-items-center transition-colors ${
+            checked ? "bg-zinc-900 border-zinc-900" : "bg-white border-zinc-200"
+          } ${disabled || implied ? "opacity-40" : ""}`}
+        >
+          {checked && (
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+        </span>
       </span>
     </>
   );
@@ -208,10 +218,18 @@ function Row({
     indent ? "pl-8 pr-3 py-1.5" : "pl-3 pr-3 py-2"
   } ${divider ? "border-t border-zinc-100" : ""}`;
 
-  // An implied row is not a control, so it must not be a button - nothing to
-  // press, nothing to reach by keyboard, nothing to announce as a checkbox.
+  /*
+   * An implied row is not a control: nothing to press, nothing to reach by
+   * keyboard. It is announced as a DISABLED checkbox rather than as plain
+   * text, so the column reads the same way to a screen reader as it looks -
+   * every row a checkbox, this one already ticked and not yours to change.
+   */
   if (implied) {
-    return <div className={`${shape} cursor-default`}>{body}</div>;
+    return (
+      <div className={`${shape} cursor-default`} role="checkbox" aria-checked="true" aria-disabled="true">
+        {body}
+      </div>
+    );
   }
 
   return (

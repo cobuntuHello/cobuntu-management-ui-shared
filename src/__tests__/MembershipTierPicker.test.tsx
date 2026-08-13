@@ -31,19 +31,28 @@ const row = (name: string) => screen.getByRole("checkbox", { name: new RegExp(na
 const queryRow = (name: string) => screen.queryByRole("checkbox", { name: new RegExp(name) });
 
 describe("under a shortcut", () => {
-  it("marks every tier Included rather than as a checkbox that refuses clicks", () => {
+  it("shows every implied tier as a ticked, disabled checkbox", () => {
+    /*
+     * The column is uniform on purpose: an "Included" tag here reads fine on
+     * one row and badly down a list, because a column that alternates between
+     * a box and a word cannot be scanned.
+     */
     setup({ mode: "public", tierIds: [] });
     for (const t of TIERS) {
-      expect(screen.getByText(t.name)).toBeInTheDocument();
-      expect(queryRow(t.name)).toBeNull();
+      const r = row(t.name);
+      expect(r).toHaveAttribute("aria-checked", "true");
+      expect(r).toHaveAttribute("aria-disabled", "true");
     }
-    // One tag per implied tier, plus one for the All members row Public implies.
-    expect(screen.getAllByText("Included")).toHaveLength(TIERS.length + 1);
+    expect(screen.queryByText("Included")).toBeNull();
   });
 
   it("gives an implied tier nothing to click", () => {
-    setup({ mode: "all", tierIds: [] });
-    expect(queryRow("Founding")).toBeNull();
+    // Announced as a checkbox for the column's sake, but it is not a button
+    // and toggling it does nothing.
+    const onChange = setup({ mode: "all", tierIds: [] });
+    fireEvent.click(row("Founding"));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(row("Founding").tagName).not.toBe("BUTTON");
   });
 
   it("still renders the tiers rather than hiding them", () => {
@@ -62,9 +71,12 @@ describe("switching modes", () => {
 
   it("cannot untick All members while Public is on", () => {
     // The way out of Public is Public, not the row it implies - so that row is
-    // not a control at all while Public is set.
-    setup({ mode: "public", tierIds: [] });
-    expect(queryRow("All members")).toBeNull();
+    // ticked, disabled, and does not respond.
+    const onChange = setup({ mode: "public", tierIds: [] });
+    const r = row("All members");
+    expect(r).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(r);
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
 
