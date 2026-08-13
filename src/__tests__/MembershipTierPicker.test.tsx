@@ -91,3 +91,20 @@ describe("a community with no tiers", () => {
     expect(screen.getByText(/no membership tiers yet/)).toBeInTheDocument();
   });
 });
+
+describe("the All members row tells the truth", () => {
+  it("is NOT ticked when only some tiers are selected", () => {
+    /*
+     * Caught on screen, not by a test: it read `mode !== "public"`, so
+     * selecting a single tier left "All members" ticked above it. The row
+     * claimed every member while the listing was granted to one.
+     */
+    setup({ mode: "tiers", tierIds: ["t1"] });
+    expect(row("All members")).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("is ticked for All members and for Public, which implies it", () => {
+    setup({ mode: "all", tierIds: [] });
+    expect(row("All members")).toHaveAttribute("aria-checked", "true");
+  });
+});
