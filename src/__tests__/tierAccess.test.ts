@@ -220,3 +220,26 @@ describe("tierAccessConsequence", () => {
       .toBe("Only Founding can find it. Nobody else sees it anywhere in the community.");
   });
 });
+
+describe("the consequence line speaks the right verb", () => {
+  const T = [{ id: "t1", name: "Founding" }, { id: "t2", name: "Standard" }];
+  const V = (mode: any, tierIds: string[] = []) => ({ mode, tierIds }) as TierAccessValue;
+
+  it("says buy for products", () => {
+    expect(tierAccessConsequence(V("public"), V("all"), T))
+      .toBe("Anyone can find it, but only members can buy it.");
+  });
+
+  it("says register for events", () => {
+    // The same card renders for both. "Only Founding can buy it" under an
+    // event is wrong in the one place the line exists to be right.
+    expect(tierAccessConsequence(V("public"), V("all"), T, "register"))
+      .toBe("Anyone can find it, but only members can register.");
+  });
+
+  it("uses the verb in the left-out clause too", () => {
+    const s = tierAccessConsequence(V("all"), V("tiers", ["t1"]), T, "register")!;
+    expect(s).toContain("Only Founding can register");
+    expect(s).toContain("not be able to register");
+  });
+});

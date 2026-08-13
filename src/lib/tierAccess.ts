@@ -185,7 +185,14 @@ export function tierAccessConsequence(
   view: TierAccessValue,
   buy: TierAccessValue,
   tiers: Array<{ id: string; name: string }>,
+  /*
+   * Events register, products are bought. The same card renders for both, and
+   * a sentence reading "only Founding can buy it" under an event's access
+   * settings is wrong in the one place the whole line exists to be right.
+   */
+  verb: "buy" | "register" = "buy",
 ): string | null {
+  const V = verb === "register" ? "register" : "buy it";
   const nameOf = (ids: string[]) =>
     tiers.filter((t) => ids.includes(t.id)).map((t) => t.name);
   const list = (names: string[]) =>
@@ -196,11 +203,11 @@ export function tierAccessConsequence(
   if (view.mode === "public" && buy.mode === "public") return null;
 
   if (view.mode === "public" && buy.mode === "all") {
-    return "Anyone can find it, but only members can buy it.";
+    return `Anyone can find it, but only members can ${V}.`;
   }
   if (view.mode === "public" && buy.mode === "tiers") {
     const names = list(nameOf(buy.tierIds));
-    return `Anyone can find it. Only ${names} can buy it — everyone else is offered the tier.`;
+    return `Anyone can find it. Only ${names} can ${V} — everyone else is offered the tier.`;
   }
   if (view.mode === "all" && buy.mode === "all") {
     return "Members only, at any tier. Nobody outside the community will find it.";
@@ -208,13 +215,13 @@ export function tierAccessConsequence(
   if (view.mode === "all" && buy.mode === "tiers") {
     const buyers = nameOf(buy.tierIds);
     const others = tiers.filter((t) => !buy.tierIds.includes(t.id)).map((t) => t.name);
-    const tail = others.length > 0 ? ` ${list(others)} will see it but not be able to buy.` : "";
-    return `Every member can find it. Only ${list(buyers)} can buy it.${tail}`;
+    const tail = others.length > 0 ? ` ${list(others)} will see it but not be able to ${verb === "register" ? "register" : "buy"}.` : "";
+    return `Every member can find it. Only ${list(buyers)} can ${V}.${tail}`;
   }
   if (view.mode === "tiers") {
     const viewers = list(nameOf(view.tierIds));
     if (buy.mode === "tiers" && buy.tierIds.length < view.tierIds.length) {
-      return `Only ${viewers} can find it, and only ${list(nameOf(buy.tierIds))} can buy it.`;
+      return `Only ${viewers} can find it, and only ${list(nameOf(buy.tierIds))} can ${V}.`;
     }
     return `Only ${viewers} can find it. Nobody else sees it anywhere in the community.`;
   }
