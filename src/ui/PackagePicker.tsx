@@ -20,6 +20,18 @@ export interface PackagePickerProps {
   disabled?: boolean;
   /** Shown when the tier has nothing published. */
   emptyLabel?: string;
+  /**
+   * Cobuntu's own fee on the seller's share, disclosed alongside the
+   * community's rate. Omit on surfaces where the viewer is not the one paying
+   * it — a leader reviewing a request is not.
+   */
+  platformFee?: {
+    /** Percent of the seller's share. */
+    rate: number;
+    /** Fixed part, in the smallest currency unit. */
+    fixedCents: number;
+    currencySymbol?: string;
+  } | null;
 }
 
 /**
@@ -48,6 +60,7 @@ export function PackagePicker({
   communityName,
   disabled = false,
   emptyLabel,
+  platformFee,
 }: PackagePickerProps) {
   if (packages.length === 0) {
     return (
@@ -57,6 +70,10 @@ export function PackagePicker({
       </p>
     );
   }
+
+  const feeLine = platformFee
+    ? `${formatRate(platformFee.rate)}% + ${platformFee.currencySymbol ?? "\u20ac"}${(platformFee.fixedCents / 100).toFixed(2)}`
+    : null;
 
   return (
     <div className="flex flex-col gap-2">
@@ -110,6 +127,31 @@ export function PackagePicker({
           </button>
         );
       })}
+
+      {/*
+        * Cobuntu's fee, said out loud at the moment the member is deciding.
+        *
+        * A fee disclosed only in the earnings breakdown is a fee discovered
+        * after the fact, and a seller cannot price their product without it.
+        * It sits BELOW the packages rather than inside each one because it is
+        * the same on every option — repeating it per card would imply it varies
+        * with the choice, which is the one thing it does not do.
+        *
+        * "Card processing included" is the load-bearing half. Without it a
+        * seller assumes Stripe comes on top, which is what every other platform
+        * they have used does.
+        */}
+      {feeLine && (
+        <p className="m-0 mt-1 text-[11.5px] leading-relaxed text-zinc-500">
+          Cobuntu charges {feeLine} of your share on top, card processing
+          included.
+        </p>
+      )}
     </div>
   );
+}
+
+/** 4 rather than 4.0, 2.5 stays 2.5 — a trailing zero reads as false precision. */
+function formatRate(rate: number): string {
+  return Number.isInteger(rate) ? String(rate) : String(rate);
 }
