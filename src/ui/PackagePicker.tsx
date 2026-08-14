@@ -75,6 +75,44 @@ export function PackagePicker({
     ? `${formatRate(platformFee.rate)}% + ${platformFee.currencySymbol ?? "\u20ac"}${(platformFee.fixedCents / 100).toFixed(2)}`
     : null;
 
+  /*
+   * ONE package is not a choice.
+   *
+   * Rendering it as a pre-selected radio asks someone to pick from a list of
+   * one, which is friction pretending to be consent. But the terms still have
+   * to be SHOWN — they are agreeing to them, and the description is the reason
+   * the rate is acceptable — so it becomes a statement rather than a control.
+   *
+   * The value is still reported through onChange on mount by the host, so
+   * nothing downstream has to special-case it.
+   */
+  if (packages.length === 1) {
+    const only = packages[0];
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="rounded-[11px] border border-zinc-200 bg-zinc-50 px-3.5 py-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <span className="text-[13.5px] font-semibold text-zinc-900">{only.name}</span>
+            <span className="text-[13.5px] font-bold tabular-nums text-zinc-900">
+              {only.rate}%
+            </span>
+          </div>
+          {only.description ? (
+            <p className="m-0 mt-1 whitespace-pre-wrap text-[12px] leading-relaxed text-zinc-500">
+              {only.description}
+            </p>
+          ) : null}
+        </div>
+        {feeLine && (
+          <p className="m-0 mt-1 text-[11.5px] leading-relaxed text-zinc-500">
+            Cobuntu charges {feeLine} of your share on top, card processing
+            included.
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-2">
       {packages.map((pkg) => {
