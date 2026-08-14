@@ -31,6 +31,19 @@ export interface PackagePickerProps {
     /** Fixed part, in the smallest currency unit. */
     fixedCents: number;
     currencySymbol?: string;
+    /*
+     * What the payment processor takes out of the figure above.
+     *
+     * The charge is ALL-IN — Cobuntu pays Stripe out of it rather than
+     * deducting separately — so a single "Cobuntu charges 4% + EUR 0.30"
+     * overstates what Cobuntu keeps by roughly 60%: at Stripe's 1.5% + EUR
+     * 0.25, Cobuntu's own take is 2.5% + EUR 0.05.
+     *
+     * Optional. Given, the fee renders as a breakdown; omitted, it stays the
+     * single all-in line, so a caller that has not been updated is unchanged
+     * rather than silently claiming a split it cannot substantiate.
+     */
+    processing?: { rate: number; fixedCents: number } | null;
   } | null;
 }
 
@@ -71,6 +84,19 @@ export function PackagePicker({
     );
   }
 
+  const sym = platformFee?.currencySymbol ?? "\u20ac";
+  /*
+   * Cobuntu's share is the all-in charge MINUS what the processor takes, which
+   * is the only figure a premium subscription could ever remove — the processor
+   * charges per transaction regardless.
+   */
+  const feeSplit =
+    platformFee && platformFee.processing
+      ? {
+          processing: `${formatRate(platformFee.processing.rate)}% + ${sym}${(platformFee.processing.fixedCents / 100).toFixed(2)}`,
+          platform: `${formatRate(platformFee.rate - platformFee.processing.rate)}% + ${sym}${((platformFee.fixedCents - platformFee.processing.fixedCents) / 100).toFixed(2)}`,
+        }
+      : null;
   const feeLine = platformFee
     ? `${formatRate(platformFee.rate)}% + ${platformFee.currencySymbol ?? "\u20ac"}${(platformFee.fixedCents / 100).toFixed(2)}`
     : null;
@@ -126,11 +152,13 @@ export function PackagePicker({
             disabled={disabled}
             onClick={() => onChange(pkg.id)}
             className={cn(
-              "rounded-[11px] border px-3.5 py-3 text-left transition-all",
+              // An offer, not a list row: room to breathe, and a selected
+              // state that reads without relying on the 1px border alone.
+              "rounded-[14px] border px-4 py-4 text-left transition-all",
               disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
               selected
-                ? "border-zinc-900 shadow-[0_0_0_1px_#18181b]"
-                : "border-zinc-200 hover:border-zinc-300",
+                ? "border-zinc-900 bg-zinc-50 shadow-[0_0_0_1px_#18181b]"
+                : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50/60",
             )}
           >
             <span className="flex items-start gap-2.5">
@@ -148,15 +176,15 @@ export function PackagePicker({
 
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <span className="text-[13.5px] font-semibold text-zinc-900">
+                  <span className="text-[14.5px] font-semibold text-zinc-900">
                     {pkg.name}
                   </span>
-                  <span className="text-[13.5px] font-bold tabular-nums tracking-tight text-zinc-900">
+                  <span className="text-[17px] font-bold tabular-nums tracking-tight text-zinc-900">
                     {pkg.rate}%
                   </span>
                 </span>
                 {pkg.description ? (
-                  <span className="mt-1 block whitespace-pre-wrap text-[12px] leading-relaxed text-zinc-500">
+                  <span className="mt-1.5 block whitespace-pre-wrap text-[12.5px] leading-relaxed text-zinc-500">
                     {pkg.description}
                   </span>
                 ) : null}
@@ -180,10 +208,33 @@ export function PackagePicker({
         * they have used does.
         */}
       {feeLine && (
-        <p className="m-0 mt-1 text-[11.5px] leading-relaxed text-zinc-500">
-          Cobuntu charges {feeLine} of your share on top, card processing
-          included.
-        </p>
+        feeSplit ? (
+          /*
+           * Split, because only one of these two lines is ours and only one of
+           * them could ever go away. Lumping them together overstates Cobuntu's
+           * take and makes any future "we waive our fee" claim unreadable.
+           */
+          <div className="mt-2.5 rounded-[11px] border border-zinc-200 bg-zinc-50/70 px-3.5 py-2.5">
+            <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+              On top of the community&apos;s rate
+            </p>
+            <dl className="m-0 mt-1.5 flex flex-col gap-1">
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="m-0 text-[12px] text-zinc-500">Card processing</dt>
+                <dd className="m-0 text-[12px] font-semibold tabular-nums text-zinc-700">{feeSplit.processing}</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="m-0 text-[12px] text-zinc-500">Cobuntu</dt>
+                <dd className="m-0 text-[12px] font-semibold tabular-nums text-zinc-700">{feeSplit.platform}</dd>
+              </div>
+            </dl>
+          </div>
+        ) : (
+          <p className="m-0 mt-1 text-[11.5px] leading-relaxed text-zinc-500">
+            Cobuntu charges {feeLine} of your share on top, card processing
+            included.
+          </p>
+        )
       )}
     </div>
   );
