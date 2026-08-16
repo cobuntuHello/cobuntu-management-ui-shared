@@ -55,13 +55,25 @@ export type SubmitActionKind =
   | "savePublish"
   | "saveRequest"
   | "create"
-  | "createRequest";
+  | "createRequest"
+  | "createList";
 
 export interface SubmitAction {
   kind: SubmitActionKind;
   label: string;
   /** `publish` to send to the create endpoint. Undefined where it has no meaning. */
   publish?: boolean;
+  /**
+   * Whether this action asks for a listing at all.
+   *
+   * The wizard used to ask this as a separate question, on a step with two
+   * cards. It was the same question the buttons already answer -- "create it"
+   * versus "create it and put it on a shelf" -- so the cards asked it twice and
+   * could contradict the footer. The answer now rides on the action.
+   *
+   * false on `create`, true on everything that lists.
+   */
+  requestListing: boolean;
   /** Whether this is the visually primary action. Exactly one is. */
   primary: boolean;
 }
@@ -116,37 +128,47 @@ export function willAutoApprove(input: SubmitActionsInput): boolean {
 
 export function resolveSubmitActions(input: SubmitActionsInput): SubmitAction[] {
   /*
-   * Declining a listing settles the button on its own, BEFORE the policy fork.
+   * Two buttons, always: make it, or make it and put it on a shelf.
    *
-   * A community's approval policy governs listings, and this item is not
-   * getting one, so none of it applies — including the leader case, where
-   * `willAutoApprove` would otherwise offer "Save & Publish" for a shelf that
-   * does not exist. There is nothing to publish and nobody to ask, so there is
-   * one button and it says what it does.
+   * ── Why the shape changed ──────────────────────────────────────────────
+   *
+   * This used to return a different SET per policy: one button for a member
+   * awaiting review, two ("Save" / "Save & Publish") for anyone auto-approved,
+   * and a lone "Create" when a separate step had asked whether to list at all.
+   *
+   * That step is gone, because it asked the same question these buttons
+   * answer. Which meant the wizard could contradict itself: the cards said
+   * "just create it for now" while the only button said "Request Listing".
+   *
+   * So the pair is now constant and only the SECOND label varies, on one fact:
+   * can this person put it on the shelf themselves, or must they ask?
+   *
+   *   auto-approved  ->  Create & List      (it goes up now)
+   *   reviewed       ->  Create & Request Listing  (a leader decides)
+   *
+   * `create` is identical in every flow -- the item is made, listed nowhere,
+   * visible only to its owner. A leader's Create and a member's Create do the
+   * same thing; being a leader changes what the OTHER button does.
    */
-  if (input.wantsListing === false) {
-    // No `publish` flag: it is a listing's state, and there is no listing.
-    return [{ kind: "create", label: "Create", primary: true }];
-  }
-  if (!willAutoApprove(input)) {
-    /*
-     * "Create & …" once the seller has been asked, "Save & …" otherwise.
-     *
-     * Save was honest when this was the last button on a long form. In the
-     * wizard the item does not exist yet — Save implies revising something
-     * already there, and the seller has just answered a question about a thing
-     * they have not made. Create is the verb that matches the moment.
-     */
-    return input.wantsListing === true
-      ? [{ kind: "createRequest", label: "Create & Request Listing", primary: true }]
-      : [{ kind: "saveRequest", label: "Save & Request Listing", primary: true }];
-  }
-  return [
-    // Save is deliberately the SECONDARY action. Both are safe, but the
-    // common intent when someone has just filled in a whole form is to put
-    // the thing live, and a primary "Save" would quietly bury that behind an
-    // extra step on /manage — which is the papercut this replaces.
-    { kind: "save", label: "Save", publish: false, primary: false },
-    { kind: "savePublish", label: "Save & Publish", publish: true, primary: true },
-  ];
+  const create: SubmitAction = {
+    kind: "create",
+    label: "Create",
+    // No `publish`: that is a listing's state, and this makes no listing.
+    requestListing: false,
+    primary: false,
+  };
+
+  /*
+   * "List", not "Publish".
+   *
+   * Publish describes a shelf appearing out of nowhere. Listing is the word
+   * this domain already uses everywhere else -- listing requests, the Listings
+   * tab, community_listings -- and the act really is "put it on a shelf",
+   * which is what a listing IS.
+   */
+  const second: SubmitAction = willAutoApprove(input)
+    ? { kind: "createList", label: "Create & List", publish: true, requestListing: true, primary: true }
+    : { kind: "createRequest", label: "Create & Request Listing", publish: false, requestListing: true, primary: true };
+
+  return [create, second];
 }
