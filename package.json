@@ -1,6 +1,6 @@
 {
   "name": "@cobuntu/management-ui-shared",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Shared primitives consumed by @cobuntu/event-management-ui and @cobuntu/product-management-ui. ModalShell, TextField, NumberField, SectionCard, WizardProgress, DiscardPrompt, BillingRadio, DiscountModeRadio, PackagePicker, PackageNegotiation.",
   "private": true,
   "main": "./src/index.ts",
