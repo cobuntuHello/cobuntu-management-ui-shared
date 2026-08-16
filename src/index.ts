@@ -32,6 +32,7 @@ export type { GatePageProps, GateReason } from "./ui/GatePage";
 export { cn } from "./lib/cn";
 
 export { resolveSubmitActions, willAutoApprove } from "./lib/submitActions";
+export { fitWithin, drawFitted, MAX_IMAGE_EDGE, IMAGE_QUALITY, type Sized } from "./lib/image";
 export type {
   SubmitAction,
   SubmitActionKind,
