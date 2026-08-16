@@ -67,3 +67,6 @@ export type {
   PendingProposal,
   NegotiationRole,
 } from "./ui/PackageNegotiation";
+
+export { BannerPlaceholder, bannerPlaceholderGradient, bannerPlaceholderHash } from "./ui/BannerPlaceholder";
+export type { BannerPlaceholderProps } from "./ui/BannerPlaceholder";
