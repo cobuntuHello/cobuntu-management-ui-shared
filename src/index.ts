@@ -129,6 +129,8 @@ export {
  * the admin's own copies of those, so porting them back would be a round trip.
  */
 export { LISTING_TOKENS, listingTokenStyle } from "./listings/ui/tokens";
+export { DealSpine } from "./listings/ui/DealSpine";
+export { NextAction } from "./listings/ui/NextAction";
 export {
   Card,
   ColumnHeader,

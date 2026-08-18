@@ -39,9 +39,17 @@ describe("the waiting banner", () => {
         /*
          * The state is the same for both — PENDING is PENDING. What differs is
          * who is reading it, so the branch has to be the seat.
+         *
+         * The inline banner this used to assert is now `NextAction`, ported
+         * from the MVP: same rule, its own component, and the panel hands it
+         * the seat. Asserted at the seam rather than inside the branch, so a
+         * further redesign of the sentence does not fail this.
          */
-        expect(SRC).toMatch(/viewer === "leader"\s*\?\s*t\("waitingLeaderTitle"\)/);
-        expect(SRC).toMatch(/viewer === "leader" \? t\("waitingLeaderBody"\) : t\("waitingBody"\)/);
+        const next = readFileSync(join(process.cwd(), "src/listings/ui/NextAction.tsx"), "utf8");
+        expect(SRC).toMatch(/<NextAction[\s\S]*?viewer=\{viewer\}/);
+        expect(next).toMatch(/viewer === "leader"/);
+        // And the turn is derived from state + seat, never stored.
+        expect(next).toMatch(/const waitingOn: "owner" \| "leader"/);
     });
 
     it("keeps the seller's wording untouched", () => {

@@ -5,6 +5,9 @@ import Link from "next/link";
 import { createPortal } from "react-dom";
 import { Clock } from "lucide-react";
 import { defaultTranslate } from "./copy";
+import { DealSpine } from "./ui/DealSpine";
+import { NextAction } from "./ui/NextAction";
+import { listingTokenStyle } from "./ui/tokens";
 import {
   isClosedState,
   normalizeListingState,
@@ -287,15 +290,36 @@ export function ManagedListingDetail({
     }
   }
 
+  /**
+   * The spine offers a RATE; the endpoint takes a PACKAGE.
+   *
+   * A counter moves the listing between arrangements the community has
+   * PUBLISHED — a rate that is not one of theirs is a private deal, and the
+   * backend refuses it outright. So the number is resolved back to the package
+   * that charges it, and an unmatched number opens the picker instead of
+   * silently posting something that will 400.
+   */
+  async function counterToRate(target: number) {
+    if (offered.length === 0) { await openCompose(); return; }
+    const match = offered.find((p) => Number(p.rate) === Number(target));
+    if (!match) { await openCompose(); setComposing(true); return; }
+    setPickedPackage(match.id);
+    await postProposal(match.id, note.trim() || undefined);
+  }
+
   async function sendProposal() {
     if (!pickedPackage) return;
+    await postProposal(pickedPackage, note.trim() || undefined);
+  }
+
+  async function postProposal(packageId: string, message?: string) {
     setPosting(true);
     try {
       const res = await fetch(`${base}/${encodeURIComponent(listingId)}/proposals`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
         credentials: "include",
-        body: JSON.stringify({ packageId: pickedPackage, message: note.trim() || undefined }),
+        body: JSON.stringify({ packageId, message }),
       });
       if (!res.ok) throw new Error(String(res.status));
       /*
@@ -326,7 +350,14 @@ export function ManagedListingDetail({
   const reviewActions = viewer === "leader" ? reviewerListingActions(state) : [];
 
   return (
-    <div>
+    /*
+     * The palette is applied HERE and nowhere else.
+     *
+     * Inline custom properties on the panel's own root: they cascade to every
+     * child, need no build config in either host, and cannot leak out and
+     * restyle the app around them — which a stylesheet on :root would.
+     */
+    <div style={listingTokenStyle()}>
       {toast && (
         <div className="fixed top-4 right-4 z-50 bg-zinc-900 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-lg">
           {toast}
@@ -368,48 +399,50 @@ export function ManagedListingDetail({
         need to know is that nothing is required of them: it is with the
         community, and the thread below is where the answer will appear.
       */}
-      {waiting && (
-        <div className="rounded-2xl bg-amber-50 px-6 py-5 mb-6 flex gap-3">
-          <Clock className="w-[18px] h-[18px] text-amber-700 shrink-0 mt-0.5" strokeWidth={2} />
-          <div>
-            {/*
-              * Whose turn it is, said in WORDS and from the right seat.
-              *
-              * This banner only ever spoke to the seller: a leader opening the
-              * request they are supposed to answer was told "there is nothing
-              * for you to do until they answer" — about themselves. The state
-              * was right and the audience was never checked.
-              *
-              * The mockup this page is built from puts it plainly: whose move
-              * it is should never have to be inferred from which buttons are
-              * enabled. So it is stated, and it is stated per viewer.
-              */}
-            <h2 className="text-[14px] font-semibold text-amber-900">
-              {viewer === "leader"
-                ? t("waitingLeaderTitle")
-                : t("waitingTitle", { community: community?.name || t("community") })}
-            </h2>
-            <p className="text-[13px] text-amber-800 mt-1">
-              {viewer === "leader" ? t("waitingLeaderBody") : t("waitingBody")}
-            </p>
-          </div>
-        </div>
-      )}
+      {/*
+        * Whose turn, in words, from the reader's seat.
+        *
+        * Replaces a banner that only ever addressed the seller — a leader was
+        * told "there is nothing for you to do until they answer", about
+        * themselves, above an Approve button.
+        */}
+      <NextAction
+        state={state}
+        viewer={viewer}
+        communityName={community?.name || t("community")}
+        sellerName={listing.requestedBy?.name ?? null}
+        lastProposalFrom={
+          proposals.length === 0
+            ? null
+            : (proposals[0]?.proposedBy?.id && listing.requestedBy?.id &&
+               proposals[0].proposedBy.id === listing.requestedBy.id)
+              ? "owner"
+              : "leader"
+        }
+        t={t}
+      />
 
-      {/* Terms */}
-      <div className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100 overflow-hidden mb-6">
-        <div className="px-6 py-4 border-b border-zinc-100">
-          <h2 className="text-[14px] font-semibold text-zinc-900">{t("termsTitle")}</h2>
-        </div>
-        <dl className="px-6 py-4 space-y-3">
-          <Row label={t("package")} value={packageName ?? (listing.packageId ? t("packageUnnamed") : t("packageNone"))} />
-          <Row label={t("commission")} value={rate === null ? t("rateNotAgreed") : t("rate", { rate })} />
-          {listing.createdAt && (
-            <Row label={t("requested")} value={formatDate(listing.createdAt)} />
-          )}
-          {listing.rejectionReason && (
-            <Row label={t("communityNote")} value={listing.rejectionReason} />
-          )}
+      {/*
+        * The commission, drawn as a cut of every sale rather than listed as a
+        * row in a table. A number in a definition list is a fact; the spine
+        * shows what it is a share OF, which is the thing being agreed.
+        *
+        * The package name and the request date sit under it — they describe
+        * the deal, they are not the deal.
+        */}
+      <div className="mb-6">
+        <DealSpine
+          rate={rate}
+          communityName={community?.name || t("community")}
+          locked={state === "ACTIVE"}
+          onCounter={canCounter ? (r) => void counterToRate(r) : undefined}
+          counterLabel={t("counterOpen")}
+          t={t}
+        />
+        <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 px-1">
+          <Meta label={t("package")} value={packageName ?? (listing.packageId ? t("packageUnnamed") : t("packageNone"))} />
+          {listing.createdAt && <Meta label={t("requested")} value={formatDate(listing.createdAt)} />}
+          {listing.rejectionReason && <Meta label={t("communityNote")} value={listing.rejectionReason} />}
         </dl>
       </div>
 
@@ -703,4 +736,21 @@ function formatDate(iso: string): string {
   return Number.isNaN(d.getTime())
     ? ""
     : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+
+/**
+ * One fact ABOUT the deal, beside the others.
+ *
+ * The package name and the request date used to be rows in a table alongside
+ * the commission, which gave all three the same weight. The commission is the
+ * thing being agreed; these describe it. Same information, correct hierarchy.
+ */
+function Meta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <dt className="text-[11px] font-semibold uppercase tracking-[.1em] text-[var(--ink-3)]">{label}</dt>
+      <dd className="m-0 text-[13px] text-[var(--ink-2)]">{value}</dd>
+    </div>
+  );
 }

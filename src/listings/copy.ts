@@ -15,6 +15,20 @@
  * it already had.
  */
 export const LISTING_DETAIL_COPY: Record<string, string> = {
+    /* The commission spine, ported from the negotiation MVP. */
+    spineHeading: "The community's cut",
+    spineSub: "of every sale, split as shown",
+    spineNotAgreed: "Nothing agreed yet",
+    spineOffer: "Offer",
+    /* Whose turn, said in words rather than inferred from the buttons. */
+    turnMine: "Your turn",
+    turnTheirs: "They are on it",
+    turnLeaderBody: "This request is waiting on you. Agree the terms below, or propose different ones.",
+    turnOwnerBody: "They have answered. Take a look at the terms below.",
+    turnWaitBody: "Nothing for you to do until they answer. Their reply shows up below.",
+    settledTitle: "You both shook on it",
+    settledBody: "This listing is live.",
+    theSeller: "the seller",
     waitingLeaderTitle: "Your turn",
     waitingLeaderBody: "This request is waiting on you. Agree the terms below, or propose different ones.",
     approve: "Approve & publish",
