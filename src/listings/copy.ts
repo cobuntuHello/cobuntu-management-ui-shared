@@ -22,7 +22,7 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     spineOffer: "Offer",
     /* Whose turn, said in words rather than inferred from the buttons. */
     turnMine: "Your turn",
-    turnTheirs: "They are on it",
+    turnTheirs: "{other} is on it",
     turnLeaderBody: "This request is waiting on you. Agree the terms below, or propose different ones.",
     turnOwnerBody: "They have answered. Take a look at the terms below.",
     turnWaitBody: "Nothing for you to do until they answer. Their reply shows up below.",

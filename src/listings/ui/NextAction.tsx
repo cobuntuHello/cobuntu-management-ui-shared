@@ -134,7 +134,7 @@ export function NextAction({
                           `${openTopics} topic${openTopics === 1 ? "" : "s"} still open`)
                     : mine
                         ? label("turnMine", "Your turn")
-                        : label("turnTheirs", `${other} is on it`)}
+                        : say("turnTheirs", { other }, `${other} is on it`)}
             </p>
             <p className="mt-1 text-[13.5px] leading-relaxed text-[var(--ink-2)]">
                 {/*

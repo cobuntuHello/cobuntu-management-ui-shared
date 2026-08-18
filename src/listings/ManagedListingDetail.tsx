@@ -120,10 +120,26 @@ export interface ManagedListingDetailProps {
   backHref: string;
   /** Name of the thing being listed, for the breadcrumb. */
   itemName?: string | null;
+  /**
+   * The trail to this page, innermost LAST. The final crumb renders as plain
+   * text; every earlier one links.
+   *
+   * Passed in rather than built here because the two apps arrive by different
+   * routes and should say so. A member gets here through their own product
+   * (Marketplace / Chair / Cobuntu) and wants the middle crumb to take them
+   * back to managing it; a leader gets here from a review queue (Product
+   * listing requests / Chair) and has no manage page to return to. The panel
+   * knows neither app's routing, and the version that guessed said "Listings"
+   * to both of them.
+   *
+   * Omitted, it falls back to that old two-crumb shape, so a host that has not
+   * been updated keeps working.
+   */
+  breadcrumbs?: Array<{ label: string; href?: string }>;
 }
 
 export function ManagedListingDetail({
-  kind, listingId, backHref, itemName,
+  kind, listingId, backHref, itemName, breadcrumbs,
   apiBaseUrl = "", authHeaders, t: translate, viewer = "owner", brand,
 }: ManagedListingDetailProps & ListingDetailConfig) {
   const t = translate ?? defaultTranslate;
@@ -495,10 +511,20 @@ export function ManagedListingDetail({
         </div>
       )}
 
-      <div className="flex items-center gap-2 text-[13px] text-zinc-400 mb-4">
-        <Link href={backHref} className="hover:text-zinc-600 cursor-pointer">{t("listings")}</Link>
-        <span>/</span>
-        <span className="text-zinc-600">{community?.name || t("community")}</span>
+      <div className="flex flex-wrap items-center gap-2 text-[13px] text-zinc-400 mb-4">
+        {(breadcrumbs ?? [
+          { label: t("listings"), href: backHref },
+          { label: community?.name || t("community") },
+        ]).map((crumb, i, all) => (
+          <span key={`${crumb.label}-${i}`} className="flex items-center gap-2 min-w-0">
+            {i > 0 && <span aria-hidden>/</span>}
+            {crumb.href && i < all.length - 1 ? (
+              <Link href={crumb.href} className="hover:text-zinc-600 cursor-pointer truncate">{crumb.label}</Link>
+            ) : (
+              <span className="text-zinc-600 truncate">{crumb.label}</span>
+            )}
+          </span>
+        ))}
       </div>
 
       <div className="flex items-center gap-3 mb-6">

@@ -128,3 +128,22 @@ describe("the dots", () => {
         expect(container.querySelectorAll("span.size-2\\.5")).toHaveLength(0);
     });
 });
+
+/**
+ * The banner names who is holding it, rather than saying "they".
+ *
+ * The copy read "They are on it" while the no-translator fallback read
+ * "{name} is on it", so the two hosts said different things — and the app with
+ * translations said the vaguer one, on the page where knowing WHO is the point.
+ */
+describe("naming the other party", () => {
+    it("says who is on it, not 'they'", () => {
+        render(<NextAction {...base} viewer="owner" lastProposalFrom={null} />);
+        expect(screen.getByText("PBN is on it")).toBeInTheDocument();
+    });
+
+    it("names the seller when the leader is the one waiting", () => {
+        render(<NextAction {...base} viewer="leader" lastProposalFrom="leader" />);
+        expect(screen.getByText("Stella is on it")).toBeInTheDocument();
+    });
+});
