@@ -136,10 +136,23 @@ export interface ManagedListingDetailProps {
    * been updated keeps working.
    */
   breadcrumbs?: Array<{ label: string; href?: string }>;
+  /**
+   * Close the trail with the community's name.
+   *
+   * The community is the one crumb the HOST cannot supply: it arrives with the
+   * listing, which this panel loads. A callback handing it back up would work
+   * and would also invite a render loop for one string, so the host declares
+   * that it wants the crumb and the panel fills it in.
+   *
+   * The community app wants it — a member is choosing between several
+   * communities carrying the same product. The admin does not: it is already
+   * scoped to one community, and the name would repeat the page it is on.
+   */
+  appendCommunityCrumb?: boolean;
 }
 
 export function ManagedListingDetail({
-  kind, listingId, backHref, itemName, breadcrumbs,
+  kind, listingId, backHref, itemName, breadcrumbs, appendCommunityCrumb,
   apiBaseUrl = "", authHeaders, t: translate, viewer = "owner", brand,
 }: ManagedListingDetailProps & ListingDetailConfig) {
   const t = translate ?? defaultTranslate;
@@ -512,10 +525,13 @@ export function ManagedListingDetail({
       )}
 
       <div className="flex flex-wrap items-center gap-2 text-[13px] text-zinc-400 mb-4">
-        {(breadcrumbs ?? [
-          { label: t("listings"), href: backHref },
-          { label: community?.name || t("community") },
-        ]).map((crumb, i, all) => (
+        {((breadcrumbs
+          ? [...breadcrumbs, ...(appendCommunityCrumb ? [{ label: community?.name || t("community") }] : [])]
+          : [
+              { label: t("listings"), href: backHref },
+              { label: community?.name || t("community") },
+            ]) as Array<{ label: string; href?: string }>
+        ).map((crumb, i, all) => (
           <span key={`${crumb.label}-${i}`} className="flex items-center gap-2 min-w-0">
             {i > 0 && <span aria-hidden>/</span>}
             {crumb.href && i < all.length - 1 ? (
