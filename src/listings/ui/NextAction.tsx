@@ -71,7 +71,17 @@ export function NextAction({
                 background: mine ? "var(--warn-w)" : "var(--card)",
             }}
         >
-            <p className="text-[18px] font-bold leading-snug tracking-tight sm:text-[20px]">
+            {/*
+              * Explicit colour, not inherited.
+              *
+              * This read as near-invisible cream on the warm banner: the panel
+              * sets the PALETTE at its root but not a text colour, so the
+              * heading took whatever the host app happened to give it. Tokens
+              * that are only half-applied are worse than none, because the
+              * background comes from here and the foreground from somewhere
+              * else, and the two have never met.
+              */}
+            <p className="text-[18px] font-bold leading-snug tracking-tight text-[var(--ink)] sm:text-[20px]">
                 {mine ? label("turnMine", "Your turn") : label("turnTheirs", `${other} is on it`)}
             </p>
             <p className="mt-1 text-[13.5px] leading-relaxed text-[var(--ink-2)]">

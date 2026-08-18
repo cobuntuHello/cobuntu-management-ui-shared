@@ -55,3 +55,34 @@ describe("the listing palette", () => {
         expect(style["--paper"]).toBe("#f6f4f0");
     });
 });
+
+describe("branding, per host", () => {
+    /*
+     * The community app is community-BRANDED; the admin is plain by design.
+     *
+     * A leader works across communities. A page that repainted itself per
+     * community would turn "whose shelf am I on" into a colour-matching
+     * exercise, on the screen where they agree commissions.
+     */
+    it("moves only the commit colour", () => {
+        /*
+         * The paper, the ink and the money bands must NOT move with a brand.
+         * The bands encode a quantity split five ways; retinting them to a
+         * community's palette would make two shares indistinguishable, and the
+         * warm ground exists so the amber and green read as parts of a split
+         * rather than as warnings.
+         */
+        const branded = listingTokenStyle({ "--commit": "#c07a4a" });
+        expect(branded["--commit"]).toBe("#c07a4a");
+        expect(branded["--paper"]).toBe(LISTING_TOKENS["--paper"]);
+        expect(branded["--ink"]).toBe(LISTING_TOKENS["--ink"]);
+        for (const band of ["--b-comm", "--b-cob", "--b-keep"]) {
+            expect(branded[band]).toBe(LISTING_TOKENS[band]);
+        }
+    });
+
+    it("falls back to the near-black accent when no brand is given", () => {
+        // Which is the admin, and it is a choice rather than an omission.
+        expect(listingTokenStyle()["--commit"]).toBe(LISTING_TOKENS["--ink"]);
+    });
+});

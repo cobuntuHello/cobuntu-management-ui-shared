@@ -68,6 +68,14 @@ export interface ListingDetailConfig {
    */
   viewer?: "owner" | "leader";
   /**
+   * The host's brand colour, for the one thing that commits.
+   *
+   * Community app: the community's own. Admin: omitted, deliberately — a
+   * leader works across communities, and repainting the page per community
+   * would turn "whose shelf am I on" into a colour-matching exercise.
+   */
+  brand?: string;
+  /**
    * Translate, next-intl's signature exactly.
    *
    * A host with its own translations passes its `t` straight down and keeps
@@ -115,7 +123,7 @@ export interface ManagedListingDetailProps {
 
 export function ManagedListingDetail({
   kind, listingId, backHref, itemName,
-  apiBaseUrl = "", authHeaders, t: translate, viewer = "owner",
+  apiBaseUrl = "", authHeaders, t: translate, viewer = "owner", brand,
 }: ManagedListingDetailProps & ListingDetailConfig) {
   const t = translate ?? defaultTranslate;
   const API = apiBaseUrl;
@@ -370,7 +378,16 @@ export function ManagedListingDetail({
      * child, need no build config in either host, and cannot leak out and
      * restyle the app around them — which a stylesheet on :root would.
      */
-    <div style={listingTokenStyle()}>
+    /*
+     * `brand` lets a host tint the one action colour.
+     *
+     * The community app is community-BRANDED and passes its colour through;
+     * the admin is plain by design, because a leader works across communities
+     * and a page that repaints itself per community would make "whose shelf am
+     * I on" a colour-matching exercise. Only --commit moves: the paper, the ink
+     * and the money bands stay, or the split stops being readable.
+     */
+    <div style={listingTokenStyle(brand ? { "--commit": brand } : undefined)} className="text-[var(--ink)]">
       {toast && (
         <div className="fixed top-4 right-4 z-50 bg-zinc-900 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-lg">
           {toast}
@@ -436,6 +453,22 @@ export function ManagedListingDetail({
       />
 
       {/*
+        * ── Two columns on a wide screen, one on a narrow one ───────────────
+        *
+        * MOBILE FIRST: the default is a single stack, and the split only
+        * appears at lg. That order matters — written the other way round, the
+        * phone gets a desktop grid squeezed into 380px, which is how the terms
+        * end up three words wide.
+        *
+        * The terms go LEFT and stick, because they are what the conversation
+        * on the right is about: scrolling a long thread should not take the
+        * number being argued over off the screen. The MVP's own proportions —
+        * a fixed 360px column beside a flexible one — because the terms are a
+        * known size and the feed is not.
+        */}
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+        <div className="lg:sticky lg:top-[88px]">
+      {/*
         * The commission, drawn as a cut of every sale rather than listed as a
         * row in a table. A number in a definition list is a fact; the spine
         * shows what it is a share OF, which is the thing being agreed.
@@ -459,6 +492,9 @@ export function ManagedListingDetail({
         </dl>
       </div>
 
+        </div>
+
+        <div className="min-w-0">
       {/* Thread */}
       <div className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100 overflow-hidden mb-6">
         <div className="px-6 py-4 border-b border-zinc-100">
@@ -656,6 +692,9 @@ export function ManagedListingDetail({
           })}
         </div>
       )}
+
+        </div>
+      </div>
 
       {/*
         A closed listing says who closed it and where asking again starts.

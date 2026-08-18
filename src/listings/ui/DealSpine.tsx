@@ -54,12 +54,23 @@ export function DealSpine({
     const label = (k: string, fallback: string) => (t ? t(k) : fallback);
 
     return (
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden text-[var(--ink)]">
             <div className="flex min-h-[188px]">
                 {/* The spine. */}
                 <div className="flex w-[72px] shrink-0 flex-col">
                     <Band pct={community} value={`${community}%`} label={communityName} className="bg-[var(--b-comm)] text-white" />
-                    <Band pct={platformShare} value={`${platformShare}%`} label="Cobuntu" className="bg-[var(--b-cob)] text-white" />
+                    {/*
+                      * "Platform", not "Cobuntu", when the community is also
+                      * called Cobuntu: two bands reading COBUNTU says nothing
+                      * about who gets what. Everywhere else the platform's own
+                      * name is the clearer label.
+                      */}
+                    <Band
+                        pct={platformShare}
+                        value={`${platformShare}%`}
+                        label={communityName.trim().toLowerCase() === "cobuntu" ? "Platform" : "Cobuntu"}
+                        className="bg-[var(--b-cob)] text-white"
+                    />
                 </div>
 
                 <div className="flex min-w-0 flex-1 flex-col justify-between gap-4 p-5">

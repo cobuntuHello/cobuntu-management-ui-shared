@@ -81,3 +81,22 @@ describe("whose turn it is", () => {
         expect(container).toBeEmptyDOMElement();
     });
 });
+
+describe("the bands name two different parties", () => {
+    it("does not print the same label twice when the community is Cobuntu", () => {
+        /*
+         * Cobuntu's own community reads its split as "90% COBUNTU / 10%
+         * COBUNTU", which says nothing about who gets what — and this is the
+         * one screen where that distinction is the entire point.
+         */
+        render(<DealSpine rate={10} communityName="Cobuntu" platformShare={10} />);
+        expect(screen.getByText("Platform")).toBeInTheDocument();
+        expect(screen.queryAllByText("Cobuntu")).toHaveLength(1);
+    });
+
+    it("uses the platform's own name everywhere else", () => {
+        render(<DealSpine rate={10} communityName="PBN" platformShare={10} />);
+        expect(screen.getByText("Cobuntu")).toBeInTheDocument();
+        expect(screen.getByText("PBN")).toBeInTheDocument();
+    });
+});
