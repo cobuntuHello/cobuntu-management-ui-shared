@@ -71,3 +71,22 @@ export type {
 
 export { BannerPlaceholder, bannerPlaceholderGradient, bannerPlaceholderHash } from "./ui/BannerPlaceholder";
 export type { BannerPlaceholderProps } from "./ui/BannerPlaceholder";
+
+/*
+ * The listing review panel, shared.
+ *
+ * It lived in the community app, and the admin showed a small modal of its own
+ * instead — two screens for the same decision, drifting apart. This is the one
+ * both apps mount: the seller sees it for their own request, a leader sees it
+ * for the request they are reviewing, and neither can gain a feature the other
+ * silently lacks.
+ */
+export { ManagedListingDetail, type ListingDetailConfig } from "./listings/ManagedListingDetail";
+export { LISTING_DETAIL_COPY, defaultTranslate } from "./listings/copy";
+export {
+  isClosedState,
+  normalizeListingState,
+  toRate,
+  type ListingState,
+} from "./listings/manageListingRows";
+export { isAwaitingReview, ownerListingActions } from "./listings/listingTransitions";
