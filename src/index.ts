@@ -83,10 +83,35 @@ export type { BannerPlaceholderProps } from "./ui/BannerPlaceholder";
  */
 export { ManagedListingDetail, type ListingDetailConfig } from "./listings/ManagedListingDetail";
 export { LISTING_DETAIL_COPY, defaultTranslate } from "./listings/copy";
+/*
+ * The WHOLE surface of both modules, not the subset this panel happens to use.
+ *
+ * The first pass exported only what ManagedListingDetail imported, and the
+ * consuming app promptly failed to compile: the Listings tab and the profile
+ * catalog use the row helpers too. A moved module has to arrive whole, or the
+ * app keeps a local copy of the rest and the split this move exists to end
+ * quietly reopens.
+ */
 export {
   isClosedState,
+  isMemberOwned,
   normalizeListingState,
+  requestableCommunities,
+  sortManageListingRows,
+  toManageListingRow,
+  toManageListingRows,
   toRate,
   type ListingState,
+  type ManageListingRow,
+  type RequestableCommunity,
 } from "./listings/manageListingRows";
-export { isAwaitingReview, ownerListingActions } from "./listings/listingTransitions";
+export {
+  ALL_STATES,
+  TERMINAL,
+  availableTransitions,
+  isAwaitingReview,
+  isTransitionAllowed,
+  ownerListingActions,
+  type ListingActor,
+  type OwnerListingAction,
+} from "./listings/listingTransitions";
