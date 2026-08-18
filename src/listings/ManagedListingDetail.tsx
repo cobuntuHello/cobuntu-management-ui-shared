@@ -149,10 +149,23 @@ export interface ManagedListingDetailProps {
    * scoped to one community, and the name would repeat the page it is on.
    */
   appendCommunityCrumb?: boolean;
+  /**
+   * Close the trail with the LISTED ITEM's name.
+   *
+   * The twin of `appendCommunityCrumb`, and for the same reason: a reviewer
+   * arrives from a queue of many products and the useful last crumb is which
+   * one they opened. The admin has no product fetch of its own, and adding one
+   * to name a breadcrumb would be a second request for a string the panel is
+   * already holding.
+   *
+   * Falls back to `itemName` when the loaded listing has no name on it, so a
+   * host that already passes the name keeps working either way.
+   */
+  appendItemCrumb?: boolean;
 }
 
 export function ManagedListingDetail({
-  kind, listingId, backHref, itemName, breadcrumbs, appendCommunityCrumb,
+  kind, listingId, backHref, itemName, breadcrumbs, appendCommunityCrumb, appendItemCrumb,
   apiBaseUrl = "", authHeaders, t: translate, viewer = "owner", brand,
 }: ManagedListingDetailProps & ListingDetailConfig) {
   const t = translate ?? defaultTranslate;
@@ -322,6 +335,16 @@ export function ManagedListingDetail({
   const state = normalizeListingState(listing.status);
   const rate = toRate(listing.commissionRate ?? listing.ticketListing?.commissionRate);
   const community = listing.community ?? listing.communities ?? null;
+  /*
+   * What is being listed, from the listing itself. The product side nests it as
+   * `products` (the Prisma relation) and the event side as `events`; both have
+   * been seen singular too, over this endpoint's life. `itemName` last, for a
+   * host that fetched the name itself.
+   */
+  const listedItemName: string | null =
+    listing.products?.name ?? listing.product?.name
+    ?? listing.events?.name ?? listing.event?.name
+    ?? itemName ?? null;
   const closed = isClosedState(state);
   const waiting = isAwaitingReview(state);
   /*
@@ -526,7 +549,11 @@ export function ManagedListingDetail({
 
       <div className="flex flex-wrap items-center gap-2 text-[13px] text-zinc-400 mb-4">
         {((breadcrumbs
-          ? [...breadcrumbs, ...(appendCommunityCrumb ? [{ label: community?.name || t("community") }] : [])]
+          ? [
+              ...breadcrumbs,
+              ...(appendItemCrumb && listedItemName ? [{ label: listedItemName }] : []),
+              ...(appendCommunityCrumb ? [{ label: community?.name || t("community") }] : []),
+            ]
           : [
               { label: t("listings"), href: backHref },
               { label: community?.name || t("community") },
