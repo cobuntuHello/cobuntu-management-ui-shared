@@ -276,18 +276,24 @@ export function ManagedListingDetail({
    */
   const canCounter = state === "PENDING" || state === "ACTIVE";
 
-  async function openCompose() {
+  async function openCompose(): Promise<{ id: string; name: string; description: string | null; rate: number }[]> {
     setComposing(true);
-    if (offered.length > 0) return;
+    if (offered.length > 0) return offered;
     try {
       const res = await fetch(`${base}/${encodeURIComponent(listingId)}/packages`, authed);
-      if (!res.ok) return;
+      // An unreadable list is an EMPTY one: the picker then says the
+      // community publishes none, which is the honest reading of "we could
+      // not find any" from the seller's side.
+      if (!res.ok) return [];
       const body = await res.json().catch(() => null);
-      setOffered(Array.isArray(body?.packages) ? body.packages : []);
+      const list = Array.isArray(body?.packages) ? body.packages : [];
+      setOffered(list);
+      return list;
     } catch {
       /* The form still opens; without packages there is nothing to pick and the
          note alone is not a proposal, so Send stays disabled. */
     }
+    return [];
   }
 
   /**
@@ -300,9 +306,16 @@ export function ManagedListingDetail({
    * silently posting something that will 400.
    */
   async function counterToRate(target: number) {
-    if (offered.length === 0) { await openCompose(); return; }
-    const match = offered.find((p) => Number(p.rate) === Number(target));
-    if (!match) { await openCompose(); setComposing(true); return; }
+    /*
+     * LOAD FIRST, then match. Reading `offered` straight off state meant the
+     * very first counter always fell through to the picker, because the
+     * packages are fetched lazily and had not arrived yet — the seller typed a
+     * rate the community publishes and was asked to pick it again.
+     */
+    const list = offered.length > 0 ? offered : await openCompose();
+    const match = list.find((p) => Number(p.rate) === Number(target));
+    if (!match) { setComposing(true); return; }
+    setComposing(false);
     setPickedPackage(match.id);
     await postProposal(match.id, note.trim() || undefined);
   }
