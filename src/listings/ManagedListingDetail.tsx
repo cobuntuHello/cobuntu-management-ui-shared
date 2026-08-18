@@ -7,6 +7,7 @@ import { Clock } from "lucide-react";
 import { defaultTranslate } from "./copy";
 import { DealSpine } from "./ui/DealSpine";
 import { NextAction } from "./ui/NextAction";
+import { Topics, type Topic } from "./ui/Topics";
 import { listingTokenStyle } from "./ui/tokens";
 import {
   isClosedState,
@@ -135,6 +136,13 @@ export function ManagedListingDetail({
 
   const [listing, setListing] = useState<any>(null);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  /*
+   * Topics — everything about this listing that is not the rate. Loaded
+   * alongside the thread rather than lazily: unlike the packages below, this is
+   * what most visits to this page are FOR once a negotiation is under way, and
+   * a feed that appears a beat after the page does reads as a glitch.
+   */
+  const [topics, setTopics] = useState<Topic[]>([]);
   const [packageName, setPackageName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -190,6 +198,19 @@ export function ManagedListingDetail({
           setProposals(Array.isArray(body) ? body : (body?.proposals ?? []));
         }
       }
+      /*
+       * Topics are their own read on both sides — unlike proposals, neither
+       * listing endpoint hydrates them. A failure here is deliberately not
+       * `setFailed`: the terms and the thread are still worth showing if the
+       * feed alone did not answer.
+       */
+      try {
+        const tr = await fetch(`${base}/${encodeURIComponent(listingId)}/topics`, authed);
+        if (tr.ok) {
+          const body = await tr.json();
+          setTopics(Array.isArray(body) ? body : (body?.topics ?? []));
+        }
+      } catch { /* leave the feed empty rather than losing the page */ }
     } catch {
       setFailed(true);
     } finally {
@@ -326,6 +347,86 @@ export function ManagedListingDetail({
     setComposing(false);
     setPickedPackage(match.id);
     await postProposal(match.id, note.trim() || undefined);
+  }
+
+  /*
+   * ── Topics: the half of the negotiation that is not money ─────────────────
+   *
+   * All three re-read the feed rather than patching state locally, for one
+   * reason: `status` is DERIVED server-side from two close flags, so the
+   * response to "I am done" may or may not close the topic depending on what
+   * the other side did — possibly seconds ago, in another tab. Guessing here
+   * would show a topic as settled that the server still has open.
+   *
+   * The topic-scoped base mirrors the listing one: the same swap between
+   * product and event, one segment along.
+   */
+  const topicBase = kind === "event" ? `${API}/api/event-listing-topics` : `${API}/api/listing-topics`;
+
+  async function reloadTopics() {
+    const res = await fetch(`${base}/${encodeURIComponent(listingId)}/topics`, authed);
+    if (!res.ok) return;
+    const body = await res.json().catch(() => null);
+    setTopics(Array.isArray(body) ? body : (body?.topics ?? []));
+  }
+
+  async function openTopic(subject: string, body: string) {
+    setBusy(true);
+    try {
+      const res = await fetch(`${base}/${encodeURIComponent(listingId)}/topics`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
+        credentials: "include",
+        body: JSON.stringify({ subject, body }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      await reloadTopics();
+    } catch {
+      showToast(t("topicsFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function commentOnTopic(topicId: string, body: string) {
+    setBusy(true);
+    try {
+      const res = await fetch(`${topicBase}/${encodeURIComponent(topicId)}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
+        credentials: "include",
+        body: JSON.stringify({ body }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      await reloadTopics();
+    } catch {
+      showToast(t("topicsFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /*
+   * Sends the viewer's OWN flag and nothing else. There is deliberately no way
+   * from here to write `status` or the other side's flag — the server ignores
+   * both, and this is where that contract is honoured rather than tested.
+   */
+  async function toggleTopicDone(topicId: string, done: boolean) {
+    setBusy(true);
+    try {
+      const res = await fetch(`${topicBase}/${encodeURIComponent(topicId)}/done`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
+        credentials: "include",
+        body: JSON.stringify({ done }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      await reloadTopics();
+    } catch {
+      showToast(t("topicsFailed"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function sendProposal() {
@@ -625,6 +726,36 @@ export function ManagedListingDetail({
             )}
           </div>
         )}
+      </div>
+
+      {/*
+        * ── Topics, under the rate thread ──────────────────────────────────
+        *
+        * Two feeds rather than one, and the order is the argument: the rate is
+        * a single number with an Accept, so it stays a compact list at the top;
+        * everything else is a conversation and gets the room a conversation
+        * needs.
+        *
+        * Merging them was considered and rejected. A proposal and a topic close
+        * differently — one is accepted by the other side, the other only when
+        * BOTH agree — and interleaving them would put two different meanings of
+        * "done" in one column.
+        */}
+      <div className="mb-6">
+        <div className="mb-3 px-1">
+          <h2 className="text-[14px] font-semibold text-[var(--ink)]">{t("topicsTitle")}</h2>
+          <p className="mt-0.5 text-[12px] text-[var(--ink-3)]">{t("topicsSubtitle")}</p>
+        </div>
+        <Topics
+          topics={topics}
+          viewer={viewer}
+          otherPartyName={viewer === "owner" ? (community?.name || t("community")) : (listing.requestedBy?.name || t("someone"))}
+          busy={busy}
+          onOpen={openTopic}
+          onComment={commentOnTopic}
+          onToggleDone={toggleTopicDone}
+          t={t}
+        />
       </div>
 
       {/*

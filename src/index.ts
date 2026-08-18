@@ -84,6 +84,12 @@ export type { BannerPlaceholderProps } from "./ui/BannerPlaceholder";
 export { ManagedListingDetail, type ListingDetailConfig } from "./listings/ManagedListingDetail";
 export { LISTING_DETAIL_COPY, defaultTranslate } from "./listings/copy";
 /*
+ * Topics, exported whole for the same reason as the row helpers below: an app
+ * that wants to render the feed on its own (a notification deck, a digest)
+ * must not have to reimplement the handshake to do it.
+ */
+export { Topics, type Topic, type TopicComment } from "./listings/ui/Topics";
+/*
  * The WHOLE surface of both modules, not the subset this panel happens to use.
  *
  * The first pass exported only what ManagedListingDetail imported, and the

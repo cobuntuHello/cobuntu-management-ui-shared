@@ -84,7 +84,38 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     counterNotePlaceholder: "Why this one (optional)",
     counterSend: "Send",
     counterSending: "Sending...",
-    counterCancel: "Cancel"
+    counterCancel: "Cancel",
+
+    /*
+     * ── Topics ──────────────────────────────────────────────────────────────
+     *
+     * The half of the negotiation that is not money. Written as sentences
+     * rather than labels, because the whole design argument is that these are
+     * conversations, not form fields.
+     */
+    cancel: "Cancel",
+    topicsTitle: "Points raised",
+    topicsSubtitle: "Anything about this listing that is not the rate. Each one closes when you both agree it is done.",
+    topicsComposerPlaceholder: "Raise something with {other}...",
+    topicsSubjectPlaceholder: "What is this about?",
+    topicsBodyPlaceholder: "Say more...",
+    topicsPost: "Post",
+    topicsEmptyTitle: "Nothing raised yet",
+    topicsEmptyOwner: "{community} has not raised anything. When they do, it lands here.",
+    topicsEmptyLeader: "Raise a point if you want something changed. You cannot edit {seller}'s listing yourself.",
+    topicsReplyPlaceholder: "Reply...",
+    topicsChangedSince: "changed since",
+    topicsSettledCount: "{count} settled - show",
+    /*
+     * Both of these say the same thing from two positions, and neither says
+     * "resolved". The state is a handshake, so the copy names who is still to
+     * agree rather than announcing a status.
+     */
+    topicsClosesWhenBoth: "Closes when you both agree it is done",
+    topicsWaitingOnThem: "Waiting for {other} to agree it is done",
+    topicsDone: "It is done",
+    topicsUndo: "Undo",
+    topicsFailed: "That did not send. Try again."
 };
 
 /**
