@@ -117,3 +117,25 @@ export {
   type OwnerListingAction,
   type ReviewerListingAction,
 } from "./listings/listingTransitions";
+
+/*
+ * The negotiation MVP's design layer.
+ *
+ * `~/Desktop/dev/cobuntu-negotiation-mvp` is the agreed design for the listing
+ * review page — a runnable app, not a mockup — and this is the first slice of
+ * it: the palette and the primitives neither app already had.
+ *
+ * Deliberately NOT exported: buttons, inputs, selects, switches. The MVP used
+ * the admin's own copies of those, so porting them back would be a round trip.
+ */
+export { LISTING_TOKENS, listingTokenStyle } from "./listings/ui/tokens";
+export {
+  Card,
+  ColumnHeader,
+  Eyebrow,
+  Field,
+  Pill,
+  Segmented,
+  Who,
+  inputCls,
+} from "./listings/ui/primitives";
