@@ -115,7 +115,28 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     topicsWaitingOnThem: "Waiting for {other} to agree it is done",
     topicsDone: "It is done",
     topicsUndo: "Undo",
-    topicsFailed: "That did not send. Try again."
+    topicsFailed: "That did not send. Try again.",
+
+    /*
+     * NextAction, once topics exist. The old three stage chips went because two
+     * of them were unreachable -- a listing with open topics is always in the
+     * middle one -- so what replaced them is the only progress that moves:
+     * how many topics are still open.
+     */
+    topicsProgress: "{closed} of {total} settled",
+    /*
+     * Two keys rather than one with a plural rule. `defaultTranslate` does
+     * `{var}` substitution and nothing else, deliberately, and adding ICU
+     * plurals for two strings would put a second templating language in a file
+     * whose whole job is to be readable. The component picks the key.
+     */
+    topicsOpenHeadline: "{count} topic still open",
+    topicsOpenHeadlinePlural: "{count} topics still open",
+    topicsOpenLeaderBody: "Work through them with them, then answer the terms below.",
+    topicsOpenOwnerBody: "Work through them, then take another look at the terms below.",
+    topicsOpenWaitBody: "{other} is working through them.",
+    settledBodyWithTopics: "Live in {community}, with {count} topic settled along the way.",
+    settledBodyWithTopicsPlural: "Live in {community}, with {count} topics settled along the way."
 };
 
 /**

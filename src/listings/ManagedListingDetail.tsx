@@ -542,6 +542,13 @@ export function ManagedListingDetail({
         viewer={viewer}
         communityName={community?.name || t("community")}
         sellerName={listing.requestedBy?.name ?? null}
+        /*
+         * Counted here rather than inside the banner, so there is ONE list of
+         * topics on this page and the banner cannot disagree with the feed
+         * below it about how many are open.
+         */
+        openTopics={topics.filter((tp) => tp.status === "OPEN").length}
+        totalTopics={topics.length}
         lastProposalFrom={
           proposals.length === 0
             ? null
