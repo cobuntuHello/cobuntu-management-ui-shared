@@ -15,6 +15,8 @@
  * it already had.
  */
 export const LISTING_DETAIL_COPY: Record<string, string> = {
+    waitingLeaderTitle: "Your turn",
+    waitingLeaderBody: "This request is waiting on you. Agree the terms below, or propose different ones.",
     approve: "Approve & publish",
     decline: "Decline",
     revoke: "Take it down",

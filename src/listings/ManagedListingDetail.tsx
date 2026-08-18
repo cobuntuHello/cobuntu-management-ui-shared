@@ -372,10 +372,26 @@ export function ManagedListingDetail({
         <div className="rounded-2xl bg-amber-50 px-6 py-5 mb-6 flex gap-3">
           <Clock className="w-[18px] h-[18px] text-amber-700 shrink-0 mt-0.5" strokeWidth={2} />
           <div>
+            {/*
+              * Whose turn it is, said in WORDS and from the right seat.
+              *
+              * This banner only ever spoke to the seller: a leader opening the
+              * request they are supposed to answer was told "there is nothing
+              * for you to do until they answer" — about themselves. The state
+              * was right and the audience was never checked.
+              *
+              * The mockup this page is built from puts it plainly: whose move
+              * it is should never have to be inferred from which buttons are
+              * enabled. So it is stated, and it is stated per viewer.
+              */}
             <h2 className="text-[14px] font-semibold text-amber-900">
-              {t("waitingTitle", { community: community?.name || t("community") })}
+              {viewer === "leader"
+                ? t("waitingLeaderTitle")
+                : t("waitingTitle", { community: community?.name || t("community") })}
             </h2>
-            <p className="text-[13px] text-amber-800 mt-1">{t("waitingBody")}</p>
+            <p className="text-[13px] text-amber-800 mt-1">
+              {viewer === "leader" ? t("waitingLeaderBody") : t("waitingBody")}
+            </p>
           </div>
         </div>
       )}
