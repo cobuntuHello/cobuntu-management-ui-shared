@@ -11,7 +11,7 @@ import {
   toRate,
   type ListingState,
 } from "./manageListingRows";
-import { isAwaitingReview, ownerListingActions } from "./listingTransitions";
+import { isAwaitingReview, ownerListingActions, reviewerListingActions } from "./listingTransitions";
 
 /**
  * One listing, in full: its terms, its thread, and the levers its owner holds.
@@ -52,6 +52,18 @@ export interface ListingDetailConfig {
   apiBaseUrl?: string;
   /** Merged into every request. Bearer for the admin; nothing for the app. */
   authHeaders?: Record<string, string>;
+  /**
+   * Which seat this is being viewed from.
+   *
+   * The transition table is one machine seen from two chairs. An owner may
+   * pause, resume and withdraw; a leader may approve and revoke — and CANNOT
+   * withdraw, because CANCELLED is owner-only. Recording a leader's decision
+   * as the seller's withdrawal would put the wrong name on it forever.
+   *
+   * Defaults to "owner", so the community app that has always mounted this
+   * needs no change and cannot accidentally acquire a leader's powers.
+   */
+  viewer?: "owner" | "leader";
   /**
    * Translate, next-intl's signature exactly.
    *
@@ -100,7 +112,7 @@ export interface ManagedListingDetailProps {
 
 export function ManagedListingDetail({
   kind, listingId, backHref, itemName,
-  apiBaseUrl = "", authHeaders, t: translate,
+  apiBaseUrl = "", authHeaders, t: translate, viewer = "owner",
 }: ManagedListingDetailProps & ListingDetailConfig) {
   const t = translate ?? defaultTranslate;
   const API = apiBaseUrl;
@@ -305,7 +317,13 @@ export function ManagedListingDetail({
       setPosting(false);
     }
   }
-  const actions = ownerListingActions(state);
+  /*
+   * Asked from the seat the viewer is in. Same table, different `who` — which
+   * is what stops the two sides being two screens that have to be kept in
+   * agreement by hand.
+   */
+  const actions = viewer === "leader" ? [] : ownerListingActions(state);
+  const reviewActions = viewer === "leader" ? reviewerListingActions(state) : [];
 
   return (
     <div>
@@ -519,6 +537,33 @@ export function ManagedListingDetail({
         lives. A disabled row of levers would only advertise a capability this
         listing cannot have.
       */}
+      {/*
+        A leader's controls. Approve puts it on the shelf; decline and revoke
+        both land on REVOKED, which is a DIFFERENT state from the seller's
+        withdrawal on purpose — one is "we said no", the other is "I took it
+        back", and a row that confuses them lies about who decided.
+      */}
+      {reviewActions.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {reviewActions.map((action) => {
+            if (action === "approve") {
+              return (
+                <button key={action} type="button" onClick={() => move("ACTIVE")} disabled={busy}
+                  className="px-4 py-2.5 text-[13px] font-medium text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 cursor-pointer disabled:opacity-40">
+                  {t("approve")}
+                </button>
+              );
+            }
+            return (
+              <button key={action} type="button" onClick={() => move("REVOKED")} disabled={busy}
+                className="px-4 py-2.5 text-[13px] font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 cursor-pointer disabled:opacity-40">
+                {action === "decline" ? t("decline") : t("revoke")}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {actions.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {actions.map((action) => {

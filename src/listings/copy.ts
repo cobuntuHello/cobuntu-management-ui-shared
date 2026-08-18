@@ -15,6 +15,9 @@
  * it already had.
  */
 export const LISTING_DETAIL_COPY: Record<string, string> = {
+    approve: "Approve & publish",
+    decline: "Decline",
+    revoke: "Take it down",
     listings: "Listings",
     community: "Community",
     stateActive: "Live",

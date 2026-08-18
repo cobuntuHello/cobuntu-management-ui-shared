@@ -145,6 +145,7 @@ export type OwnerListingAction = "pause" | "resume" | "withdraw";
 
 /** On their own listing's page, the viewer owns it and does not review it. */
 const OWNER: ListingActor = { isOwner: true, canReview: false };
+const REVIEWER: ListingActor = { isOwner: false, canReview: true };
 
 /**
  * What to offer the owner, in the order it should be offered.
@@ -181,4 +182,32 @@ export function ownerListingActions(state: ListingState | null): OwnerListingAct
  */
 export function isAwaitingReview(state: ListingState | null): boolean {
   return state === "PENDING";
+}
+
+
+/** What a REVIEWING leader may do, in the order it should be offered. */
+export type ReviewerListingAction = "approve" | "decline" | "revoke";
+
+/**
+ * What to offer the leader reviewing this listing.
+ *
+ * The sibling of `ownerListingActions`, asked with the reviewer actor instead
+ * of the owner one — the same table, a different `who`. That is the whole
+ * reason the actor is a first-class idea here: the two sides are one machine
+ * seen from two seats, not two rule sets that have to be kept in agreement.
+ *
+ * WITHDRAW IS ABSENT, AND CANNOT BE ADDED. CANCELLED is owner-only in the
+ * table above, so a leader closing a seller's request goes to REVOKED instead.
+ * They are different states because they are different acts, and recording a
+ * leader's decision as the seller's withdrawal would put the wrong name on it
+ * forever — the same category of mistake as calling a lapsed request declined.
+ */
+export function reviewerListingActions(state: ListingState | null): ReviewerListingAction[] {
+  if (!state) return [];
+  const reachable = availableTransitions(state, REVIEWER);
+  const actions: ReviewerListingAction[] = [];
+  // Approving is only meaningful on something still being asked for.
+  if (state === "PENDING" && reachable.includes("ACTIVE")) actions.push("approve");
+  if (reachable.includes("REVOKED")) actions.push(state === "PENDING" ? "decline" : "revoke");
+  return actions;
 }

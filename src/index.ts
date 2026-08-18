@@ -112,6 +112,8 @@ export {
   isAwaitingReview,
   isTransitionAllowed,
   ownerListingActions,
+  reviewerListingActions,
   type ListingActor,
   type OwnerListingAction,
+  type ReviewerListingAction,
 } from "./listings/listingTransitions";
