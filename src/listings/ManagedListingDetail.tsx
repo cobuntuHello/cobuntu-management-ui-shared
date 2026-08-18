@@ -495,17 +495,18 @@ export function ManagedListingDetail({
           * on a cancelled or revoked one, and an accepted arrangement is
           * changed by asking again rather than by editing history.
           */}
-        {canCounter && (
+        {/*
+          * The picker, opened FROM THE SPINE and not from here.
+          *
+          * Both offered "Propose different terms" for a moment, which is the
+          * same act twice on one page — and the spine is where the money is,
+          * so it is the honest entry point. This is the form that opens when
+          * the number typed there is not one of the community's published
+          * rates.
+          */}
+        {canCounter && composing && (
           <div className="px-6 py-4 border-t border-zinc-100">
-            {!composing ? (
-              <button
-                type="button"
-                onClick={openCompose}
-                className="text-[13px] font-medium text-zinc-700 hover:text-zinc-900 cursor-pointer"
-              >
-                {t("counterOpen")}
-              </button>
-            ) : (
+            {(
               <div>
                 <p className="text-[13px] font-semibold text-zinc-900">{t("counterTitle")}</p>
                 <p className="text-[12px] text-zinc-500 mt-0.5">{t("counterSubtitle")}</p>
