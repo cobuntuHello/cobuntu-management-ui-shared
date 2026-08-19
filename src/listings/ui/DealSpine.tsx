@@ -106,141 +106,170 @@ export function DealSpine({
     const platformOfSale = cobuntuOfCommission + cobuntuOfSeller;
     const sellerOfSale = sellerShare - cobuntuOfSeller;
 
+    /*
+     * The rows, in the order the money leaves the sale. Zero shares are dropped
+     * rather than printed: "Community 0%" is a party named for taking nothing,
+     * which is the chart-of-nothing problem in list form.
+     */
+    const rows = [
+        { key: "keep", pct: sellerOfSale, color: "var(--b-keep)", name: label("spineKeySeller", "You keep") },
+        { key: "comm", pct: communityOfSale, color: "var(--b-comm)", name: communityName },
+        {
+            key: "cob",
+            pct: platformOfSale,
+            color: "var(--b-cob)",
+            /*
+             * "Platform" when the community is itself called Cobuntu: two rows
+             * reading COBUNTU say nothing about who gets what, and this is the
+             * one card where that is the entire point.
+             */
+            name: communityName.trim().toLowerCase() === "cobuntu" ? "Platform" : "Cobuntu",
+        },
+    ].filter((r) => r.pct > 0);
+
     return (
+        /*
+         * TWO HALVES, because they answer different questions.
+         *
+         * The top is the TERM -- the rate the two sides agreed, which is the
+         * thing under negotiation and the number people quote at each other.
+         * The bottom is its CONSEQUENCE: what that rate does to one actual
+         * sale, including the deductions nobody negotiated. Run together they
+         * read as one contradictory block, which is how a card headed "0%"
+         * came to sit above a bar showing a 4% slice with no explanation of
+         * where it came from.
+         *
+         * The lower half sits on the sunk ground so the split reads as derived
+         * from the term above rather than as a second, competing headline.
+         */
         <Card className="overflow-hidden text-[var(--ink)]">
-            <div className="flex flex-col">
-                <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 sm:p-5">
-                    <div>
-                        <p className="text-[11px] font-bold uppercase tracking-[.13em] text-[var(--ink-3)]">
-                            {label("spineHeading", `${communityName}'s cut`)}
-                        </p>
-                        <p className="tabular mt-1 text-[32px] font-bold leading-none tracking-tighter sm:text-[40px]" style={{ fontVariantNumeric: "tabular-nums" }}>
-                            {rate == null ? "—" : `${shown}%`}
-                        </p>
-                        <p className="mt-1.5 text-[12.5px] text-[var(--ink-3)]">
-                            {rate == null
-                                ? label("spineNotAgreed", "Nothing agreed yet")
-                                : rate === 0
-                                    ? label("spineZero", "No commission on this listing. Nothing to split.")
-                                    : label("spineSub", "of every sale, split as shown")}
-                        </p>
+            <div className="p-4 sm:p-5">
+                <p className="text-[11px] font-bold uppercase tracking-[.13em] text-[var(--ink-3)]">
+                    {label("spineHeading", `${communityName}'s cut`)}
+                </p>
+                <p
+                    className="mt-1 text-[34px] font-bold leading-none tracking-tighter sm:text-[42px]"
+                    style={{ fontVariantNumeric: "tabular-nums" }}
+                >
+                    {rate == null ? "\u2014" : `${shown}%`}
+                </p>
+                <p className="mt-1.5 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
+                    {rate == null
+                        ? label("spineNotAgreed", "Nothing agreed yet")
+                        : rate === 0
+                            ? label("spineZero", "No commission on this listing. Nothing to split.")
+                            : label("spineSub", "of every sale, split as shown")}
+                </p>
+            </div>
+
+            {rate !== null && (
+                <div className="border-t border-[var(--line-soft)] bg-[var(--sunk)] p-4 sm:p-5">
+                    <p className="text-[11px] font-bold uppercase tracking-[.13em] text-[var(--ink-3)]">
+                        {label("spineSplitHeading", "Every sale, split")}
+                    </p>
+
+                    {/*
+                      * The bar is a SUMMARY of the rows beneath it, so it uses
+                      * their colours and nothing else. Segments are separated by
+                      * the ground rather than by a border, which would add a
+                      * hairline of a colour that means nothing.
+                      */}
+                    <div
+                        className="mt-3 flex h-3 w-full gap-[2px] overflow-hidden rounded-full"
+                        role="img"
+                        aria-label={say(
+                            "spineBarAria",
+                            { pct: round(sellerOfSale) },
+                            `You keep ${round(sellerOfSale)}% of each sale`,
+                        )}
+                    >
+                        {rows.map((r) => (
+                            <span
+                                key={r.key}
+                                className="h-full first:rounded-l-full last:rounded-r-full transition-[width] duration-500"
+                                style={{ width: `${r.pct}%`, background: r.color, minWidth: "6px" }}
+                            />
+                        ))}
                     </div>
 
                     {/*
-                      * ONE SALE, DIVIDED -- drawn for every rate including zero,
-                      * where it is a single full band saying the seller keeps
-                      * all of it. That is what 0% means, and it is what the
-                      * empty card this replaced failed to say.
+                      * A LIST, not a legend. A legend explains a picture; these
+                      * rows are the numbers themselves, right-aligned and
+                      * tabular so the column can be read down without the eye
+                      * hunting for the decimal.
                       */}
-                    {rate !== null && (
-                        <div>
-                            <div
-                                className="flex h-2.5 w-full overflow-hidden rounded-full bg-[var(--sunk)]"
-                                role="img"
-                                aria-label={label("spineBarAria", `Seller keeps ${sellerOfSale}% of each sale`)}
-                            >
+                    <dl className="mt-3.5 space-y-1.5">
+                        {rows.map((r) => (
+                            <div key={r.key} className="flex items-baseline gap-2.5">
                                 <span
-                                    className="h-full bg-[var(--b-cob)] transition-[width] duration-500"
-                                    style={{ width: `${sellerOfSale}%` }}
+                                    aria-hidden="true"
+                                    className="mt-[1px] h-2.5 w-2.5 flex-none rounded-[3px]"
+                                    style={{ background: r.color }}
                                 />
-                                {communityOfSale > 0 && (
-                                    <span
-                                        className="h-full bg-[var(--b-comm)] transition-[width] duration-500"
-                                        style={{ width: `${communityOfSale}%` }}
-                                    />
-                                )}
-                                {platformOfSale > 0 && (
-                                    <span
-                                        className="h-full bg-[var(--ink-3)] transition-[width] duration-500"
-                                        style={{ width: `${platformOfSale}%` }}
-                                    />
-                                )}
-                            </div>
-
-                            <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-[var(--ink-3)]">
-                                <Key className="bg-[var(--b-cob)]"
-                                     text={`${label("spineKeySeller", "Seller")} ${round(sellerOfSale)}%`} />
-                                {communityOfSale > 0 && (
-                                    <Key className="bg-[var(--b-comm)]" text={`${communityName} ${round(communityOfSale)}%`} />
-                                )}
-                                {platformOfSale > 0 && (
-                                    /*
-                                      * "Platform" when the community is itself
-                                      * called Cobuntu: two keys reading COBUNTU
-                                      * say nothing about who gets what, and this
-                                      * is the one card where that is the point.
-                                      */
-                                    <Key
-                                        className="bg-[var(--ink-3)]"
-                                        text={`${communityName.trim().toLowerCase() === "cobuntu" ? "Platform" : "Cobuntu"} ${round(platformOfSale)}%`}
-                                    />
-                                )}
-                            </div>
-
-                            {sellerFee && (
-                                <p className="mt-2 text-[11.5px] leading-relaxed text-[var(--ink-3)]">
-                                    {say("spineFixedFee",
-                                         { amount: money(sellerFee.fixed, sellerFee.currency) },
-                                         `Plus ${money(sellerFee.fixed, sellerFee.currency)} per sale to Cobuntu. Stripe's processing comes out of Cobuntu's fee, so it is not charged separately.`)}
-                                </p>
-                            )}
-                        </div>
-                    )}
-
-                    {!locked && onCounter && (
-                        countering ? (
-                            <div className="flex flex-wrap items-center gap-2">
-                                <input
-                                    autoFocus
-                                    type="number"
-                                    min={0}
-                                    max={40}
-                                    value={draft}
-                                    onChange={(e) => setDraft(Number(e.target.value))}
-                                    className="tabular w-[72px] rounded-lg border border-zinc-200 px-2.5 py-2 text-[16px] font-bold outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/10"
+                                <dt className="min-w-0 flex-1 truncate text-[13px] text-[var(--ink-2)]">{r.name}</dt>
+                                <dd
+                                    className="text-[13px] font-semibold text-[var(--ink)]"
                                     style={{ fontVariantNumeric: "tabular-nums" }}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => { onCounter(draft); setCountering(false); }}
-                                    className="rounded-lg bg-[var(--commit)] px-4 py-2 text-[13px] font-semibold text-white cursor-pointer hover:opacity-90"
                                 >
-                                    {label("spineOffer", "Offer")} {draft}%
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setCountering(false)}
-                                    className="rounded-lg px-3 py-2 text-[13px] font-medium text-[var(--ink-2)] cursor-pointer hover:bg-[var(--sunk)]"
-                                >
-                                    {label("counterCancel", "Cancel")}
-                                </button>
+                                    {round(r.pct)}%
+                                </dd>
                             </div>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={() => { setDraft(shown); setCountering(true); }}
-                                className="w-full rounded-lg border border-[var(--line)] px-4 py-2.5 text-[13px] font-semibold text-[var(--ink-2)] cursor-pointer transition-colors hover:bg-[var(--sunk)]"
-                            >
-                                {counterLabel}
-                            </button>
-                        )
+                        ))}
+                    </dl>
+
+                    {sellerFee && (
+                        <p className="mt-3 border-t border-[var(--line-soft)] pt-3 text-[11.5px] leading-relaxed text-[var(--ink-3)]">
+                            {say(
+                                "spineFixedFee",
+                                { amount: money(sellerFee.fixed, sellerFee.currency) },
+                                `Plus ${money(sellerFee.fixed, sellerFee.currency)} per sale to Cobuntu. Stripe's processing comes out of Cobuntu's fee, so it is not charged separately.`,
+                            )}
+                        </p>
                     )}
                 </div>
-            </div>
-        </Card>
-    );
-}
+            )}
 
-function Band({ pct, value, label, className }: { pct: number; value: string; label: string; className: string }) {
-    return (
-        <div
-            /* A floor, so the smaller share never becomes an unlabelable sliver. */
-            style={{ flexGrow: Math.max(pct, 26), flexBasis: 0 }}
-            className={`flex flex-col items-center justify-center gap-0.5 transition-[flex-grow] duration-500 ease-[var(--ease)] ${className}`}
-        >
-            <span className="text-[15px] font-bold leading-none" style={{ fontVariantNumeric: "tabular-nums" }}>{value}</span>
-            <span className="text-[9px] font-bold uppercase tracking-wider opacity-85 px-1 text-center leading-tight">{label}</span>
-        </div>
+            {!locked && onCounter && (
+                <div className="border-t border-[var(--line-soft)] p-4 sm:p-5">
+                    {countering ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                            <input
+                                autoFocus
+                                type="number"
+                                min={0}
+                                max={40}
+                                value={draft}
+                                onChange={(e) => setDraft(Number(e.target.value))}
+                                className="w-[72px] rounded-lg border border-zinc-200 px-2.5 py-2 text-[16px] font-bold outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/10"
+                                style={{ fontVariantNumeric: "tabular-nums" }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => { onCounter(draft); setCountering(false); }}
+                                className="cursor-pointer rounded-lg bg-[var(--commit)] px-4 py-2 text-[13px] font-semibold text-white hover:opacity-90"
+                            >
+                                {label("spineOffer", "Offer")} {draft}%
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setCountering(false)}
+                                className="cursor-pointer rounded-lg px-3 py-2 text-[13px] font-medium text-[var(--ink-2)] hover:bg-[var(--sunk)]"
+                            >
+                                {label("counterCancel", "Cancel")}
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => { setDraft(shown); setCountering(true); }}
+                            className="w-full cursor-pointer rounded-lg border border-[var(--line)] px-4 py-2.5 text-[13px] font-semibold text-[var(--ink-2)] transition-colors hover:bg-[var(--sunk)]"
+                        >
+                            {counterLabel}
+                        </button>
+                    )}
+                </div>
+            )}
+        </Card>
     );
 }
 

@@ -23,13 +23,23 @@ import { NextAction } from "../listings/ui/NextAction";
  *
  * Dividing the sale gives every rate an honest picture, zero included.
  */
+/**
+ * Name and percentage are separate cells now -- a definition list rather than a
+ * "Seller 90%" string -- so the numbers can right-align in a readable column.
+ * These read the row by its label and check the value beside it.
+ */
+function share(name: string): string {
+    const dt = screen.getByText(name);
+    return dt.parentElement?.querySelector("dd")?.textContent ?? "";
+}
+
 describe("the spine", () => {
     it("divides one sale between the seller, the community and Cobuntu", () => {
         render(<DealSpine rate={10} communityName="PBN" platformShare={10} />);
         // 10% commission: Cobuntu takes 10% OF that, so 1% of the sale.
-        expect(screen.getByText("Seller 90%")).toBeInTheDocument();
-        expect(screen.getByText("PBN 9%")).toBeInTheDocument();
-        expect(screen.getByText("Cobuntu 1%")).toBeInTheDocument();
+        expect(share("You keep")).toBe("90%");
+        expect(share("PBN")).toBe("9%");
+        expect(share("Cobuntu")).toBe("1%");
     });
 
     /*
@@ -39,9 +49,9 @@ describe("the spine", () => {
      */
     it("grows the seller's share when the community lowers its rate", () => {
         const { rerender } = render(<DealSpine rate={20} communityName="PBN" platformShare={10} />);
-        expect(screen.getByText("Seller 80%")).toBeInTheDocument();
+        expect(share("You keep")).toBe("80%");
         rerender(<DealSpine rate={5} communityName="PBN" platformShare={10} />);
-        expect(screen.getByText("Seller 95%")).toBeInTheDocument();
+        expect(share("You keep")).toBe("95%");
     });
 
     it("says nothing is agreed rather than showing a confident zero", () => {
@@ -108,14 +118,19 @@ describe("the bands name two different parties", () => {
          * one screen where that distinction is the entire point.
          */
         render(<DealSpine rate={10} communityName="Cobuntu" platformShare={10} />);
-        expect(screen.getByText("Platform 1%")).toBeInTheDocument();
-        expect(screen.queryByText("Cobuntu 1%")).not.toBeInTheDocument();
+        expect(share("Platform")).toBe("1%");
+        /*
+         * "Cobuntu" appears ONCE -- as the community taking its commission.
+         * The platform's own row is renamed so the two are not the same word
+         * twice, which is the whole point on this one card.
+         */
+        expect(screen.queryAllByText("Cobuntu")).toHaveLength(1);
     });
 
     it("uses the platform's own name everywhere else", () => {
         render(<DealSpine rate={10} communityName="PBN" platformShare={10} />);
-        expect(screen.getByText("Cobuntu 1%")).toBeInTheDocument();
-        expect(screen.getByText("PBN 9%")).toBeInTheDocument();
+        expect(share("Cobuntu")).toBe("1%");
+        expect(share("PBN")).toBe("9%");
     });
 });
 
@@ -137,14 +152,15 @@ describe("a rate of zero", () => {
     it("draws one full band and names nobody who took nothing", () => {
         render(<DealSpine rate={0} communityName="Cobuntu" platformShare={10} />);
         expect(screen.getByText("0%")).toBeInTheDocument();
-        expect(screen.getByText("Seller 100%")).toBeInTheDocument();
-        expect(screen.queryByText(/Cobuntu 0%|Platform 0%/)).not.toBeInTheDocument();
+        expect(share("You keep")).toBe("100%");
+        // A party named for taking nothing is the chart-of-nothing in list form.
+        expect(screen.queryByText("Platform")).not.toBeInTheDocument();
         expect(screen.getByText(/Nothing to split/)).toBeInTheDocument();
     });
 
     it("names the other two the moment there is a commission", () => {
         render(<DealSpine rate={10} communityName="PBN" platformShare={10} />);
-        expect(screen.getByText("PBN 9%")).toBeInTheDocument();
+        expect(share("PBN")).toBe("9%");
         expect(screen.queryByText(/Nothing to split/)).not.toBeInTheDocument();
     });
 
@@ -158,5 +174,33 @@ describe("a rate of zero", () => {
         expect(screen.getByText("—")).toBeInTheDocument();
         expect(screen.getByText(/Nothing agreed yet/)).toBeInTheDocument();
         expect(screen.queryByText(/Nothing to split/)).not.toBeInTheDocument();
+    });
+});
+
+/**
+ * The colours carry the meaning, and the palette already defined it.
+ *
+ * --b-keep is what the seller keeps, --b-comm is the community, --b-cob is
+ * Cobuntu. The first version of this bar picked them arbitrarily and drew the
+ * SELLER's band in the Cobuntu blue, so the most important card in the feature
+ * had a colour key that contradicted the palette every other surface uses.
+ */
+describe("the split's colours", () => {
+    const swatches = (c: HTMLElement) =>
+        Array.from(c.querySelectorAll("dl span[aria-hidden]"))
+            .map((el) => (el as HTMLElement).style.background);
+
+    it("gives each party its own token, in the waterfall's order", () => {
+        const { container } = render(<DealSpine rate={10} communityName="PBN" platformShare={10} />);
+        expect(swatches(container)).toEqual([
+            "var(--b-keep)",
+            "var(--b-comm)",
+            "var(--b-cob)",
+        ]);
+    });
+
+    it("drops the parties that took nothing", () => {
+        const { container } = render(<DealSpine rate={0} communityName="PBN" platformShare={10} />);
+        expect(swatches(container)).toEqual(["var(--b-keep)"]);
     });
 });

@@ -20,6 +20,7 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     spineZero: "No commission on this listing. Nothing to split.",
     spineKeySeller: "You keep",
     spineFixedFee: "Plus {amount} per sale to Cobuntu. Stripe's processing comes out of Cobuntu's fee, so it is not charged separately.",
+    spineSplitHeading: "Every sale, split",
     spineSub: "of every sale, split as shown",
     spineNotAgreed: "Nothing agreed yet",
     spineOffer: "Offer",

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Card, Pill, Who, inputCls } from "./primitives";
+import { EmptyState } from "../../overview/EmptyState";
 
 /**
  * Topics — the half of a listing negotiation that is not money.
@@ -86,14 +87,29 @@ export function Topics({
         <div className="space-y-3">
             <Composer viewer={viewer} otherPartyName={otherPartyName} busy={busy} onPost={onOpen} t={t} />
 
+            {/*
+              * The same placeholder every other empty section uses, so an empty
+              * page keeps its shape as you move around. It carries NO action:
+              * the composer sits directly above it, and a button here would be
+              * a second way to do the thing already open on screen.
+              */}
             {topics.length === 0 && (
-                <Card className="p-8 text-center">
-                    <p className="text-[14px] font-semibold text-[var(--ink)]">{t("topicsEmptyTitle")}</p>
-                    <p className="mx-auto mt-1.5 max-w-[40ch] text-[13px] leading-relaxed text-[var(--ink-2)]">
-                        {viewer === "owner"
+                <Card className="overflow-hidden">
+                    <EmptyState
+                        bordered={false}
+                        icon={
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none"
+                                 stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
+                                 strokeLinejoin="round">
+                                {/* Two hands on one point: a topic closes only when both agree. */}
+                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z" />
+                            </svg>
+                        }
+                        title={t("topicsEmptyTitle")}
+                        body={viewer === "owner"
                             ? t("topicsEmptyOwner", { community: otherPartyName })
                             : t("topicsEmptyLeader", { seller: otherPartyName })}
-                    </p>
+                    />
                 </Card>
             )}
 
