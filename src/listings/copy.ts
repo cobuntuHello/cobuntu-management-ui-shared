@@ -194,7 +194,6 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     overviewNoListingsBody: "It is not on any community's shelf, so there is no page a buyer can reach and no way to pay for it.",
     overviewNoActiveListingBody: "Every community carrying it has it off the shelf or still under review, so there is nowhere to buy it right now.",
     overviewNoListingsHere: "No community carries this yet. Once one does, its sales and views appear here.",
-    overviewAskCommunity: "Ask a community to carry it",
     overviewSellItMyself: "Sell it myself",
 
     overviewStatus_ACTIVE: "Live",
