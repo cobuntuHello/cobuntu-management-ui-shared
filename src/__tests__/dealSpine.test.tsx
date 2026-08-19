@@ -100,3 +100,39 @@ describe("the bands name two different parties", () => {
         expect(screen.getByText("PBN")).toBeInTheDocument();
     });
 });
+
+/**
+ * Zero is not a split.
+ *
+ * The bands total the COMMISSION, so at 0% they drew a confident two-colour
+ * chart dividing zero euros between two parties. Self-listing is the common
+ * zero -- a community carrying its own product takes no cut -- so every one of
+ * those pages showed a large graphic of no money at all.
+ */
+describe("a rate of zero", () => {
+    it("draws no bands, and says what zero means", () => {
+        render(<DealSpine rate={0} communityName="Cobuntu" platformShare={10} />);
+        expect(screen.getByText("0%")).toBeInTheDocument();
+        expect(screen.queryByText("90%")).not.toBeInTheDocument();
+        expect(screen.queryByText("10%")).not.toBeInTheDocument();
+        expect(screen.getByText(/Nothing to split/)).toBeInTheDocument();
+    });
+
+    it("still draws them the moment there is a commission", () => {
+        render(<DealSpine rate={10} communityName="PBN" platformShare={10} />);
+        expect(screen.getByText("90%")).toBeInTheDocument();
+        expect(screen.queryByText(/Nothing to split/)).not.toBeInTheDocument();
+    });
+
+    /*
+     * An unagreed rate is a THIRD thing: not zero, not a split. It already said
+     * "Nothing agreed yet" and must keep saying that rather than falling into
+     * the zero copy.
+     */
+    it("keeps null distinct from zero", () => {
+        render(<DealSpine rate={null} communityName="PBN" platformShare={10} />);
+        expect(screen.getByText("—")).toBeInTheDocument();
+        expect(screen.getByText(/Nothing agreed yet/)).toBeInTheDocument();
+        expect(screen.queryByText(/Nothing to split/)).not.toBeInTheDocument();
+    });
+});

@@ -62,11 +62,27 @@ export function NextAction({
 
     if (state === "ACTIVE") {
         return (
-            <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center sm:p-6">
-                <p className="text-[19px] font-bold tracking-tight text-emerald-900">
+            /*
+              * LEFT-ALIGNED, AND CARRYING SOMETHING.
+              *
+              * This was a centred pastel block the width of the page, holding
+              * two lines that said the same thing twice ("You both shook on
+              * it" / "This listing is live") with an inch of air either side.
+              * Centred text in a wide box is the shape of an empty state, and
+              * this is not one -- an agreement was reached, and the banner is
+              * where it should be stated.
+              *
+              * Same anatomy as the in-review banner below: mark, headline,
+              * one line of substance. The page should not change character
+              * between the two states, only tone.
+              */
+            <div className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/70 p-4">
+                <Mark className="bg-emerald-600" />
+                <div className="min-w-0 flex-1">
+                <p className="text-[15.5px] font-bold tracking-tight text-emerald-900">
                     {label("settledTitle", "You both shook on it")}
                 </p>
-                <p className="mt-1 text-[13.5px] text-emerald-800">
+                <p className="mt-0.5 text-[13px] leading-relaxed text-emerald-800">
                     {/*
                       * What it took to get here, when it took anything. A live
                       * listing that was argued over and one that sailed through
@@ -79,6 +95,7 @@ export function NextAction({
                               `Live in ${communityName}, with ${totalTopics} topic${totalTopics === 1 ? "" : "s"} settled along the way.`)
                         : label("settledBody", `Live in ${communityName}.`)}
                 </p>
+                </div>
             </div>
         );
     }
@@ -95,7 +112,7 @@ export function NextAction({
 
     return (
         <div
-            className="mb-5 rounded-2xl border p-4 transition-colors duration-300 sm:p-5"
+            className="mb-5 flex items-start gap-3 rounded-2xl border p-4 transition-colors duration-300"
             style={{
                 borderColor: mine ? "color-mix(in srgb, var(--warn) 30%, transparent)" : "var(--line)",
                 background: mine ? "var(--warn-w)" : "var(--card)",
@@ -117,6 +134,8 @@ export function NextAction({
               * 5 settled" tells you where you are, the sentence tells you what
               * to do about it.
               */}
+            <Mark className={mine ? "bg-amber-600" : "bg-zinc-400"} />
+            <div className="min-w-0 flex-1">
             {totalTopics > 0 && (
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                     <Dots open={openTopics} closed={settledTopics} />
@@ -155,7 +174,23 @@ export function NextAction({
                             : label("turnOwnerBody", "They have answered. Take a look at the terms below.")
                         : label("turnWaitBody", `Nothing for you to do until ${other} answers. Their reply shows up below.`)}
             </p>
+            </div>
         </div>
+    );
+}
+
+/**
+ * The banner's mark.
+ *
+ * A dot rather than a glyph: the three states differ in URGENCY, not in kind,
+ * and a shared shape in three tones says that where a tick, a clock and a
+ * warning triangle would imply three different sorts of thing.
+ */
+function Mark({ className }: { className: string }) {
+    return (
+        <span aria-hidden="true" className="mt-[3px] flex h-5 w-5 flex-none items-center justify-center">
+            <span className={`h-2.5 w-2.5 rounded-full ${className}`} />
+        </span>
     );
 }
 

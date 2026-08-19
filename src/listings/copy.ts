@@ -17,6 +17,7 @@
 export const LISTING_DETAIL_COPY: Record<string, string> = {
     /* The commission spine, ported from the negotiation MVP. */
     spineHeading: "The community's cut",
+    spineZero: "No commission on this listing. Nothing to split.",
     spineSub: "of every sale, split as shown",
     spineNotAgreed: "Nothing agreed yet",
     spineOffer: "Offer",

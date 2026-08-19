@@ -630,21 +630,21 @@ export function ManagedListingDetail({
       />
 
       {/*
-        * ── Two columns on a wide screen, one on a narrow one ───────────────
+        * ── ONE COLUMN ─────────────────────────────────────────────────────
         *
-        * MOBILE FIRST: the default is a single stack, and the split only
-        * appears at lg. That order matters — written the other way round, the
-        * phone gets a desktop grid squeezed into 380px, which is how the terms
-        * end up three words wide.
+        * This was a fixed 360px rail beside a flexible feed, and the rail held
+        * one card and then three hundred pixels of air while the conversation
+        * -- the part with the length -- was squeezed into the remaining 60%.
+        * The split was buying stickiness: the terms stayed on screen while you
+        * scrolled the thread.
         *
-        * The terms go LEFT and stick, because they are what the conversation
-        * on the right is about: scrolling a long thread should not take the
-        * number being argued over off the screen. The MVP's own proportions —
-        * a fixed 360px column beside a flexible one — because the terms are a
-        * known size and the feed is not.
+        * That is worth less than it sounds. The terms are four short facts and
+        * a rate; they read in a second at the top and do not need to follow you
+        * down the page. What does need the width is the thread, which is the
+        * only thing here that grows.
         */}
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
-        <div className="lg:sticky lg:top-[88px]">
+      <div>
+        <div>
       {/*
         * The commission, drawn as a cut of every sale rather than listed as a
         * row in a table. A number in a definition list is a fact; the spine

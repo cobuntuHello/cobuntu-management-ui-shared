@@ -56,7 +56,19 @@ export function DealSpine({
     return (
         <Card className="overflow-hidden text-[var(--ink)]">
             <div className="flex min-h-[188px]">
-                {/* The spine. */}
+                {/*
+                  * NO BANDS WHEN THERE IS NOTHING TO SPLIT.
+                  *
+                  * The bands total the COMMISSION, so at 0% they drew a
+                  * confident two-colour chart dividing zero euros between two
+                  * parties -- a large graphic of no money at all. Self-listing
+                  * is the common zero (a community carrying its own product
+                  * takes no cut), so this was not an edge case: every one of
+                  * those pages showed it.
+                  *
+                  * A split only exists when there is something to split.
+                  */}
+                {rate !== null && rate > 0 && (
                 <div className="flex w-[72px] shrink-0 flex-col">
                     <Band pct={community} value={`${community}%`} label={communityName} className="bg-[var(--b-comm)] text-white" />
                     {/*
@@ -72,6 +84,7 @@ export function DealSpine({
                         className="bg-[var(--b-cob)] text-white"
                     />
                 </div>
+                )}
 
                 <div className="flex min-w-0 flex-1 flex-col justify-between gap-4 p-5">
                     <div>
@@ -84,7 +97,9 @@ export function DealSpine({
                         <p className="mt-1.5 text-[12.5px] text-[var(--ink-3)]">
                             {rate == null
                                 ? label("spineNotAgreed", "Nothing agreed yet")
-                                : label("spineSub", "of every sale, split as shown")}
+                                : rate === 0
+                                    ? label("spineZero", "No commission on this listing. Nothing to split.")
+                                    : label("spineSub", "of every sale, split as shown")}
                         </p>
                     </div>
 
