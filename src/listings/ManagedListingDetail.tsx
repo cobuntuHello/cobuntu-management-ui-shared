@@ -685,6 +685,7 @@ export function ManagedListingDetail({
 
       <div>
         {tab === "terms" && (
+        <>
         <div>
       {/*
         * The commission, drawn as a cut of every sale rather than listed as a
@@ -711,69 +712,17 @@ export function ManagedListingDetail({
       </div>
 
         </div>
-        )}
-
-        <div className="min-w-0">
-
-      {/*
-        * HISTORY: every rate either side formally put forward.
-        *
-        * Its own tab because it is a record, not a task. Read once, argued over
-        * rarely, and empty on the common listing that was accepted as asked --
-        * where it had been a full card holding one grey sentence in the middle
-        * of the page.
-        */}
-      {tab === "history" && (
-      <div className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100 overflow-hidden mb-6">
-        <div className="px-6 py-4 border-b border-zinc-100">
-          <h2 className="text-[14px] font-semibold text-zinc-900">{t("threadTitle")}</h2>
-          <p className="text-[12px] text-zinc-500 mt-0.5">{t("threadSubtitle")}</p>
-        </div>
-        {proposals.length > 0 ? (
-          <ul>
-            {proposals.map((p) => {
-              const who = p.proposedBy?.name || p.proposedByUser?.name || t("someone");
-              const pRate = toRate(p.commissionRate);
-              return (
-                <li key={p.id} className="px-6 py-4 border-b border-zinc-100 last:border-none">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <p className="text-[13px] font-medium text-zinc-900">
-                      {p.package?.name
-                        ? t("proposedPackage", { who, name: p.package.name, rate: pRate ?? 0 })
-                        : t("proposedRate", { who, rate: pRate ?? 0 })}
-                    </p>
-                    {p.createdAt && <span className="shrink-0 text-[11px] text-zinc-400">{formatDate(p.createdAt)}</span>}
-                  </div>
-                  {p.message && <p className="text-[13px] text-zinc-600 mt-1 whitespace-pre-wrap">{p.message}</p>}
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          /*
-            An empty thread means two different things and the difference is the
-            whole point of the page while in review. "Nothing proposed yet" on a
-            listing awaiting an answer reads as if the request never left; what
-            is true is that it landed and nobody has replied.
-          */
-          <p className="px-6 py-8 text-center text-[13px] text-zinc-400">
-            {waiting ? t("threadEmptyWaiting") : t("threadEmpty")}
-          </p>
-        )}
 
         {/*
-          * Countering lives INSIDE the thread, at the end of it.
+          * The picker lives WHERE IT IS OPENED FROM.
           *
-          * It is the next entry in a conversation, not a separate settings
-          * panel — and putting it here means the offer someone is replying to
-          * is still on screen while they choose.
+          * It used to sit inside the thread card. When the thread moved behind
+          * the History tab it went with it, so typing an unpublished rate on
+          * Terms opened a form rendered on a tab you were not looking at --
+          * the counter silently did nothing. A control and the thing that
+          * summons it belong on the same screen.
           *
-          * Only while the listing is open to it: there is nothing to negotiate
-          * on a cancelled or revoked one, and an accepted arrangement is
-          * changed by asking again rather than by editing history.
-          */}
-        {/*
-          * The picker, opened FROM THE SPINE and not from here.
+          * Opened FROM THE SPINE and not from the thread.
           *
           * Both offered "Propose different terms" for a moment, which is the
           * same act twice on one page — and the spine is where the money is,
@@ -853,6 +802,68 @@ export function ManagedListingDetail({
             )}
           </div>
         )}
+        </>
+        )}
+
+        <div className="min-w-0">
+
+      {/*
+        * HISTORY: every rate either side formally put forward.
+        *
+        * Its own tab because it is a record, not a task. Read once, argued over
+        * rarely, and empty on the common listing that was accepted as asked --
+        * where it had been a full card holding one grey sentence in the middle
+        * of the page.
+        */}
+      {tab === "history" && (
+      <div className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100 overflow-hidden mb-6">
+        <div className="px-6 py-4 border-b border-zinc-100">
+          <h2 className="text-[14px] font-semibold text-zinc-900">{t("threadTitle")}</h2>
+          <p className="text-[12px] text-zinc-500 mt-0.5">{t("threadSubtitle")}</p>
+        </div>
+        {proposals.length > 0 ? (
+          <ul>
+            {proposals.map((p) => {
+              const who = p.proposedBy?.name || p.proposedByUser?.name || t("someone");
+              const pRate = toRate(p.commissionRate);
+              return (
+                <li key={p.id} className="px-6 py-4 border-b border-zinc-100 last:border-none">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="text-[13px] font-medium text-zinc-900">
+                      {p.package?.name
+                        ? t("proposedPackage", { who, name: p.package.name, rate: pRate ?? 0 })
+                        : t("proposedRate", { who, rate: pRate ?? 0 })}
+                    </p>
+                    {p.createdAt && <span className="shrink-0 text-[11px] text-zinc-400">{formatDate(p.createdAt)}</span>}
+                  </div>
+                  {p.message && <p className="text-[13px] text-zinc-600 mt-1 whitespace-pre-wrap">{p.message}</p>}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          /*
+            An empty thread means two different things and the difference is the
+            whole point of the page while in review. "Nothing proposed yet" on a
+            listing awaiting an answer reads as if the request never left; what
+            is true is that it landed and nobody has replied.
+          */
+          <p className="px-6 py-8 text-center text-[13px] text-zinc-400">
+            {waiting ? t("threadEmptyWaiting") : t("threadEmpty")}
+          </p>
+        )}
+
+        {/*
+          * Countering lives INSIDE the thread, at the end of it.
+          *
+          * It is the next entry in a conversation, not a separate settings
+          * panel — and putting it here means the offer someone is replying to
+          * is still on screen while they choose.
+          *
+          * Only while the listing is open to it: there is nothing to negotiate
+          * on a cancelled or revoked one, and an accepted arrangement is
+          * changed by asking again rather than by editing history.
+          */}
       </div>
       )}
 
