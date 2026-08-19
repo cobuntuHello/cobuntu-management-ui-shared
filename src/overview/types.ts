@@ -1,0 +1,75 @@
+/**
+ * The shape `GET /api/{products,events}/:id/overview` answers with.
+ *
+ * Declared here rather than imported from the backend because the package
+ * cannot depend on it, and duplicated deliberately rather than loosely typed:
+ * the two things this page must not get wrong are both expressible in the type,
+ * and a `Record<string, number>` would express neither.
+ */
+
+export interface OverviewListing {
+    listingId: string;
+    communityId: string;
+    communityName: string;
+    communityTag: string;
+    /** PENDING | ACTIVE | PAUSED | CANCELLED | REVOKED */
+    status: string;
+    commissionRate: number | null;
+    views: number;
+    sold: number;
+    gross: number;
+    net: number;
+}
+
+export interface OverviewMoney {
+    /**
+     * What the seller has EARNED. Not what they have received.
+     *
+     * Led with over `gross` because a seller's question is what they are paid,
+     * and reading the wrong money column is how a EUR 5 ticket came to report
+     * that Cobuntu earned nothing.
+     */
+    net: number;
+    gross: number;
+    /** In escrow. Earned, not yet releasable. */
+    held: number;
+    /** Releasable now, or accumulating below the payout threshold. */
+    due: number;
+    /** Already transferred. */
+    paid: number;
+    /** When the earliest held money becomes due. Null when nothing is held. */
+    nextPayoutAt: string | null;
+    currency: string;
+}
+
+export interface OverviewStats {
+    kind: "product" | "event";
+    money: OverviewMoney;
+    sold: number;
+    views: {
+        total: number;
+        /**
+         * Views belonging to NO listing.
+         *
+         * Purchaser views on a product (recorded as direct-access) and every
+         * event view from before the community column existed. Present so the
+         * page can show totals and per-listing side by side without implying
+         * they partition: `sum(listings.views) + unattributed === total`.
+         *
+         * Never subtract it to "fix" the totals. It is not an error term.
+         */
+        unattributed: number;
+    };
+    /** Oldest first. Only weeks with activity appear. */
+    weekly: Array<{ week: string; sold: number; net: number; views: number }>;
+    listings: OverviewListing[];
+}
+
+/** Event-only figures the product page has no equivalent for. */
+export interface EventExtras {
+    /** Attendees going, and the cap if there is one. */
+    going?: number;
+    capacity?: number | null;
+    /** ISO start, for the "starts in" tile. */
+    startsAt?: string | null;
+}

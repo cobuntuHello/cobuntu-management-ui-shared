@@ -136,7 +136,56 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     topicsOpenOwnerBody: "Work through them, then take another look at the terms below.",
     topicsOpenWaitBody: "{other} is working through them.",
     settledBodyWithTopics: "Live in {community}, with {count} topic settled along the way.",
-    settledBodyWithTopicsPlural: "Live in {community}, with {count} topics settled along the way."
+    settledBodyWithTopicsPlural: "Live in {community}, with {count} topics settled along the way.",
+
+    /*
+     * ── The Overview tab ────────────────────────────────────────────────────
+     *
+     * Written so the money reads as three different things rather than one
+     * total, because held is not spendable and paid is already gone.
+     */
+    overviewEarnings: "Your earnings",
+    overviewHeld: "{amount} held",
+    overviewDueOn: "until {date}",
+    overviewDue: "{amount} due",
+    overviewPaid: "{amount} paid",
+    overviewNoEarningsYet: "Nothing earned yet",
+    overviewSold: "Sold",
+    overviewGoing: "Going",
+    overviewOfCapacity: "of {capacity} places",
+    overviewInLastWeeks: "{count} in the last 4 weeks",
+    overviewViews: "Views",
+    overviewVsPrevious: "vs the 4 weeks before",
+    overviewConversion: "Viewed to bought",
+    overviewNoViewsYet: "Nobody has looked yet",
+    overviewStartsIn: "Starts in",
+    overviewDays: "{count}d",
+    overviewGross: "Gross taken",
+    overviewGrossSub: "Before commission and fees",
+    overviewYourNet: "Your net",
+    overviewWhereItSells: "Where this sells",
+    overviewCarriedBy: "Carried by {count}",
+    overviewCommission: "{rate}% commission",
+    overviewUnattributedViews: "{count} views are not counted against any community: people who bought it, or who looked before we recorded where from.",
+
+    /* The state that matters most: it exists, and nobody can buy it. */
+    overviewNotSellableProduct: "Nobody can buy this yet",
+    overviewNotSellableEvent: "Nobody can get a ticket yet",
+    overviewNoListingsBody: "It is not on any community's shelf, so there is no page a buyer can reach and no way to pay for it.",
+    overviewNoActiveListingBody: "Every community carrying it has it paused or still under review, so there is nowhere to buy it right now.",
+    overviewNoListingsHere: "No community carries this yet. Once one does, its sales and views appear here.",
+    overviewAskCommunity: "Ask a community to carry it",
+    overviewSellItMyself: "Sell it myself",
+
+    overviewStatus_ACTIVE: "Live",
+    overviewStatus_PENDING: "In review",
+    overviewStatus_PAUSED: "Paused",
+    overviewStatus_CANCELLED: "Closed",
+    overviewStatus_REVOKED: "Ended",
+    overviewListingState_PENDING: "Waiting on the community. Nothing can be bought here until they approve it.",
+    overviewListingState_PAUSED: "Off the shelf. Put it back from the listing page.",
+    overviewListingState_CANCELLED: "This community is no longer carrying it.",
+    overviewListingState_REVOKED: "This community ended the listing."
 };
 
 /**

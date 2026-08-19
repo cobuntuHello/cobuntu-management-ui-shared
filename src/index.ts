@@ -89,6 +89,18 @@ export { LISTING_DETAIL_COPY, defaultTranslate } from "./listings/copy";
  * must not have to reimplement the handshake to do it.
  */
 export { Topics, type Topic, type TopicComment } from "./listings/ui/Topics";
+
+/*
+ * The Overview tab: how a product or event is doing, and whether it can be sold
+ * at all. Presentational — the host fetches /overview and passes `stats`, which
+ * keeps one component serving two domains and two apps.
+ */
+export { ManageOverview, type ManageOverviewProps } from "./overview/ManageOverview";
+export type { OverviewStats, OverviewListing, OverviewMoney, EventExtras } from "./overview/types";
+export {
+  conversion, delta, recentWindows, daysUntil, isSellable, hasUnattributedViews,
+  formatMoney, formatCount,
+} from "./overview/format";
 /*
  * The WHOLE surface of both modules, not the subset this panel happens to use.
  *
