@@ -977,7 +977,26 @@ export function ManagedListingDetail({
         * permanent grey stripe advertising a capability this listing lacks.
         */}
       {(actions.length > 0 || reviewActions.length > 0) && (
-        <div className="sticky bottom-0 z-20 -mx-4 mt-6 flex flex-col-reverse gap-2 border-t border-[var(--line)] bg-[var(--card)] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:flex-row sm:flex-wrap sm:justify-end sm:px-6">
+        <>
+        {/*
+          * FIXED, NOT STICKY, and this is the third attempt at it.
+          *
+          * Sticky is bounded by its PARENT's box. This bar is the last child of
+          * the panel, so its parent ends where it does and there is nothing to
+          * stick within -- it sat at the end of the document, scrolled away
+          * with the content, and left the page's own bottom padding showing
+          * underneath. Negative margins only pulled it out by the PANEL's
+          * padding, never the page's, so it was never full width either.
+          *
+          * Fixed to the viewport removes both. The one thing fixed cannot know
+          * is where the content area starts, because the host owns the sidebar
+          * -- so the host says, through --manage-actions-left, and a page with
+          * no sidebar gets the 0px default and full width for free.
+          */}
+        <div
+          className="fixed bottom-0 right-0 z-30 flex flex-col-reverse gap-2 border-t border-[var(--line)] bg-[var(--card)] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:flex-row sm:flex-wrap sm:justify-end sm:px-6"
+          style={{ left: "var(--manage-actions-left, 0px)" }}
+        >
         {/*
         The levers, straight from the machine.
 
@@ -1065,6 +1084,9 @@ export function ManagedListingDetail({
         </div>
       )}
         </div>
+        {/* Fixed elements take no space in the flow; this is the space. */}
+        <div aria-hidden="true" className="h-24" />
+        </>
       )}
 
       {/*

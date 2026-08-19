@@ -120,3 +120,28 @@ describe("the confirmations", () => {
         expect(LISTING_DETAIL_COPY.confirmPauseBody).toMatch(/put it back|without asking/i);
     });
 });
+
+/**
+ * Templates need their variables.
+ *
+ * The fixed-fee line shipped to a live page reading "Plus {amount} per sale",
+ * because the spine's `label` helper calls t(key) with no vars and that was
+ * fine for every string until one had a placeholder. Any copy with a {token}
+ * has to be rendered through a helper that can carry it.
+ */
+describe("interpolated copy", () => {
+    it("declares the fee amount as a token, so a caller must supply it", () => {
+        expect(LISTING_DETAIL_COPY.spineFixedFee).toContain("{amount}");
+    });
+
+    /*
+     * And the strings that go through the no-vars helper must have NO tokens,
+     * which is the actual invariant -- the bug was a mismatch between the two,
+     * not a missing string.
+     */
+    it("keeps the plain spine strings free of tokens", () => {
+        for (const key of ["spineHeading", "spineSub", "spineZero", "spineNotAgreed", "spineKeySeller"]) {
+            expect(LISTING_DETAIL_COPY[key]).not.toMatch(/\{[a-z]+\}/i);
+        }
+    });
+});

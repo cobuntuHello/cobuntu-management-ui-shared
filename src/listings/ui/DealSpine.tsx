@@ -74,6 +74,14 @@ export function DealSpine({
     const shown = rate ?? 0;
     const community = 100 - platformShare;
     const label = (k: string, fallback: string) => (t ? t(k) : fallback);
+    /*
+     * `label` passes NO variables, which is fine for the static strings and was
+     * silently wrong for this one: the fixed-fee line shipped reading "Plus
+     * {amount} per sale" on a live page. A template needs its vars, so it gets
+     * its own helper rather than sharing one that cannot carry them.
+     */
+    const say = (k: string, vars: Record<string, unknown>, fallback: string) =>
+        (t ? t(k, vars) : fallback);
 
     /*
      * One sale, divided. `rate` is the community's cut of the sale; Cobuntu
@@ -171,7 +179,9 @@ export function DealSpine({
 
                             {sellerFee && (
                                 <p className="mt-2 text-[11.5px] leading-relaxed text-[var(--ink-3)]">
-                                    {label("spineFixedFee", `Plus ${money(sellerFee.fixed, sellerFee.currency)} per sale to Cobuntu. Stripe's processing comes out of Cobuntu's fee, so it is not a separate deduction.`)}
+                                    {say("spineFixedFee",
+                                         { amount: money(sellerFee.fixed, sellerFee.currency) },
+                                         `Plus ${money(sellerFee.fixed, sellerFee.currency)} per sale to Cobuntu. Stripe's processing comes out of Cobuntu's fee, so it is not charged separately.`)}
                                 </p>
                             )}
                         </div>
