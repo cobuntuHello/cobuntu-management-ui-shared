@@ -164,5 +164,10 @@ export {
 export { ManageLedger } from "./ledger/ManageLedger";
 export type { ItemLedger, LedgerMovement } from "./ledger/types";
 export { EmptyState, LedgerIcon, ShelfIcon } from "./overview/EmptyState";
-export { TextField, TextArea } from "./listings/ui/TextField";
+/*
+ * TOPIC_LIMITS only. The panel's TextField/TextArea are NOT exported: this
+ * package already has a `TextField` in ui/, and adding a second under the same
+ * name broke the barrel outright. They are internal to the listings panel,
+ * which is where they should have stayed.
+ */
 export { TOPIC_LIMITS } from "./listings/ui/topicLimits";
