@@ -159,3 +159,7 @@ export {
   Who,
   inputCls,
 } from "./listings/ui/primitives";
+
+/* The manage page's Ledger tab: every money movement for one item. */
+export { ManageLedger } from "./ledger/ManageLedger";
+export type { ItemLedger, LedgerMovement } from "./ledger/types";
