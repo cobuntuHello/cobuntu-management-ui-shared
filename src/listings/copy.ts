@@ -172,18 +172,20 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     overviewNotSellableProduct: "Nobody can buy this yet",
     overviewNotSellableEvent: "Nobody can get a ticket yet",
     overviewNoListingsBody: "It is not on any community's shelf, so there is no page a buyer can reach and no way to pay for it.",
-    overviewNoActiveListingBody: "Every community carrying it has it paused or still under review, so there is nowhere to buy it right now.",
+    overviewNoActiveListingBody: "Every community carrying it has it off the shelf or still under review, so there is nowhere to buy it right now.",
     overviewNoListingsHere: "No community carries this yet. Once one does, its sales and views appear here.",
     overviewAskCommunity: "Ask a community to carry it",
     overviewSellItMyself: "Sell it myself",
 
     overviewStatus_ACTIVE: "Live",
     overviewStatus_PENDING: "In review",
-    overviewStatus_PAUSED: "Paused",
+    /* "Off-shelf", not "Paused": statePaused above has said that since the
+       listing states were named, and one act must not have two words. */
+    overviewStatus_PAUSED: "Off-shelf",
     overviewStatus_CANCELLED: "Closed",
     overviewStatus_REVOKED: "Ended",
     overviewListingState_PENDING: "Waiting on the community. Nothing can be bought here until they approve it.",
-    overviewListingState_PAUSED: "Off the shelf. Put it back from the listing page.",
+    overviewListingState_PAUSED: "You took this off the shelf. Put it back to start selling here again.",
     overviewListingState_CANCELLED: "This community is no longer carrying it.",
     overviewListingState_REVOKED: "This community ended the listing."
 };

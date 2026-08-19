@@ -42,6 +42,21 @@ export interface ManageOverviewProps {
     /** Offered when nothing is listed anywhere. */
     onRequestListing?: () => void;
     onSelfList?: () => void;
+    /**
+     * Take one listing off the shelf, or put it back.
+     *
+     * The same act the listing page already offers, surfaced here because this
+     * is where a seller now SEES that a community has it off the shelf. Absent,
+     * the row still says so and the listing page still does it -- the control
+     * is a shortcut, never the only way.
+     *
+     * Per listing, deliberately. There was a product-level Publish that flipped
+     * every paused listing at once, which named none of the communities it
+     * changed and could only fail on a product with no listings. Pausing was
+     * always per-listing; only un-pausing was bulk, so the two halves of one
+     * act disagreed about what they operated on.
+     */
+    onShelfToggle?: (listing: OverviewListing, next: "ACTIVE" | "PAUSED") => void | Promise<void>;
     t: T;
     locale?: string;
     /** Rendered under the listings; the host owns any further actions. */
@@ -81,7 +96,8 @@ function Delta({ pct, t }: { pct: number | null; t: T }) {
 }
 
 export function ManageOverview({
-    stats, extras, listingHref, onRequestListing, onSelfList, t, locale = "en-GB", footer,
+    stats, extras, listingHref, onRequestListing, onSelfList, onShelfToggle,
+    t, locale = "en-GB", footer,
 }: ManageOverviewProps) {
     const { money, views, listings, weekly } = stats;
     const isEvent = stats.kind === "event";
@@ -233,11 +249,35 @@ export function ManageOverview({
                                             {t(`overviewStatus_${l.status}`)}
                                         </span>
                                     </span>
-                                    {l.commissionRate !== null && (
-                                        <span className="text-[12.5px] text-zinc-500 tabular-nums">
-                                            {t("overviewCommission", { rate: l.commissionRate })}
-                                        </span>
-                                    )}
+                                    <span className="flex items-center gap-3">
+                                        {l.commissionRate !== null && (
+                                            <span className="text-[12.5px] text-zinc-500 tabular-nums">
+                                                {t("overviewCommission", { rate: l.commissionRate })}
+                                            </span>
+                                        )}
+                                        {/*
+                                          * Only for the two states the seller
+                                          * owns. PENDING is the community's to
+                                          * answer and CANCELLED/REVOKED are
+                                          * closed, so offering a shelf control
+                                          * there would promise something the
+                                          * server refuses.
+                                          */}
+                                        {onShelfToggle && (l.status === "ACTIVE" || l.status === "PAUSED") && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    // The row is a link; this is not.
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    void onShelfToggle(l, l.status === "ACTIVE" ? "PAUSED" : "ACTIVE");
+                                                }}
+                                                className="cursor-pointer rounded-lg bg-zinc-100 px-3 py-1.5 text-[12.5px] font-semibold text-zinc-700 transition-colors hover:bg-zinc-200"
+                                            >
+                                                {t(l.status === "ACTIVE" ? "pause" : "resume")}
+                                            </button>
+                                        )}
+                                    </span>
                                 </div>
 
                                 {/*

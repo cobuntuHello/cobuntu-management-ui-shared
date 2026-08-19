@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { ManageOverview } from "../overview/ManageOverview";
 import { defaultTranslate } from "../listings/copy";
 import type { OverviewStats } from "../overview/types";
@@ -87,7 +87,8 @@ describe("whether it can be sold at all", () => {
     it("says so too when listings exist but none is live", () => {
         renderIt(stats({ listings: [listing({ status: "PENDING" })] }));
         expect(screen.getByText("Nobody can buy this yet")).toBeInTheDocument();
-        expect(screen.getByText(/paused or still under review/)).toBeInTheDocument();
+        // "off the shelf", not "paused": one act, one word, across every screen.
+        expect(screen.getByText(/off the shelf or still under review/)).toBeInTheDocument();
     });
 
     it("stays quiet when something is live", () => {
@@ -177,5 +178,66 @@ describe("the event variant", () => {
             { extras: { going: 6, capacity: 40, startsAt: "2020-01-01T00:00:00.000Z" } },
         );
         expect(screen.queryByText("Starts in")).not.toBeInTheDocument();
+    });
+});
+
+/**
+ * The shelf, per listing.
+ *
+ * There was a product-level Publish that flipped every paused listing at once:
+ * it named none of the communities it changed, and on a product with no
+ * listings it could only fail. Pausing was ALWAYS per-listing, so the two
+ * halves of one act disagreed about what they operated on.
+ *
+ * The words are the ones the listing page has always used. A second vocabulary
+ * for one act is how "Paused", "Off-shelf" and "Unpublished" end up on three
+ * screens describing the same row.
+ */
+describe("taking a listing off the shelf", () => {
+    it("offers the shelf action per listing, in the words the listing page uses", () => {
+        const onShelfToggle = vi.fn();
+        renderIt(stats(), { onShelfToggle });
+        expect(screen.getByRole("button", { name: "Take off the shelf" })).toBeInTheDocument();
+    });
+
+    it("offers the way back for one that is off the shelf", () => {
+        const onShelfToggle = vi.fn();
+        renderIt(stats({ listings: [listing({ status: "PAUSED" })] }), { onShelfToggle });
+        expect(screen.getByRole("button", { name: "Put back on the shelf" })).toBeInTheDocument();
+    });
+
+    it("names the listing and the state it is moving to", () => {
+        const onShelfToggle = vi.fn();
+        renderIt(stats(), { onShelfToggle });
+        fireEvent.click(screen.getByRole("button", { name: "Take off the shelf" }));
+        expect(onShelfToggle).toHaveBeenCalledWith(
+            expect.objectContaining({ listingId: "l1" }),
+            "PAUSED",
+        );
+    });
+
+    /*
+     * PENDING belongs to the community and CANCELLED/REVOKED are closed, so a
+     * shelf control there would promise something the server refuses.
+     */
+    it("offers nothing for a state the seller does not own", () => {
+        const onShelfToggle = vi.fn();
+        for (const status of ["PENDING", "CANCELLED", "REVOKED"]) {
+            const { unmount } = renderIt(stats({ listings: [listing({ status })] }), { onShelfToggle });
+            expect(screen.queryByRole("button", { name: /shelf/ })).not.toBeInTheDocument();
+            unmount();
+        }
+    });
+
+    it("renders no control at all when the host does not offer one", () => {
+        renderIt(stats());
+        expect(screen.queryByRole("button", { name: /shelf/ })).not.toBeInTheDocument();
+    });
+
+    /* One act, one word. "Paused" was mine, and it was a second vocabulary. */
+    it("calls the state off-shelf, as every other screen does", () => {
+        renderIt(stats({ listings: [listing({ status: "PAUSED" })] }));
+        expect(screen.getByText("Off-shelf")).toBeInTheDocument();
+        expect(screen.queryByText("Paused")).not.toBeInTheDocument();
     });
 });
