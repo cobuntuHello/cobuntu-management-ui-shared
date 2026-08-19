@@ -226,3 +226,36 @@ describe("replying", () => {
         expect(screen.getByPlaceholderText("Reply...")).toBeInTheDocument();
     });
 });
+
+/**
+ * The empty placeholder steps aside while you compose.
+ *
+ * Two empty cards stacked -- one inviting the act, one describing its absence
+ * -- is the page telling you twice that there is nothing here, in the very
+ * moment you are fixing it.
+ */
+describe("composing over an empty section", () => {
+    const props = {
+        viewer: "owner" as const,
+        otherPartyName: "PBN",
+        topics: [],
+        onOpen: () => {},
+        onComment: () => {},
+        onToggleDone: () => {},
+        t: defaultTranslate,
+    };
+
+    it("shows the placeholder before you start", () => {
+        render(<Topics {...props} />);
+        expect(screen.getByText("Nothing raised yet")).toBeInTheDocument();
+    });
+
+    it("drops it once the composer opens, and brings it back on cancel", () => {
+        render(<Topics {...props} />);
+        fireEvent.click(screen.getByText(/Raise something/));
+        expect(screen.queryByText("Nothing raised yet")).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        expect(screen.getByText("Nothing raised yet")).toBeInTheDocument();
+    });
+});

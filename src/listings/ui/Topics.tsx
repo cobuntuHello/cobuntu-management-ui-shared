@@ -82,10 +82,24 @@ export function Topics({
 }) {
     const open = topics.filter((c) => c.status === "OPEN");
     const done = topics.filter((c) => c.status === "RESOLVED");
+    /*
+     * Whether the composer is open, so the placeholder below can step aside.
+     * Two empty cards stacked -- one inviting the act, one describing its
+     * absence -- is the page saying twice that there is nothing here, in the
+     * moment you are fixing it.
+     */
+    const [composing, setComposing] = useState(false);
 
     return (
         <div className="space-y-3">
-            <Composer viewer={viewer} otherPartyName={otherPartyName} busy={busy} onPost={onOpen} t={t} />
+            <Composer
+                viewer={viewer}
+                otherPartyName={otherPartyName}
+                busy={busy}
+                onPost={onOpen}
+                t={t}
+                onExpandedChange={setComposing}
+            />
 
             {/*
               * The same placeholder every other empty section uses, so an empty
@@ -93,7 +107,7 @@ export function Topics({
               * the composer sits directly above it, and a button here would be
               * a second way to do the thing already open on screen.
               */}
-            {topics.length === 0 && (
+            {topics.length === 0 && !composing && (
                 <Card className="overflow-hidden">
                     <EmptyState
                         bordered={false}
@@ -165,14 +179,24 @@ function Composer({
     busy,
     onPost,
     t,
+    onExpandedChange,
 }: {
     viewer: Viewer;
     otherPartyName: string;
     busy?: boolean;
     onPost: (subject: string, body: string) => void | Promise<void>;
     t: T;
+    /** So the section can drop its placeholder while you are composing. */
+    onExpandedChange?: (open: boolean) => void;
 }) {
-    const [expanded, setExpanded] = useState(false);
+    const [expanded, setExpandedRaw] = useState(false);
+    /*
+     * Reported upward so the section can drop its "nothing raised yet"
+     * placeholder while you are raising something. Two empty cards stacked --
+     * one inviting the act, one describing its absence -- is the page telling
+     * you twice that there is nothing here, in the moment you are fixing it.
+     */
+    const setExpanded = (v: boolean) => { setExpandedRaw(v); onExpandedChange?.(v); };
     const [subject, setSubject] = useState("");
     const [body, setBody] = useState("");
 
@@ -210,7 +234,8 @@ function Composer({
                             onChange={(e) => setSubject(e.target.value)}
                         />
                         <textarea
-                            className="mt-1.5 min-h-20 w-full resize-none bg-transparent text-[13.5px] leading-relaxed text-[var(--ink)] outline-none placeholder:text-[var(--ink-3)]"
+                            className="mt-1 w-full resize-y bg-transparent text-[13.5px] leading-relaxed text-[var(--ink)] outline-none placeholder:text-[var(--ink-3)]"
+                            rows={2}
                             placeholder={t("topicsBodyPlaceholder")}
                             value={body}
                             onChange={(e) => setBody(e.target.value)}
@@ -220,7 +245,7 @@ function Composer({
                           * bottom, under the thumb, and Cancel is not what you
                           * hit first. Same rule as the rest of the panel.
                           */}
-                        <div className="mt-2 flex flex-col-reverse gap-2 border-t border-[var(--line-soft)] pt-3 sm:flex-row sm:justify-end">
+                        <div className="mt-3 flex flex-col-reverse gap-2 border-t border-[var(--line-soft)] pt-2.5 sm:flex-row sm:justify-end">
                             <button
                                 type="button"
                                 onClick={reset}
@@ -232,7 +257,14 @@ function Composer({
                                 type="button"
                                 disabled={!subject.trim() || !body.trim() || busy}
                                 onClick={() => void post()}
-                                className="cursor-pointer rounded-lg bg-[var(--commit)] px-3.5 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
+                                /*
+                                  * Disabled swaps the FILL rather than fading
+                                  * it. Near-black at 40% over warm paper comes
+                                  * out tan -- it read as a differently-coloured
+                                  * button rather than an inactive one, on the
+                                  * warm ground the whole panel uses.
+                                  */
+                                className="cursor-pointer rounded-lg bg-[var(--commit)] px-3.5 py-2 text-[13px] font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:bg-[var(--sunk)] disabled:text-[var(--ink-3)] sm:w-auto"
                             >
                                 {t("topicsPost")}
                             </button>
