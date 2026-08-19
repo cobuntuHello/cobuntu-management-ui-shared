@@ -42,21 +42,12 @@ export interface ManageOverviewProps {
     /** Offered when nothing is listed anywhere. */
     onRequestListing?: () => void;
     onSelfList?: () => void;
-    /**
-     * Take one listing off the shelf, or put it back.
-     *
-     * The same act the listing page already offers, surfaced here because this
-     * is where a seller now SEES that a community has it off the shelf. Absent,
-     * the row still says so and the listing page still does it -- the control
-     * is a shortcut, never the only way.
-     *
-     * Per listing, deliberately. There was a product-level Publish that flipped
-     * every paused listing at once, which named none of the communities it
-     * changed and could only fail on a product with no listings. Pausing was
-     * always per-listing; only un-pausing was bulk, so the two halves of one
-     * act disagreed about what they operated on.
+    /*
+     * There is deliberately no shelf control here. Taking a listing off the
+     * shelf lives on the listing's own page, where the terms and the
+     * consequences sit beside the act. A summary row is the wrong place to put
+     * a press that takes a live listing down.
      */
-    onShelfToggle?: (listing: OverviewListing, next: "ACTIVE" | "PAUSED") => void | Promise<void>;
     t: T;
     locale?: string;
     /** Rendered under the listings; the host owns any further actions. */
@@ -75,7 +66,12 @@ function Tile({
     label, value, sub, wide,
 }: { label: string; value: string; sub?: ReactNode; wide?: boolean }) {
     return (
-        <div className={`rounded-xl border border-zinc-200 bg-white p-4 ${wide ? "sm:col-span-2" : ""}`}>
+        /*
+          * A hairline, not a rule. Five bordered boxes in a row at zinc-200
+          * read as a table of cells rather than as figures, and the grid lines
+          * end up louder than the numbers they contain.
+          */
+        <div className={`rounded-xl border border-zinc-200/70 bg-white p-3.5 ${wide ? "sm:col-span-2" : ""}`}>
             <p className="text-[11px] font-bold uppercase tracking-[.1em] text-zinc-400">{label}</p>
             <p className="mt-2 text-[26px] font-bold leading-none tracking-tight tabular-nums text-zinc-900">{value}</p>
             {sub ? <div className="mt-1.5 text-[12px] text-zinc-500">{sub}</div> : null}
@@ -96,7 +92,7 @@ function Delta({ pct, t }: { pct: number | null; t: T }) {
 }
 
 export function ManageOverview({
-    stats, extras, listingHref, onRequestListing, onSelfList, onShelfToggle,
+    stats, extras, listingHref, onRequestListing, onSelfList,
     t, locale = "en-GB", footer,
 }: ManageOverviewProps) {
     const { money, views, listings, weekly } = stats;
@@ -111,7 +107,7 @@ export function ManageOverview({
     const cash = (n: number) => formatMoney(n, money.currency, locale);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-5">
             {/*
               * NOT SELLABLE leads, because it makes every number below it moot.
               * Zeroes across a dashboard read as "no sales"; the truth is that
@@ -152,7 +148,7 @@ export function ManageOverview({
             )}
 
             {/* Tiles */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                 <Tile
                     wide
                     label={t("overviewEarnings")}
@@ -240,7 +236,7 @@ export function ManageOverview({
                             <a
                                 key={l.listingId}
                                 href={listingHref(l)}
-                                className="block rounded-xl border border-zinc-200 bg-white p-4 transition-colors hover:border-zinc-300"
+                                className="block rounded-xl border border-zinc-200/70 bg-white p-4 transition-colors hover:border-zinc-300"
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <span className="flex items-center gap-2">
@@ -256,27 +252,19 @@ export function ManageOverview({
                                             </span>
                                         )}
                                         {/*
-                                          * Only for the two states the seller
-                                          * owns. PENDING is the community's to
-                                          * answer and CANCELLED/REVOKED are
-                                          * closed, so offering a shelf control
-                                          * there would promise something the
-                                          * server refuses.
+                                          * NO SHELF CONTROL ON THE ROW.
+                                          *
+                                          * It belongs on the listing's own
+                                          * page, where the state, the terms and
+                                          * the consequences are all on screen
+                                          * together. On a summary row it is one
+                                          * press away from taking a live
+                                          * listing down, next to numbers that
+                                          * give no context for the decision.
+                                          *
+                                          * The row still SAYS the state, and
+                                          * links to where the act lives.
                                           */}
-                                        {onShelfToggle && (l.status === "ACTIVE" || l.status === "PAUSED") && (
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    // The row is a link; this is not.
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    void onShelfToggle(l, l.status === "ACTIVE" ? "PAUSED" : "ACTIVE");
-                                                }}
-                                                className="cursor-pointer rounded-lg bg-zinc-100 px-3 py-1.5 text-[12.5px] font-semibold text-zinc-700 transition-colors hover:bg-zinc-200"
-                                            >
-                                                {t(l.status === "ACTIVE" ? "pause" : "resume")}
-                                            </button>
-                                        )}
                                     </span>
                                 </div>
 
