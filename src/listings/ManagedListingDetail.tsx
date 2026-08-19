@@ -303,6 +303,26 @@ export function ManagedListingDetail({
   useEffect(() => { void load(); }, [load]);
 
   /*
+   * ABOVE THE EARLY RETURN, like every other hook here.
+   *
+   * This sat below `const community = ...`, which is below `if (loading)
+   * return`. React then saw a different number of hooks between the loading
+   * render and the loaded one and threw -- the panel rendered as an empty div,
+   * every test lost its DOM, and nothing in the stack said "hook". It reads the
+   * raw listing instead so it can live up here.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    const c = (listing as any)?.community ?? (listing as any)?.communities ?? null;
+    const tag = c?.tagLower || c?.communityTag;
+    fetch(`${API}/api/config/fees${tag ? `?communityTag=${encodeURIComponent(tag)}` : ""}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d) setFees(d); })
+      .catch(() => { /* the bar falls back to the agreement alone */ });
+    return () => { cancelled = true; };
+  }, [listing]);
+
+  /*
    * The package's NAME, which the listing read does not carry.
    *
    * Both listing endpoints return `packageId` and the snapshotted rate but not
@@ -376,15 +396,6 @@ export function ManagedListingDetail({
   const rate = toRate(listing.commissionRate ?? listing.ticketListing?.commissionRate);
   const community = listing.community ?? listing.communities ?? null;
 
-  useEffect(() => {
-    let cancelled = false;
-    const tag = (community as any)?.tagLower || (community as any)?.communityTag;
-    fetch(`${API}/api/config/fees${tag ? `?communityTag=${encodeURIComponent(tag)}` : ""}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!cancelled && d) setFees(d); })
-      .catch(() => { /* the bar falls back to the agreement alone */ });
-    return () => { cancelled = true; };
-  }, [community]);
 
   /*
    * What is being listed, from the listing itself. The product side nests it as
