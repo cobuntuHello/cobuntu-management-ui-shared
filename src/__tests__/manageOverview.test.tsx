@@ -207,3 +207,79 @@ describe("the shelf control", () => {
         expect(screen.queryByText("Paused")).not.toBeInTheDocument();
     });
 });
+
+/**
+ * What a listing row has to say beyond its numbers.
+ *
+ * A rate alone is not an agreement. "10%" is a number; "PBN-promoted · 10% ·
+ * agreed 4 Jul 2026" is a deal with a name, terms and a date -- which is what
+ * lets a seller compare two communities carrying the same thing.
+ */
+describe("the agreement on a listing row", () => {
+    it("names the package, the rate and when it was agreed", () => {
+        renderIt(stats({
+            listings: [listing({
+                packageName: "PBN-promoted",
+                approvedAt: "2026-07-04T10:00:00.000Z",
+                requestedAt: "2026-07-01T10:00:00.000Z",
+            })],
+        }));
+        const line = screen.getByText(/PBN-promoted/);
+        expect(line).toHaveTextContent("8% commission");
+        expect(line).toHaveTextContent("agreed 4 Jul 2026");
+    });
+
+    /*
+     * Rows approved before the column existed have no date, and inventing one
+     * would put a wrong date under something that reads as a record. The
+     * requested date is true, so it stands in.
+     */
+    it("falls back to the requested date when there is no approval date", () => {
+        renderIt(stats({
+            listings: [listing({ packageName: null, approvedAt: null, requestedAt: "2026-07-01T10:00:00.000Z" })],
+        }));
+        expect(screen.getByText(/asked 1 Jul 2026/)).toBeInTheDocument();
+    });
+
+    it("drops what it does not know rather than printing a dash", () => {
+        renderIt(stats({
+            listings: [listing({ packageName: null, commissionRate: null, approvedAt: null, requestedAt: null })],
+        }));
+        expect(screen.queryByText(/·\s*·/)).not.toBeInTheDocument();
+    });
+
+    /*
+     * A named button, not a giant link. The row carries four figures and three
+     * facts; making all of it one click target navigates a reader away by
+     * accident and leaves no room for a second action.
+     */
+    it("offers a named way in rather than making the whole row a link", () => {
+        renderIt(stats());
+        expect(screen.getByRole("link", { name: "Manage listing" })).toBeInTheDocument();
+    });
+});
+
+describe("the trend chart", () => {
+    const weeks = (n: number) =>
+        Array.from({ length: n }, (_, i) => ({
+            week: `2026-06-${String(i + 1).padStart(2, "0")}`,
+            sold: i, net: i * 100, views: i * 10,
+        }));
+
+    it("draws once there are at least two weeks", () => {
+        renderIt(stats({ weekly: weeks(6) }));
+        expect(screen.getByRole("img", { name: /Weekly earnings and views/ })).toBeInTheDocument();
+    });
+
+    /*
+     * One point is not a trend. A chart with a single dot invites a reading
+     * ("flat", "starting") the data cannot support, so below two weeks the
+     * tiles carry the numbers alone.
+     */
+    it("draws nothing for a single week, or none", () => {
+        renderIt(stats({ weekly: weeks(1) }));
+        expect(screen.queryByRole("img", { name: /Weekly earnings/ })).not.toBeInTheDocument();
+        renderIt(stats({ weekly: [] }));
+        expect(screen.queryByRole("img", { name: /Weekly earnings/ })).not.toBeInTheDocument();
+    });
+});

@@ -15,6 +15,16 @@ export interface OverviewListing {
     /** PENDING | ACTIVE | PAUSED | CANCELLED | REVOKED */
     status: string;
     commissionRate: number | null;
+    /**
+     * The arrangement by NAME. A rate alone is a number; "PBN-promoted, 10%" is
+     * a deal with obligations on both sides. Null when self-listed at a bare
+     * rate, or when the listing predates packages.
+     */
+    packageName?: string | null;
+    /** When the community approved it. Null while pending, and null for rows
+     *  approved before the column existed -- those show the requested date. */
+    approvedAt?: string | null;
+    requestedAt?: string | null;
     views: number;
     sold: number;
     gross: number;

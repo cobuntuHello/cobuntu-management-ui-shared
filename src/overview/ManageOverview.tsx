@@ -4,6 +4,7 @@ import {
     conversion, daysUntil, delta, formatCount, formatMoney,
     hasUnattributedViews, isSellable, recentWindows,
 } from "./format";
+import { TrendChart, hasTrend } from "./TrendChart";
 
 /**
  * The manage page's first tab: how this is doing, and whether it can be sold.
@@ -209,6 +210,16 @@ export function ManageOverview({
                 <Tile label={t("overviewGross")} value={cash(money.gross)} sub={t("overviewGrossSub")} />
             </div>
 
+            {/*
+              * The trend, between the totals it explains and the listings that
+              * caused them. Absent below two weeks of data: one point is not a
+              * trend, and a chart with a single dot invites a reading the data
+              * does not support.
+              */}
+            {hasTrend(weekly) && (
+                <TrendChart weekly={weekly} currency={money.currency} locale={locale} t={t} />
+            )}
+
             {/* Listings: one section per community */}
             <div>
                 <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
@@ -233,10 +244,18 @@ export function ManageOverview({
                 ) : (
                     <div className="space-y-3">
                         {listings.map((l) => (
-                            <a
+                            /*
+                              * A CARD WITH A BUTTON, not a giant link.
+                              *
+                              * The row carries four figures and three facts about
+                              * the agreement; making all of it one click target
+                              * means a seller reading the numbers navigates away
+                              * by accident, and leaves no room for a second action
+                              * later. The way in is named and sized like a way in.
+                              */
+                            <div
                                 key={l.listingId}
-                                href={listingHref(l)}
-                                className="block rounded-xl border border-zinc-200/70 bg-white p-4 transition-colors hover:border-zinc-300"
+                                className="rounded-xl border border-zinc-200/70 bg-white p-4"
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <span className="flex items-center gap-2">
@@ -246,11 +265,12 @@ export function ManageOverview({
                                         </span>
                                     </span>
                                     <span className="flex items-center gap-3">
-                                        {l.commissionRate !== null && (
-                                            <span className="text-[12.5px] text-zinc-500 tabular-nums">
-                                                {t("overviewCommission", { rate: l.commissionRate })}
-                                            </span>
-                                        )}
+                                        <a
+                                            href={listingHref(l)}
+                                            className="rounded-lg bg-zinc-100 px-3 py-1.5 text-[12.5px] font-semibold text-zinc-700 transition-colors hover:bg-zinc-200"
+                                        >
+                                            {t("overviewManageListing")}
+                                        </a>
                                         {/*
                                           * NO SHELF CONTROL ON THE ROW.
                                           *
@@ -273,6 +293,27 @@ export function ManageOverview({
                                   * Four zeroes would read as "nobody bought
                                   * it", where the truth is that nobody could.
                                   */}
+                                {/*
+                                  * WHAT WAS AGREED, in one line. A rate on its own
+                                  * does not say what for; the package names the
+                                  * arrangement and the date says since when. The
+                                  * requested date stands in when there is no
+                                  * approval date -- rows approved before that
+                                  * column existed have none, and inventing one
+                                  * would put a wrong date under a record.
+                                  */}
+                                <p className="mt-1 text-[12.5px] text-zinc-500">
+                                    {[
+                                        l.packageName,
+                                        l.commissionRate !== null ? t("overviewCommission", { rate: l.commissionRate }) : null,
+                                        l.approvedAt
+                                            ? t("overviewApprovedOn", { date: new Date(l.approvedAt).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" }) })
+                                            : l.requestedAt
+                                                ? t("overviewRequestedOn", { date: new Date(l.requestedAt).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" }) })
+                                                : null,
+                                    ].filter(Boolean).join(" · ")}
+                                </p>
+
                                 {l.status === "ACTIVE" ? (
                                     <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
                                         <Tile label={t("overviewViews")} value={formatCount(l.views, locale)} />
@@ -285,7 +326,7 @@ export function ManageOverview({
                                         {t(`overviewListingState_${l.status}`)}
                                     </p>
                                 )}
-                            </a>
+                            </div>
                         ))}
                     </div>
                 )}
