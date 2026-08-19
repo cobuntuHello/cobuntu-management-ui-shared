@@ -1,5 +1,6 @@
 import type { ItemLedger, LedgerMovement } from "./types";
 import { formatMoney } from "../overview/format";
+import { EmptyState, LedgerIcon } from "../overview/EmptyState";
 
 /**
  * Every money movement for one product or event.
@@ -83,11 +84,17 @@ export function ManageLedger({
         new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
 
     if (movements.length === 0) {
+        /*
+         * No ACTION here, deliberately. An empty ledger is not something the
+         * reader can fix -- you cannot make someone buy -- so a button would
+         * only offer a way out of a state that is simply early.
+         */
         return (
-            <div className="rounded-xl border border-dashed border-zinc-300 p-8 text-center">
-                <p className="text-[14px] font-medium text-zinc-900">{t("ledgerEmptyTitle")}</p>
-                <p className="mt-1 text-[13px] text-zinc-500">{t("ledgerEmptyBody")}</p>
-            </div>
+            <EmptyState
+                icon={<LedgerIcon />}
+                title={t("ledgerEmptyTitle")}
+                body={t("ledgerEmptyBody")}
+            />
         );
     }
 

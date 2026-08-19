@@ -176,6 +176,7 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     overviewListItHere: "Ask {community} to carry it",
     overviewRequesting: "Asking…",
     overviewOneCommunityOnly: "An item can be carried by one community for now, so there is nowhere else to list this.",
+    overviewNoListingsTitle: "No community carries this yet",
     ledgerTitle: "Money movements",
     ledgerSummary: "{sales} sales · {net} net after refunds",
     ledgerEmptyTitle: "Nothing has moved yet",

@@ -5,6 +5,7 @@ import {
     hasUnattributedViews, isSellable, recentWindows,
 } from "./format";
 import { TrendChart, hasTrend } from "./TrendChart";
+import { EmptyState, ShelfIcon } from "./EmptyState";
 
 /**
  * The manage page's first tab: how this is doing, and whether it can be sold.
@@ -259,9 +260,11 @@ export function ManageOverview({
                       * says the same thing twice on one screen; this says what
                       * the section itself is for.
                       */
-                    <div className="rounded-xl border border-dashed border-zinc-300 p-6 text-center text-[13px] text-zinc-500">
-                        {t("overviewNoListingsHere")}
-                    </div>
+                    <EmptyState
+                        icon={<ShelfIcon />}
+                        title={t("overviewNoListingsTitle")}
+                        body={t("overviewNoListingsHere")}
+                    />
                 ) : (
                     <div className="space-y-3">
                         {listings.map((l) => (

@@ -145,4 +145,23 @@ describe("an item nothing has happened to", () => {
         expect(screen.getByText("Nothing has moved yet")).toBeInTheDocument();
         expect(document.querySelector("table")).toBeNull();
     });
+
+    /*
+     * The second line is what stops an empty tab reading as a broken one: it
+     * says the tab works and the item simply has no history yet.
+     */
+    it("says what will fill it", () => {
+        renderIt([]);
+        expect(screen.getByText(/Sales, refunds, payouts and disputes/)).toBeInTheDocument();
+    });
+
+    /*
+     * And NO action. An empty ledger is not something the reader can fix --
+     * you cannot make someone buy -- so a button would offer a way out of a
+     * state that is simply early.
+     */
+    it("offers no button, because there is nothing to press", () => {
+        const { container } = renderIt([]);
+        expect(container.querySelector("button")).toBeNull();
+    });
 });
