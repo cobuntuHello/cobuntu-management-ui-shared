@@ -994,8 +994,20 @@ export function ManagedListingDetail({
           * no sidebar gets the 0px default and full width for free.
           */}
         <div
-          className="fixed bottom-0 right-0 z-30 flex flex-col-reverse gap-2 border-t border-[var(--line)] bg-[var(--card)] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:flex-row sm:flex-wrap sm:justify-end sm:px-6"
-          style={{ left: "var(--manage-actions-left, 0px)" }}
+          className="fixed right-0 z-30 flex flex-col-reverse gap-2 border-t border-[var(--line)] bg-[var(--card)] px-4 pb-3 pt-3 sm:flex-row sm:flex-wrap sm:justify-end sm:px-6"
+          /*
+            * BOTH insets come from the host, because fixed positioning cannot
+            * discover either. Left clears a sidebar; bottom clears a mobile
+            * nav bar, which the community app pins at the same edge -- without
+            * it the two stack and the primary action lands under the tab bar.
+            * Defaults of 0 mean a host with neither gets a full-width bar
+            * flush to the window and does not have to know this exists.
+            */
+          style={{
+            left: "var(--manage-actions-left, 0px)",
+            bottom: "var(--manage-actions-bottom, 0px)",
+            paddingBottom: "max(0.75rem, var(--manage-actions-safe, env(safe-area-inset-bottom)))",
+          }}
         >
         {/*
         The levers, straight from the machine.
