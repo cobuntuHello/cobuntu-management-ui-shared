@@ -41,7 +41,6 @@ export interface ManageOverviewProps {
     /** Where a listing row goes when pressed. */
     listingHref: (listing: OverviewListing) => string;
     /** Offered when nothing is listed anywhere. */
-    onRequestListing?: () => void;
     onSelfList?: () => void;
     /*
      * There is deliberately no shelf control here. Taking a listing off the
@@ -105,7 +104,7 @@ function Delta({ pct, t }: { pct: number | null; t: T }) {
 }
 
 export function ManageOverview({
-    stats, extras, listingHref, onRequestListing, onSelfList,
+    stats, extras, listingHref, onSelfList,
     t, locale = "en-GB", footer, requestOn,
 }: ManageOverviewProps) {
     const { money, views, listings, weekly } = stats;
@@ -135,18 +134,19 @@ export function ManageOverview({
                     <p className="mx-auto mt-2 max-w-[46ch] text-[13px] leading-relaxed text-zinc-600">
                         {listings.length === 0 ? t("overviewNoListingsBody") : t("overviewNoActiveListingBody")}
                     </p>
-                    {(onRequestListing || onSelfList) && (
+                    {/*
+                      * NO ASK BUTTON HERE, and that is not an omission.
+                      *
+                      * The ask lives once, in "Where this sells" below, beside
+                      * the listings it is about. Two buttons for one act is how
+                      * the publish control came to exist in two places and get
+                      * removed from only one; this banner's job is to say why
+                      * every number under it is zero, and the section below is
+                      * where the fix lives.
+                      */}
+                    {onSelfList && (
                         <div className="mt-4 flex flex-wrap justify-center gap-2">
-                            {onRequestListing && (
-                                <button
-                                    type="button"
-                                    onClick={onRequestListing}
-                                    className="cursor-pointer rounded-lg bg-zinc-900 px-4 py-2 text-[13px] font-semibold text-white"
-                                >
-                                    {t("overviewAskCommunity")}
-                                </button>
-                            )}
-                            {onSelfList && (
+                            {(
                                 <button
                                     type="button"
                                     onClick={onSelfList}
