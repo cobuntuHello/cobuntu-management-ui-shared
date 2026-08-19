@@ -76,13 +76,19 @@ export function NextAction({
               * one line of substance. The page should not change character
               * between the two states, only tone.
               */
-            <div className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/70 p-4">
+            /*
+              * MUTED. A settled listing is a resting state, and a saturated
+              * green panel gave the calmest thing on the page the loudest
+              * treatment -- the eye went to a status that needed nothing from
+              * anyone. The dot carries the colour; the panel does not.
+              */
+            <div className="mb-5 flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--card)] p-3.5">
                 <Mark className="bg-emerald-600" />
                 <div className="min-w-0 flex-1">
-                <p className="text-[15.5px] font-bold tracking-tight text-emerald-900">
+                <p className="text-[14px] font-semibold text-[var(--ink)]">
                     {label("settledTitle", "You both shook on it")}
                 </p>
-                <p className="mt-0.5 text-[13px] leading-relaxed text-emerald-800">
+                <p className="mt-0.5 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
                     {/*
                       * What it took to get here, when it took anything. A live
                       * listing that was argued over and one that sailed through
@@ -112,7 +118,7 @@ export function NextAction({
 
     return (
         <div
-            className="mb-5 flex items-start gap-3 rounded-2xl border p-4 transition-colors duration-300"
+            className="mb-5 flex items-start gap-3 rounded-xl border p-3.5 transition-colors duration-300"
             style={{
                 borderColor: mine ? "color-mix(in srgb, var(--warn) 30%, transparent)" : "var(--line)",
                 background: mine ? "var(--warn-w)" : "var(--card)",
@@ -146,7 +152,7 @@ export function NextAction({
                 </div>
             )}
 
-            <p className="text-[18px] font-bold leading-snug tracking-tight text-[var(--ink)] sm:text-[20px]">
+            <p className="text-[14px] font-semibold leading-snug text-[var(--ink)]">
                 {openTopics > 0
                     ? say(openTopics === 1 ? "topicsOpenHeadline" : "topicsOpenHeadlinePlural",
                           { count: openTopics },
@@ -155,7 +161,7 @@ export function NextAction({
                         ? label("turnMine", "Your turn")
                         : say("turnTheirs", { other }, `${other} is on it`)}
             </p>
-            <p className="mt-1 text-[13.5px] leading-relaxed text-[var(--ink-2)]">
+            <p className="mt-0.5 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
                 {/*
                   * With topics open the turn does not vanish, it demotes: the
                   * count says what is blocking and this line says who is holding

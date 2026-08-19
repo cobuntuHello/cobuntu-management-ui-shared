@@ -53,3 +53,29 @@ describe("the package's own English", () => {
         expect(defaultTranslate("threadTitle")).toBe(LISTING_DETAIL_COPY.threadTitle);
     });
 });
+
+/**
+ * The tab strip's copy, and the reason there is a strip.
+ *
+ * The proposals thread became its own tab because it is a RECORD, not a task:
+ * read once, argued over rarely, and empty on the common listing that was
+ * accepted as asked -- where it had been a full card holding one grey sentence
+ * in the middle of the page. Terms leads because it holds the rate, the
+ * agreement and the points either side raised, which is the live conversation.
+ */
+describe("the tab strip", () => {
+    it("names both tabs", () => {
+        expect(LISTING_DETAIL_COPY.tabTerms).toBe("Terms");
+        expect(LISTING_DETAIL_COPY.tabHistory).toBe("History");
+    });
+
+    /*
+     * The count belongs on the tab, so a listing with a real argument behind it
+     * says so before you open it -- and the countless one does not show "(0)",
+     * which reads as a broken counter rather than as nothing having happened.
+     */
+    it("has a separate counted form, so an empty history shows no zero", () => {
+        expect(LISTING_DETAIL_COPY.tabHistoryCount).toContain("{count}");
+        expect(LISTING_DETAIL_COPY.tabHistory).not.toContain("{count}");
+    });
+});

@@ -11,19 +11,37 @@ import { NextAction } from "../listings/ui/NextAction";
  * table is a fact, and the thing being agreed is what it is a share OF.
  */
 
+/**
+ * THE BAR NOW DIVIDES A SALE, not the commission.
+ *
+ * The first version drew the split OF THE COMMISSION -- Cobuntu takes a slice
+ * of the community's cut, not of the sale -- which was accurate and useless at
+ * the most common rate there is: at 0% it drew a confident two-colour chart
+ * dividing nothing. Removing it there left a number floating in an empty card,
+ * which was worse, because the page lost the graphic that made a rate feel like
+ * a share of something.
+ *
+ * Dividing the sale gives every rate an honest picture, zero included.
+ */
 describe("the spine", () => {
-    it("always totals the commission, whatever the rate", () => {
-        /*
-         * The load-bearing property, and the MVP's own note explains it:
-         * Cobuntu's share is a slice OF the commission, not of the sale. So the
-         * bar's height stays put while the rate moves and only the ratio inside
-         * changes. Drawn against the sale instead, the community's band would
-         * SHRINK every time they lowered their own rate — the opposite of what
-         * happened.
-         */
+    it("divides one sale between the seller, the community and Cobuntu", () => {
         render(<DealSpine rate={10} communityName="PBN" platformShare={10} />);
-        expect(screen.getByText("90%")).toBeInTheDocument();
-        expect(screen.getByText("10%", { selector: "span" })).toBeInTheDocument();
+        // 10% commission: Cobuntu takes 10% OF that, so 1% of the sale.
+        expect(screen.getByText("Seller 90%")).toBeInTheDocument();
+        expect(screen.getByText("PBN 9%")).toBeInTheDocument();
+        expect(screen.getByText("Cobuntu 1%")).toBeInTheDocument();
+    });
+
+    /*
+     * Cobuntu's slice is a fraction of a fraction. Drawn against the sale it
+     * stays small as the rate moves, which is the true shape -- and the reason
+     * the seller band grows when a community lowers its own rate.
+     */
+    it("grows the seller's share when the community lowers its rate", () => {
+        const { rerender } = render(<DealSpine rate={20} communityName="PBN" platformShare={10} />);
+        expect(screen.getByText("Seller 80%")).toBeInTheDocument();
+        rerender(<DealSpine rate={5} communityName="PBN" platformShare={10} />);
+        expect(screen.getByText("Seller 95%")).toBeInTheDocument();
     });
 
     it("says nothing is agreed rather than showing a confident zero", () => {
@@ -90,14 +108,14 @@ describe("the bands name two different parties", () => {
          * one screen where that distinction is the entire point.
          */
         render(<DealSpine rate={10} communityName="Cobuntu" platformShare={10} />);
-        expect(screen.getByText("Platform")).toBeInTheDocument();
-        expect(screen.queryAllByText("Cobuntu")).toHaveLength(1);
+        expect(screen.getByText("Platform 1%")).toBeInTheDocument();
+        expect(screen.queryByText("Cobuntu 1%")).not.toBeInTheDocument();
     });
 
     it("uses the platform's own name everywhere else", () => {
         render(<DealSpine rate={10} communityName="PBN" platformShare={10} />);
-        expect(screen.getByText("Cobuntu")).toBeInTheDocument();
-        expect(screen.getByText("PBN")).toBeInTheDocument();
+        expect(screen.getByText("Cobuntu 1%")).toBeInTheDocument();
+        expect(screen.getByText("PBN 9%")).toBeInTheDocument();
     });
 });
 
@@ -110,17 +128,23 @@ describe("the bands name two different parties", () => {
  * those pages showed a large graphic of no money at all.
  */
 describe("a rate of zero", () => {
-    it("draws no bands, and says what zero means", () => {
+    /*
+     * Zero is a picture too, and this is the case that drove the redesign: one
+     * full band saying the seller keeps all of it. No community key, no
+     * platform key -- neither took anything, and a key for a nil share is the
+     * chart-of-nothing the first version drew.
+     */
+    it("draws one full band and names nobody who took nothing", () => {
         render(<DealSpine rate={0} communityName="Cobuntu" platformShare={10} />);
         expect(screen.getByText("0%")).toBeInTheDocument();
-        expect(screen.queryByText("90%")).not.toBeInTheDocument();
-        expect(screen.queryByText("10%")).not.toBeInTheDocument();
+        expect(screen.getByText("Seller 100%")).toBeInTheDocument();
+        expect(screen.queryByText(/Cobuntu 0%|Platform 0%/)).not.toBeInTheDocument();
         expect(screen.getByText(/Nothing to split/)).toBeInTheDocument();
     });
 
-    it("still draws them the moment there is a commission", () => {
+    it("names the other two the moment there is a commission", () => {
         render(<DealSpine rate={10} communityName="PBN" platformShare={10} />);
-        expect(screen.getByText("90%")).toBeInTheDocument();
+        expect(screen.getByText("PBN 9%")).toBeInTheDocument();
         expect(screen.queryByText(/Nothing to split/)).not.toBeInTheDocument();
     });
 

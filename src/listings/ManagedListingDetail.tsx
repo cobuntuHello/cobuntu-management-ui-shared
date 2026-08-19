@@ -191,6 +191,16 @@ export function ManagedListingDetail({
   const [busy, setBusy] = useState(false);
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   /*
+   * TWO TABS, and the split is by how long you stay.
+   *
+   * "Terms" is what you came for: the rate, the agreement, and the points
+   * either side has raised, which is the live conversation you act on. History
+   * is the record of every rate formally put forward -- read once, argued over
+   * rarely, and empty on the common listing that was accepted as asked. It had
+   * been a full card holding one grey sentence in the middle of the page.
+   */
+  const [tab, setTab] = useState<"terms" | "history">("terms");
+  /*
    * Countering, from the SELLER's side.
    *
    * The backend has always allowed it — `createProposal` authorises the product
@@ -643,7 +653,38 @@ export function ManagedListingDetail({
         * down the page. What does need the width is the thread, which is the
         * only thing here that grows.
         */}
+      {/*
+        * The tab strip, in the manage pages' shape.
+        *
+        * Terms leads because it is what the page is for: the rate, the
+        * agreement, and the points either side raised -- the live conversation
+        * you act on. History is the record of formal offers, which most
+        * listings never have, and it kept a full card in the middle of the page
+        * to say so.
+        */}
+      <div className="mb-5 flex gap-1 border-b border-[var(--line)]">
+        {([
+          ["terms", t("tabTerms")],
+          ["history", proposals.length > 0 ? t("tabHistoryCount", { count: proposals.length }) : t("tabHistory")],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key as "terms" | "history")}
+            aria-current={tab === key ? "page" : undefined}
+            className={`-mb-px cursor-pointer border-b-2 px-3.5 py-2.5 text-[13.5px] font-medium transition-colors ${
+              tab === key
+                ? "border-[var(--ink)] text-[var(--ink)]"
+                : "border-transparent text-[var(--ink-3)] hover:text-[var(--ink-2)]"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div>
+        {tab === "terms" && (
         <div>
       {/*
         * The commission, drawn as a cut of every sale rather than listed as a
@@ -670,9 +711,19 @@ export function ManagedListingDetail({
       </div>
 
         </div>
+        )}
 
         <div className="min-w-0">
-      {/* Thread */}
+
+      {/*
+        * HISTORY: every rate either side formally put forward.
+        *
+        * Its own tab because it is a record, not a task. Read once, argued over
+        * rarely, and empty on the common listing that was accepted as asked --
+        * where it had been a full card holding one grey sentence in the middle
+        * of the page.
+        */}
+      {tab === "history" && (
       <div className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100 overflow-hidden mb-6">
         <div className="px-6 py-4 border-b border-zinc-100">
           <h2 className="text-[14px] font-semibold text-zinc-900">{t("threadTitle")}</h2>
@@ -803,7 +854,10 @@ export function ManagedListingDetail({
           </div>
         )}
       </div>
+      )}
 
+      {tab === "terms" && (
+      <>
       {/*
         * ── Topics, under the rate thread ──────────────────────────────────
         *
@@ -833,8 +887,28 @@ export function ManagedListingDetail({
           t={t}
         />
       </div>
+      </>
+      )}
+
+        </div>
+      </div>
 
       {/*
+        * THE ACTIONS, PINNED TO THE BOTTOM.
+        *
+        * They used to sit at the end of the document, which on a listing with a
+        * long thread meant scrolling past everything to reach the one control
+        * you opened the page for. Sticky keeps them in reach from either tab,
+        * and they belong to the LISTING rather than to a tab -- taking it down
+        * is the same act whichever half you are reading.
+        *
+        * It renders nothing at all when there is nothing to do: a closed
+        * listing yields an empty action list, and an empty sticky bar is a
+        * permanent grey stripe advertising a capability this listing lacks.
+        */}
+      {(actions.length > 0 || reviewActions.length > 0) && (
+        <div className="sticky bottom-0 z-10 -mx-4 mt-6 flex flex-wrap justify-end gap-2 border-t border-[var(--line)] bg-[var(--card)] px-4 py-3 sm:-mx-6 sm:px-6">
+        {/*
         The levers, straight from the machine.
 
         A closed listing yields an empty list and so renders no row at all:
@@ -899,9 +973,8 @@ export function ManagedListingDetail({
           })}
         </div>
       )}
-
         </div>
-      </div>
+      )}
 
       {/*
         A closed listing says who closed it and where asking again starts.
@@ -922,6 +995,7 @@ export function ManagedListingDetail({
           </Link>
         </div>
       )}
+
 
       {confirmWithdraw && (
         <ConfirmWithdraw

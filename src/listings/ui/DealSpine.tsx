@@ -18,13 +18,19 @@ import { Card } from "./primitives";
  * describes. Labels live inside the bands; nothing sits beside it explaining
  * it.
  *
- * ── What the bands actually show ────────────────────────────────────────────
+ * ── The bar shows a whole sale, and that is the second attempt ──────────────
  *
- * Cobuntu's share is a slice OF the commission, not of the sale. So the bar
- * always totals the commission whatever the rate is: the height stays put
- * while the rate moves, and only the ratio inside it changes. Showing it
- * against the sale instead would make the community's band shrink every time
- * they lowered their own rate, which is the opposite of what happened.
+ * The first drew the split OF THE COMMISSION -- Cobuntu's cut is a slice of the
+ * commission, not of the sale -- which was accurate and useless at the most
+ * common rate there is. At 0% it drew a confident two-colour chart dividing
+ * zero euros between two parties. Removing it there left an empty card with a
+ * number floating in it, which was worse: the page lost the one graphic that
+ * made the rate feel like a share of something.
+ *
+ * So the bar now divides ONE SALE: what the seller keeps, what the community
+ * takes, and Cobuntu's slice of that. Every rate has an honest picture,
+ * including zero -- where it is one full band and reads "the seller keeps all
+ * of it", which is exactly what 0% means and what the empty card failed to say.
  */
 export function DealSpine({
     rate,
@@ -53,40 +59,20 @@ export function DealSpine({
     const community = 100 - platformShare;
     const label = (k: string, fallback: string) => (t ? t(k) : fallback);
 
+    /*
+     * One sale, divided. `rate` is the community's cut of the sale; Cobuntu
+     * takes `platformShare` percent OF that cut, so its slice is a fraction of
+     * a fraction and stays small on purpose -- drawing it against the sale is
+     * the only way that stays true as the rate moves.
+     */
+    const platformOfSale = (shown * platformShare) / 100;
+    const communityOfSale = shown - platformOfSale;
+    const sellerOfSale = 100 - shown;
+
     return (
         <Card className="overflow-hidden text-[var(--ink)]">
-            <div className="flex min-h-[188px]">
-                {/*
-                  * NO BANDS WHEN THERE IS NOTHING TO SPLIT.
-                  *
-                  * The bands total the COMMISSION, so at 0% they drew a
-                  * confident two-colour chart dividing zero euros between two
-                  * parties -- a large graphic of no money at all. Self-listing
-                  * is the common zero (a community carrying its own product
-                  * takes no cut), so this was not an edge case: every one of
-                  * those pages showed it.
-                  *
-                  * A split only exists when there is something to split.
-                  */}
-                {rate !== null && rate > 0 && (
-                <div className="flex w-[72px] shrink-0 flex-col">
-                    <Band pct={community} value={`${community}%`} label={communityName} className="bg-[var(--b-comm)] text-white" />
-                    {/*
-                      * "Platform", not "Cobuntu", when the community is also
-                      * called Cobuntu: two bands reading COBUNTU says nothing
-                      * about who gets what. Everywhere else the platform's own
-                      * name is the clearer label.
-                      */}
-                    <Band
-                        pct={platformShare}
-                        value={`${platformShare}%`}
-                        label={communityName.trim().toLowerCase() === "cobuntu" ? "Platform" : "Cobuntu"}
-                        className="bg-[var(--b-cob)] text-white"
-                    />
-                </div>
-                )}
-
-                <div className="flex min-w-0 flex-1 flex-col justify-between gap-4 p-5">
+            <div className="flex flex-col">
+                <div className="flex min-w-0 flex-1 flex-col gap-4 p-5">
                     <div>
                         <p className="text-[11px] font-bold uppercase tracking-[.13em] text-[var(--ink-3)]">
                             {label("spineHeading", `${communityName}'s cut`)}
@@ -102,6 +88,59 @@ export function DealSpine({
                                     : label("spineSub", "of every sale, split as shown")}
                         </p>
                     </div>
+
+                    {/*
+                      * ONE SALE, DIVIDED -- drawn for every rate including zero,
+                      * where it is a single full band saying the seller keeps
+                      * all of it. That is what 0% means, and it is what the
+                      * empty card this replaced failed to say.
+                      */}
+                    {rate !== null && (
+                        <div>
+                            <div
+                                className="flex h-2.5 w-full overflow-hidden rounded-full bg-[var(--sunk)]"
+                                role="img"
+                                aria-label={label("spineBarAria", `Seller keeps ${sellerOfSale}% of each sale`)}
+                            >
+                                <span
+                                    className="h-full bg-[var(--b-cob)] transition-[width] duration-500"
+                                    style={{ width: `${sellerOfSale}%` }}
+                                />
+                                {communityOfSale > 0 && (
+                                    <span
+                                        className="h-full bg-[var(--b-comm)] transition-[width] duration-500"
+                                        style={{ width: `${communityOfSale}%` }}
+                                    />
+                                )}
+                                {platformOfSale > 0 && (
+                                    <span
+                                        className="h-full bg-[var(--ink-3)] transition-[width] duration-500"
+                                        style={{ width: `${platformOfSale}%` }}
+                                    />
+                                )}
+                            </div>
+
+                            <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-[var(--ink-3)]">
+                                <Key className="bg-[var(--b-cob)]"
+                                     text={`${label("spineKeySeller", "Seller")} ${round(sellerOfSale)}%`} />
+                                {communityOfSale > 0 && (
+                                    <Key className="bg-[var(--b-comm)]" text={`${communityName} ${round(communityOfSale)}%`} />
+                                )}
+                                {platformOfSale > 0 && (
+                                    /*
+                                      * "Platform" when the community is itself
+                                      * called Cobuntu: two keys reading COBUNTU
+                                      * say nothing about who gets what, and this
+                                      * is the one card where that is the point.
+                                      */
+                                    <Key
+                                        className="bg-[var(--ink-3)]"
+                                        text={`${communityName.trim().toLowerCase() === "cobuntu" ? "Platform" : "Cobuntu"} ${round(platformOfSale)}%`}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {!locked && onCounter && (
                         countering ? (
@@ -157,5 +196,19 @@ function Band({ pct, value, label, className }: { pct: number; value: string; la
             <span className="text-[15px] font-bold leading-none" style={{ fontVariantNumeric: "tabular-nums" }}>{value}</span>
             <span className="text-[9px] font-bold uppercase tracking-wider opacity-85 px-1 text-center leading-tight">{label}</span>
         </div>
+    );
+}
+
+/** One percent, rounded for display without pretending to precision it lacks. */
+function round(n: number): number {
+    return Math.round(n * 10) / 10;
+}
+
+function Key({ className, text }: { className: string; text: string }) {
+    return (
+        <span className="inline-flex items-center gap-1.5">
+            <span className={`inline-block h-2 w-2 rounded-full ${className}`} aria-hidden="true" />
+            {text}
+        </span>
     );
 }
