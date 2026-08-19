@@ -148,19 +148,30 @@ export function ManageOverview({
                 </div>
             )}
 
-            {/* Tiles */}
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                <Tile
-                    wide
-                    label={t("overviewEarnings")}
-                    value={cash(money.net)}
-                    sub={
-                        <>
-                            {/*
-                              * The split, not a single figure. Held is not
-                              * spendable and paid is already gone.
-                              */}
-                            <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {/*
+              * THE NUMBERS AND THE TREND, SIDE BY SIDE.
+              *
+              * Stacked, the tiles pushed the chart below the fold on a laptop,
+              * so the page opened on four totals with no shape to them. The
+              * totals answer "how much", the chart answers "which way" -- and
+              * neither is much use without the other in view.
+              *
+              * FOUR TILES, and no fifth. Every extra ratio (conversion, days
+              * until it starts) competed with the money for the same glance and
+              * lost; what a seller opens this page for is what they earned,
+              * what it grossed, how many looked and how many bought.
+              */}
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+                <div className="grid grid-cols-2 gap-3 lg:content-start">
+                    <Tile
+                        label={t("overviewNetEarnings")}
+                        value={cash(money.net)}
+                        sub={
+                            /*
+                              * The split, not one figure: held is not spendable
+                              * and paid is already gone.
+                              */
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
                                 {money.held > 0 && (
                                     <span>
                                         {t("overviewHeld", { amount: cash(money.held) })}
@@ -177,48 +188,46 @@ export function ManageOverview({
                                 {money.paid > 0 && <span>{t("overviewPaid", { amount: cash(money.paid) })}</span>}
                                 {money.net === 0 && <span>{t("overviewNoEarningsYet")}</span>}
                             </div>
-                        </>
-                    }
-                />
+                        }
+                    />
 
-                <Tile
-                    label={isEvent ? t("overviewGoing") : t("overviewSold")}
-                    value={isEvent && extras?.going !== undefined
-                        ? formatCount(extras.going, locale)
-                        : formatCount(stats.sold, locale)}
-                    sub={isEvent && extras?.capacity
-                        ? t("overviewOfCapacity", { capacity: extras.capacity })
-                        : t("overviewInLastWeeks", { count: soldWindow.current })}
-                />
+                    <Tile
+                        label={t("overviewGrossEarnings")}
+                        value={cash(money.gross)}
+                        sub={t("overviewGrossSub")}
+                    />
 
-                <Tile
-                    label={t("overviewViews")}
-                    value={formatCount(views.total, locale)}
-                    sub={<Delta pct={delta(viewWindow.current, viewWindow.previous)} t={t} />}
-                />
+                    <Tile
+                        label={t("overviewTotalViews")}
+                        value={formatCount(views.total, locale)}
+                        sub={<Delta pct={delta(viewWindow.current, viewWindow.previous)} t={t} />}
+                    />
 
-                <Tile
-                    label={t("overviewConversion")}
-                    value={rate === null ? "—" : `${rate.toFixed(1)}%`}
-                    sub={rate === null ? t("overviewNoViewsYet") : undefined}
-                />
+                    <Tile
+                        label={isEvent ? t("overviewGoing") : t("overviewSales")}
+                        value={isEvent && extras?.going !== undefined
+                            ? formatCount(extras.going, locale)
+                            : formatCount(stats.sold, locale)}
+                        sub={isEvent && extras?.capacity
+                            ? t("overviewOfCapacity", { capacity: extras.capacity })
+                            : t("overviewInLastWeeks", { count: soldWindow.current })}
+                    />
+                </div>
 
-                {isEvent && startsIn !== null && (
-                    <Tile label={t("overviewStartsIn")} value={t("overviewDays", { count: startsIn })} />
+                {/*
+                  * Absent below two weeks of data: one point is not a trend, and
+                  * a chart with a single dot invites a reading the data does not
+                  * support. The tiles then take the full width rather than
+                  * leaving a hole where a figure would be.
+                  */}
+                {hasTrend(weekly) ? (
+                    <TrendChart weekly={weekly} currency={money.currency} locale={locale} t={t} />
+                ) : (
+                    <div className="hidden rounded-xl border border-dashed border-zinc-200 p-6 text-center text-[13px] text-zinc-400 lg:flex lg:items-center lg:justify-center">
+                        {t("overviewTrendTooEarly")}
+                    </div>
                 )}
-
-                <Tile label={t("overviewGross")} value={cash(money.gross)} sub={t("overviewGrossSub")} />
             </div>
-
-            {/*
-              * The trend, between the totals it explains and the listings that
-              * caused them. Absent below two weeks of data: one point is not a
-              * trend, and a chart with a single dot invites a reading the data
-              * does not support.
-              */}
-            {hasTrend(weekly) && (
-                <TrendChart weekly={weekly} currency={money.currency} locale={locale} t={t} />
-            )}
 
             {/* Listings: one section per community */}
             <div>
@@ -247,82 +256,121 @@ export function ManageOverview({
                             /*
                               * A CARD WITH A BUTTON, not a giant link.
                               *
-                              * The row carries four figures and three facts about
-                              * the agreement; making all of it one click target
-                              * means a seller reading the numbers navigates away
-                              * by accident, and leaves no room for a second action
-                              * later. The way in is named and sized like a way in.
+                              * The card carries four figures and three facts
+                              * about the agreement; making all of it one click
+                              * target means a seller reading the numbers
+                              * navigates away by accident, and leaves no room
+                              * for a second action later. The way in is named
+                              * and sized like a way in.
+                              *
+                              * The community's ICON leads, because a seller
+                              * carried by four communities recognises a logo
+                              * before they read a name. Communities without one
+                              * get their initial in the same square, so the
+                              * left edge of every card lines up either way -- a
+                              * missing image must not shift the whole row.
                               */
                             <div
                                 key={l.listingId}
-                                className="rounded-xl border border-zinc-200/70 bg-white p-4"
+                                className="overflow-hidden rounded-xl border border-zinc-200/70 bg-white"
                             >
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <span className="flex items-center gap-2">
-                                        <span className="text-[14.5px] font-semibold text-zinc-900">{l.communityName}</span>
-                                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${STATUS_TONE[l.status] ?? "bg-zinc-100 text-zinc-500"}`}>
-                                            {t(`overviewStatus_${l.status}`)}
-                                        </span>
-                                    </span>
-                                    <span className="flex items-center gap-3">
-                                        <a
-                                            href={listingHref(l)}
-                                            className="rounded-lg bg-zinc-100 px-3 py-1.5 text-[12.5px] font-semibold text-zinc-700 transition-colors hover:bg-zinc-200"
+                                <div className="flex items-start gap-3 p-4">
+                                    {l.communityIcon ? (
+                                        <img
+                                            src={l.communityIcon}
+                                            alt=""
+                                            className="h-11 w-11 flex-none rounded-lg object-cover"
+                                        />
+                                    ) : (
+                                        <span
+                                            aria-hidden="true"
+                                            className="flex h-11 w-11 flex-none items-center justify-center rounded-lg bg-zinc-100 text-[15px] font-bold text-zinc-500"
                                         >
-                                            {t("overviewManageListing")}
-                                        </a>
+                                            {l.communityName.trim().charAt(0).toUpperCase()}
+                                        </span>
+                                    )}
+
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                            <span className="text-[15px] font-semibold text-zinc-900">
+                                                {l.communityName}
+                                            </span>
+                                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${STATUS_TONE[l.status] ?? "bg-zinc-100 text-zinc-500"}`}>
+                                                {t(`overviewStatus_${l.status}`)}
+                                            </span>
+                                        </div>
+
                                         {/*
-                                          * NO SHELF CONTROL ON THE ROW.
-                                          *
-                                          * It belongs on the listing's own
-                                          * page, where the state, the terms and
-                                          * the consequences are all on screen
-                                          * together. On a summary row it is one
-                                          * press away from taking a live
-                                          * listing down, next to numbers that
-                                          * give no context for the decision.
-                                          *
-                                          * The row still SAYS the state, and
-                                          * links to where the act lives.
+                                          * WHAT WAS AGREED, in one line. A rate
+                                          * on its own does not say what for; the
+                                          * package names the arrangement and the
+                                          * date says since when. The requested
+                                          * date stands in when there is no
+                                          * approval date -- rows approved before
+                                          * that column existed have none, and
+                                          * inventing one would put a wrong date
+                                          * under a record.
                                           */}
-                                    </span>
+                                        <p className="mt-0.5 truncate text-[12.5px] text-zinc-500">
+                                            {[
+                                                l.packageName,
+                                                l.commissionRate !== null ? t("overviewCommission", { rate: l.commissionRate }) : null,
+                                                l.approvedAt
+                                                    ? t("overviewApprovedOn", { date: new Date(l.approvedAt).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" }) })
+                                                    : l.requestedAt
+                                                        ? t("overviewRequestedOn", { date: new Date(l.requestedAt).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" }) })
+                                                        : null,
+                                            ].filter(Boolean).join(" · ")}
+                                        </p>
+                                    </div>
+
+                                    <a
+                                        href={listingHref(l)}
+                                        className="flex-none rounded-lg bg-zinc-100 px-3 py-1.5 text-[12.5px] font-semibold text-zinc-700 transition-colors hover:bg-zinc-200"
+                                    >
+                                        {t("overviewManageListing")}
+                                    </a>
+                                    {/*
+                                      * NO SHELF CONTROL ON THE CARD. It belongs
+                                      * on the listing's own page, where the
+                                      * state, the terms and the consequences are
+                                      * on screen together. Here it would sit one
+                                      * press from taking a live listing down,
+                                      * beside numbers that give no context for
+                                      * the decision.
+                                      */}
                                 </div>
 
                                 {/*
-                                  * A listing that cannot sell shows no numbers.
-                                  * Four zeroes would read as "nobody bought
-                                  * it", where the truth is that nobody could.
+                                  * The figures sit in their own band, divided
+                                  * from the agreement above. A listing that
+                                  * cannot sell shows none of them: four zeroes
+                                  * read as "nobody bought it", where the truth
+                                  * is that nobody could.
                                   */}
-                                {/*
-                                  * WHAT WAS AGREED, in one line. A rate on its own
-                                  * does not say what for; the package names the
-                                  * arrangement and the date says since when. The
-                                  * requested date stands in when there is no
-                                  * approval date -- rows approved before that
-                                  * column existed have none, and inventing one
-                                  * would put a wrong date under a record.
-                                  */}
-                                <p className="mt-1 text-[12.5px] text-zinc-500">
-                                    {[
-                                        l.packageName,
-                                        l.commissionRate !== null ? t("overviewCommission", { rate: l.commissionRate }) : null,
-                                        l.approvedAt
-                                            ? t("overviewApprovedOn", { date: new Date(l.approvedAt).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" }) })
-                                            : l.requestedAt
-                                                ? t("overviewRequestedOn", { date: new Date(l.requestedAt).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" }) })
-                                                : null,
-                                    ].filter(Boolean).join(" · ")}
-                                </p>
-
                                 {l.status === "ACTIVE" ? (
-                                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                        <Tile label={t("overviewViews")} value={formatCount(l.views, locale)} />
-                                        <Tile label={t("overviewSold")} value={formatCount(l.sold, locale)} />
-                                        <Tile label={t("overviewGross")} value={cash(l.gross)} />
-                                        <Tile label={t("overviewYourNet")} value={cash(l.net)} />
-                                    </div>
+                                    <dl className="grid grid-cols-2 border-t border-zinc-200/70 bg-zinc-50/60 sm:grid-cols-4">
+                                        {[
+                                            [t("overviewViews"), formatCount(l.views, locale)],
+                                            [t("overviewSold"), formatCount(l.sold, locale)],
+                                            [t("overviewGross"), cash(l.gross)],
+                                            [t("overviewYourNet"), cash(l.net)],
+                                        ].map(([label, value], i) => (
+                                            <div
+                                                key={label}
+                                                className={`px-4 py-2.5 ${i % 2 === 1 ? "" : "border-r border-zinc-200/70"} ${i < 2 ? "border-b border-zinc-200/70 sm:border-b-0" : ""} sm:border-r sm:last:border-r-0`}
+                                            >
+                                                <dt className="text-[10.5px] font-bold uppercase tracking-[.08em] text-zinc-400">
+                                                    {label}
+                                                </dt>
+                                                <dd className="mt-0.5 text-[15px] font-semibold tabular-nums text-zinc-900">
+                                                    {value}
+                                                </dd>
+                                            </div>
+                                        ))}
+                                    </dl>
                                 ) : (
-                                    <p className="mt-2 text-[13px] text-zinc-500">
+                                    <p className="border-t border-zinc-200/70 bg-zinc-50/60 px-4 py-2.5 text-[12.5px] text-zinc-500">
                                         {t(`overviewListingState_${l.status}`)}
                                     </p>
                                 )}

@@ -146,21 +146,46 @@ describe("views that belong to no listing", () => {
     });
 });
 
-describe("the conversion tile", () => {
-    it("shows a dash, not 0%, before anyone has looked", () => {
-        renderIt(stats({ sold: 0, views: { total: 0, unattributed: 0 } }));
-        expect(screen.getByText("—")).toBeInTheDocument();
-        expect(screen.getByText("Nobody has looked yet")).toBeInTheDocument();
+/**
+ * FOUR TILES, and the page must not grow a fifth.
+ *
+ * Conversion and the event countdown both used to have one. They were real
+ * numbers, and they still lost: every extra ratio competed with the money for
+ * the same glance, and the tile a seller opens this page for is what they
+ * earned. Pinning the set here is what makes the next well-meaning addition
+ * fail loudly instead of quietly crowding the row.
+ *
+ * The dropped figures are not lost -- the countdown is on the event's own
+ * Details tab, and views over sold is a division the two tiles beside each
+ * other already support.
+ */
+describe("the tiles are exactly four", () => {
+    const TILES = ["Net earnings", "Gross earnings", "Total views", "Sales"];
+
+    it("names the four, in the order money-first", () => {
+        renderIt(stats({ sold: 60, views: { total: 1284, unattributed: 0 } }));
+        for (const label of TILES) expect(screen.getByText(label)).toBeInTheDocument();
     });
 
-    it("shows the rate once there are views", () => {
+    it("has no conversion tile", () => {
         renderIt(stats({ sold: 60, views: { total: 1284, unattributed: 0 } }));
-        expect(screen.getByText("4.7%")).toBeInTheDocument();
+        expect(screen.queryByText("Viewed to bought")).not.toBeInTheDocument();
+        expect(screen.queryByText("4.7%")).not.toBeInTheDocument();
+    });
+
+    it("still splits earnings into held, due and paid under the first tile", () => {
+        renderIt(stats({
+            money: {
+                net: 1236, gross: 1500, held: 412, due: 412, paid: 412,
+                nextPayoutAt: new Date("2026-09-01").toISOString(), currency: "EUR",
+            },
+        }));
+        expect(screen.getByText(/held/i)).toBeInTheDocument();
     });
 });
 
 describe("the event variant", () => {
-    it("counts places rather than sales, and how long until it starts", () => {
+    it("counts places rather than sales", () => {
         const soon = new Date(Date.now() + 3 * 86400000).toISOString();
         renderIt(
             stats({ kind: "event" }),
@@ -168,8 +193,9 @@ describe("the event variant", () => {
         );
         expect(screen.getByText("Going")).toBeInTheDocument();
         expect(screen.getByText("of 40 places")).toBeInTheDocument();
-        expect(screen.getByText("Starts in")).toBeInTheDocument();
-        expect(screen.getByText("3d")).toBeInTheDocument();
+        // No countdown TILE: four tiles is the rule, and the start date is on
+        // the event's own Details tab where it can say the actual date.
+        expect(screen.queryByText("Starts in")).not.toBeInTheDocument();
     });
 
     it("drops the countdown for an event that has already run", () => {
@@ -281,5 +307,60 @@ describe("the trend chart", () => {
         expect(screen.queryByRole("img", { name: /Weekly earnings/ })).not.toBeInTheDocument();
         renderIt(stats({ weekly: [] }));
         expect(screen.queryByRole("img", { name: /Weekly earnings/ })).not.toBeInTheDocument();
+    });
+});
+
+/**
+ * The community's face on the card.
+ *
+ * A seller carried by four communities scans logos, not names -- but plenty of
+ * communities never set one, and a missing image must not shift the row or
+ * render a broken <img>. Both paths draw the same 44px square.
+ */
+describe("a listing card wears the community's icon", () => {
+    it("shows the icon when there is one", () => {
+        const { container } = renderIt(stats({
+            listings: [listing({ communityName: "Coimbra Connect", communityIcon: "https://cdn.example/cc.png" })],
+        }));
+        // Queried by tag, not by role: the icon carries alt="" and is therefore
+        // presentational, which is right -- the community's name sits beside it
+        // in text, and a screen reader announcing it twice helps nobody.
+        const img = container.querySelector("img") as HTMLImageElement;
+        expect(img).not.toBeNull();
+        expect(img.src).toContain("cc.png");
+    });
+
+    it("falls back to the initial rather than a broken image", () => {
+        renderIt(stats({ listings: [listing({ communityName: "Coimbra Connect", communityIcon: null })] }));
+        expect(screen.getByText("C")).toBeInTheDocument();
+        expect(document.querySelector("img")).toBeNull();
+    });
+});
+
+/**
+ * The chart refuses to draw a series that does not exist.
+ *
+ * The reported case: 76 views, nothing sold. The old chart drew a confident
+ * earnings line flat along the floor, which reads as a measured result rather
+ * than as no data -- and put the loudest mark on the page under the series the
+ * seller had not asked about.
+ */
+describe("the trend when nothing has sold", () => {
+    const traffic = [
+        { week: "2026-07-06", sold: 0, net: 0, views: 31 },
+        { week: "2026-07-13", sold: 0, net: 0, views: 45 },
+    ];
+
+    it("draws no earnings line, and says why", () => {
+        const { container } = renderIt(stats({ weekly: traffic, sold: 0 }));
+        expect(container.querySelector("polyline")).toBeNull();
+        expect(screen.getByText(/Nothing has sold yet/)).toBeInTheDocument();
+    });
+
+    it("draws the line again as soon as a week earns", () => {
+        const { container } = renderIt(stats({
+            weekly: [...traffic, { week: "2026-07-20", sold: 2, net: 824, views: 60 }],
+        }));
+        expect(container.querySelector("polyline")).not.toBeNull();
     });
 });

@@ -1,34 +1,58 @@
+import { useId, useState } from "react";
 import type { OverviewStats } from "./types";
 import { formatMoney } from "./format";
 
 /**
- * Earnings and views over time, drawn as one figure.
+ * Earnings, sales and views over time, drawn as one figure you can read.
  *
- * ── Why both series share a chart ───────────────────────────────────────────
+ * ── What the first version got wrong ────────────────────────────────────────
  *
- * The question a seller actually has is whether attention is turning into
- * money. Two separate charts make that a memory exercise; one figure with views
- * behind the earnings line makes a week of heavy traffic and no sales visible
- * at a glance, which is the week worth asking about.
+ * It drew heavy bars for views, a line for earnings, and no way to read either:
+ * no axis, no gridlines, raw ISO dates under the corners, and nothing on hover.
+ * On the common case -- traffic but no sales yet -- the earnings line lay flat
+ * along the floor, so the loudest thing on the chart was a series the seller had
+ * not asked about and the series they had was invisible.
+ *
+ * ── What it does now ────────────────────────────────────────────────────────
+ *
+ * 1. A MONEY AXIS with gridlines, so a point has a value and not just a shape.
+ * 2. HOVER anywhere: a guide line, the week's date, and all three numbers.
+ *    A chart of weekly buckets is useless if you cannot ask "which week was
+ *    that?" -- and that is the question this page exists to answer.
+ * 3. WHEN NOTHING HAS SOLD, no earnings line at all. A flat line on the floor
+ *    is a drawing of a series that does not exist yet; the chart says so in
+ *    words and shows the views on their own, which is the real signal at that
+ *    stage: people are looking and nobody is buying.
+ * 4. Dates a human reads (3 Nov), on the ticks that fit.
+ *
+ * ── Why the two series keep separate scales ─────────────────────────────────
+ *
+ * Views are counted in hundreds and early earnings in single euros. One axis
+ * flattens whichever is smaller into the floor, and a flattened series reads as
+ * "nothing happened" rather than "different units".
  *
  * ── Why hand-drawn SVG ──────────────────────────────────────────────────────
  *
- * A charting library is 40kB+ on a tab that shows at most a year of weekly
- * points. This is a polyline and some rectangles.
- *
- * ── What it refuses to draw ─────────────────────────────────────────────────
- *
- * A single point, or none. One week is not a trend, and a chart with one dot
- * invites a reading ("flat", "starting") that the data does not support -- so
- * below two points the caller renders nothing and the tiles carry the numbers.
+ * A charting library is 40kB+ for a polyline, some rectangles and a hover test
+ * on at most a year of weekly points.
  */
 
-const W = 560;
-const H = 150;
-const PAD_B = 24;
+const W = 620;
+const H = 210;
+const PAD_L = 46;   // room for the money labels
+const PAD_B = 26;   // room for the dates
+const PAD_T = 12;
 
 export function hasTrend(weekly: OverviewStats["weekly"]): boolean {
     return (weekly?.length ?? 0) >= 2;
+}
+
+/** A money axis a person would draw: 0, a round middle, a round top. */
+function niceTicks(max: number): number[] {
+    if (max <= 0) return [0];
+    const pow = Math.pow(10, Math.floor(Math.log10(max)));
+    const top = Math.ceil(max / pow) * pow;
+    return [0, top / 2, top];
 }
 
 export function TrendChart({
@@ -39,100 +63,196 @@ export function TrendChart({
     locale?: string;
     t: (key: string, vars?: Record<string, string | number>) => string;
 }) {
+    const gradId = useId();
+    const [hover, setHover] = useState<number | null>(null);
+
     if (!hasTrend(weekly)) return null;
 
-    const maxNet = Math.max(...weekly.map((w) => w.net), 1);
+    /*
+     * "Has this ever earned anything?" decides the whole composition. Below,
+     * `earned` false means the money axis and the earnings line are not drawn
+     * at all rather than drawn as zero.
+     */
+    const earned = weekly.some((w) => w.net > 0);
+    const maxNet = Math.max(...weekly.map((w) => w.net), 0);
     const maxViews = Math.max(...weekly.map((w) => w.views), 1);
-    const step = weekly.length > 1 ? W / (weekly.length - 1) : W;
+    const ticks = niceTicks(maxNet);
+    const netTop = ticks[ticks.length - 1] || 1;
 
-    const y = (v: number, max: number) => (H - PAD_B) - (v / max) * (H - PAD_B - 12);
-    const pts = weekly.map((w, i) => `${(i * step).toFixed(1)},${y(w.net, maxNet).toFixed(1)}`).join(" ");
-    const area = `M0,${H - PAD_B} L${pts.replace(/ /g, " L")} L${W},${H - PAD_B} Z`;
+    const plotW = W - PAD_L;
+    const plotH = H - PAD_B - PAD_T;
+    const step = plotW / (weekly.length - 1);
+    const x = (i: number) => PAD_L + i * step;
+    const y = (v: number, max: number) => PAD_T + plotH - (max <= 0 ? 0 : (v / max) * plotH);
 
-    const last = weekly[weekly.length - 1];
-    const barW = Math.max(2, Math.min(14, (W / weekly.length) * 0.45));
+    const pts = weekly.map((w, i) => `${x(i).toFixed(1)},${y(w.net, netTop).toFixed(1)}`).join(" ");
+    const area = `M${PAD_L},${PAD_T + plotH} L${pts.replace(/ /g, " L")} L${W},${PAD_T + plotH} Z`;
+
+    const barW = Math.max(3, Math.min(16, (plotW / weekly.length) * 0.5));
+    const shortDate = (iso: string) =>
+        new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short" });
+
+    /* Every other label when the weeks get tight, so they never collide. */
+    const labelEvery = weekly.length > 8 ? Math.ceil(weekly.length / 6) : 1;
+    const shown = hover !== null ? weekly[hover] : weekly[weekly.length - 1];
 
     return (
-        <figure className="m-0 rounded-xl border border-zinc-200/70 bg-white p-4">
-            <figcaption className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <figure className="m-0 flex h-full flex-col rounded-xl border border-zinc-200/70 bg-white p-4">
+            <figcaption className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
                 <span className="text-[11px] font-bold uppercase tracking-[.1em] text-zinc-400">
-                    {t("overviewTrendTitle")}
+                    {earned ? t("overviewTrendTitle") : t("overviewTrendTitleViews")}
                 </span>
                 <span className="text-[12px] text-zinc-500">
                     {t("overviewTrendWeeks", { count: weekly.length })}
                 </span>
             </figcaption>
 
+            {/*
+              * The readout lives ABOVE the plot rather than in a floating
+              * tooltip: a tooltip that follows the pointer covers the very
+              * weeks either side you are comparing against, and on touch there
+              * is no hover to summon it at all. Here it holds the latest week
+              * by default and swaps as you move.
+              */}
+            <div className="mb-1 flex min-h-[22px] flex-wrap items-baseline gap-x-4 gap-y-0.5">
+                <span className="text-[12.5px] font-semibold text-zinc-900">{shortDate(shown.week)}</span>
+                {earned && (
+                    <span className="text-[12.5px] text-zinc-600">
+                        <span className="font-semibold text-amber-700">
+                            {formatMoney(shown.net, currency, locale)}
+                        </span>{" "}
+                        {t("overviewTrendEarnings")}
+                    </span>
+                )}
+                <span className="text-[12.5px] text-zinc-600">
+                    <span className="font-semibold">{shown.sold}</span> {t("overviewSold").toLowerCase()}
+                </span>
+                <span className="text-[12.5px] text-zinc-600">
+                    <span className="font-semibold">{shown.views}</span> {t("overviewViews").toLowerCase()}
+                </span>
+            </div>
+
             <svg
                 viewBox={`0 0 ${W} ${H}`}
-                className="h-auto w-full"
+                className="h-auto w-full touch-none"
                 role="img"
                 aria-label={t("overviewTrendAria", {
                     weeks: weekly.length,
-                    latest: formatMoney(last.net, currency, locale),
+                    latest: formatMoney(weekly[weekly.length - 1].net, currency, locale),
                 })}
+                onMouseLeave={() => setHover(null)}
             >
                 <defs>
-                    <linearGradient id="cbt-net-fill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="currentColor" stopOpacity=".22" />
+                    <linearGradient id={`g${gradId}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="currentColor" stopOpacity=".2" />
                         <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
                     </linearGradient>
                 </defs>
 
-                {/*
-                  * Views sit BEHIND as bars, on their own scale. Sharing an axis
-                  * with money would flatten one of them into the floor -- views
-                  * are counted in hundreds and earnings in a few euros -- and a
-                  * flattened series reads as "nothing happened".
-                  */}
+                {/* Money gridlines, only when there is money to grid. */}
+                {earned && ticks.map((v) => (
+                    <g key={v}>
+                        <line
+                            x1={PAD_L} y1={y(v, netTop)} x2={W} y2={y(v, netTop)}
+                            className={v === 0 ? "stroke-zinc-200" : "stroke-zinc-100"}
+                            strokeWidth="1"
+                        />
+                        <text
+                            x={PAD_L - 8} y={y(v, netTop) + 4} textAnchor="end"
+                            className="fill-zinc-400" fontSize="10.5"
+                        >
+                            {formatMoney(v, currency, locale)}
+                        </text>
+                    </g>
+                ))}
+                {!earned && (
+                    <line
+                        x1={PAD_L} y1={PAD_T + plotH} x2={W} y2={PAD_T + plotH}
+                        className="stroke-zinc-200" strokeWidth="1"
+                    />
+                )}
+
+                {/* Views, behind, on their own scale. */}
                 {weekly.map((w, i) => {
-                    const h = (w.views / maxViews) * (H - PAD_B - 12);
+                    const h = (w.views / maxViews) * plotH;
                     return (
                         <rect
                             key={w.week}
-                            x={i * step - barW / 2}
-                            y={(H - PAD_B) - h}
+                            x={x(i) - barW / 2}
+                            y={PAD_T + plotH - h}
                             width={barW}
                             height={Math.max(h, 0)}
-                            rx="2"
-                            className="fill-zinc-200/70"
+                            rx="2.5"
+                            className={hover === i ? "fill-zinc-300" : "fill-zinc-200/80"}
                         />
                     );
                 })}
 
-                <line x1="0" y1={H - PAD_B} x2={W} y2={H - PAD_B} className="stroke-zinc-200" strokeWidth="1" />
+                {earned && (
+                    <g className="text-amber-700">
+                        <path d={area} fill={`url(#g${gradId})`} />
+                        <polyline
+                            points={pts}
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.25"
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                        />
+                        {weekly.map((w, i) =>
+                            w.net > 0 || i === weekly.length - 1 ? (
+                                <circle
+                                    key={w.week}
+                                    cx={x(i)} cy={y(w.net, netTop)}
+                                    r={hover === i ? 5 : 3.5}
+                                    fill="currentColor"
+                                />
+                            ) : null,
+                        )}
+                    </g>
+                )}
 
-                <g className="text-amber-700">
-                    <path d={area} fill="url(#cbt-net-fill)" />
-                    <polyline
-                        points={pts}
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.25"
-                        strokeLinejoin="round"
-                        strokeLinecap="round"
+                {/* The hovered week's guide. */}
+                {hover !== null && (
+                    <line
+                        x1={x(hover)} y1={PAD_T} x2={x(hover)} y2={PAD_T + plotH}
+                        className="stroke-zinc-400" strokeWidth="1" strokeDasharray="3 3"
                     />
-                    <circle cx={(weekly.length - 1) * step} cy={y(last.net, maxNet)} r="4" fill="currentColor" />
-                </g>
+                )}
 
-                <text x="0" y={H - 6} className="fill-zinc-400" fontSize="11">
-                    {weekly[0].week}
-                </text>
-                <text x={W} y={H - 6} textAnchor="end" className="fill-zinc-400" fontSize="11">
-                    {last.week}
-                </text>
+                {weekly.map((w, i) =>
+                    i % labelEvery === 0 || i === weekly.length - 1 ? (
+                        <text
+                            key={w.week}
+                            x={x(i)}
+                            y={H - 8}
+                            textAnchor={i === 0 ? "start" : i === weekly.length - 1 ? "end" : "middle"}
+                            className="fill-zinc-400"
+                            fontSize="10.5"
+                        >
+                            {shortDate(w.week)}
+                        </text>
+                    ) : null,
+                )}
+
+                {/*
+                  * Invisible full-height hit areas, one per week. Hovering a
+                  * 3px-tall bar is impossible; hovering its column is not.
+                  */}
+                {weekly.map((w, i) => (
+                    <rect
+                        key={`hit-${w.week}`}
+                        x={x(i) - step / 2} y={PAD_T} width={step} height={plotH}
+                        fill="transparent"
+                        onMouseEnter={() => setHover(i)}
+                        onTouchStart={() => setHover(i)}
+                    />
+                ))}
             </svg>
 
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-zinc-500">
-                <span className="inline-flex items-center gap-1.5">
-                    <span className="inline-block h-2 w-4 rounded-sm bg-amber-700" />
-                    {t("overviewTrendEarnings")}
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                    <span className="inline-block h-2 w-4 rounded-sm bg-zinc-200" />
-                    {t("overviewViews")}
-                </span>
-            </div>
+            {!earned && (
+                <p className="mt-1.5 text-[12px] text-zinc-500">{t("overviewTrendNoEarningsYet")}</p>
+            )}
         </figure>
     );
 }

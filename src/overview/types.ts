@@ -12,6 +12,14 @@ export interface OverviewListing {
     communityId: string;
     communityName: string;
     communityTag: string;
+    /**
+     * The community's square icon, or null when it has never set one.
+     *
+     * Null rather than a placeholder URL: a seller carried by four communities
+     * recognises logos before names, and the page draws the initial in the same
+     * square so a missing image does not shift the row.
+     */
+    communityIcon?: string | null;
     /** PENDING | ACTIVE | PAUSED | CANCELLED | REVOKED */
     status: string;
     commissionRate: number | null;
