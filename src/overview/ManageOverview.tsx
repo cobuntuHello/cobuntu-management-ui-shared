@@ -162,7 +162,7 @@ export function ManageOverview({
               * what it grossed, how many looked and how many bought.
               */}
             <div className="grid gap-3 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
-                <div className="grid grid-cols-2 gap-3 lg:content-start">
+                <div className="grid grid-cols-2 gap-3">
                     <Tile
                         label={t("overviewNetEarnings")}
                         value={cash(money.net)}

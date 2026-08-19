@@ -351,16 +351,27 @@ describe("the trend when nothing has sold", () => {
         { week: "2026-07-13", sold: 0, net: 0, views: 45 },
     ];
 
+    /*
+      * Queried by the earnings colour, not by tag: views are drawn as a
+      * polyline too, so "is there a polyline" stopped being the question the
+      * moment the bars became an area.
+      */
+    const earningsLine = (c: HTMLElement) => c.querySelector("polyline.stroke-amber-700");
+
     it("draws no earnings line, and says why", () => {
         const { container } = renderIt(stats({ weekly: traffic, sold: 0 }));
-        expect(container.querySelector("polyline")).toBeNull();
+        expect(earningsLine(container)).toBeNull();
+        // The views series is still drawn -- that is the whole signal at this
+        // stage, and an empty box would say less than the truth.
+        expect(container.querySelector("polyline")).not.toBeNull();
         expect(screen.getByText(/Nothing has sold yet/)).toBeInTheDocument();
     });
 
-    it("draws the line again as soon as a week earns", () => {
+    it("draws the earnings line as soon as a week earns", () => {
         const { container } = renderIt(stats({
             weekly: [...traffic, { week: "2026-07-20", sold: 2, net: 824, views: 60 }],
         }));
-        expect(container.querySelector("polyline")).not.toBeNull();
+        expect(earningsLine(container)).not.toBeNull();
+        expect(screen.queryByText(/Nothing has sold yet/)).not.toBeInTheDocument();
     });
 });
