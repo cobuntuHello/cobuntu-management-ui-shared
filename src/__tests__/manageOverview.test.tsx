@@ -375,3 +375,40 @@ describe("the trend when nothing has sold", () => {
         expect(screen.queryByText(/Nothing has sold yet/)).not.toBeInTheDocument();
     });
 });
+
+/**
+ * One community, and the page says so either way.
+ *
+ * This replaced a picker offering every community you belong to. The picker
+ * implied an item could be carried in several places, which is not true -- and
+ * a control that promises what the rule forbids is worse than no control, since
+ * the refusal arrives after the click.
+ */
+describe("asking a community to carry it", () => {
+    const requestOn = { name: "Coimbra Connect", onRequest: () => {} };
+
+    it("offers this community, once, when nothing carries it", () => {
+        renderIt(stats({ listings: [] }), { requestOn });
+        expect(screen.getByText("Ask Coimbra Connect to carry it")).toBeInTheDocument();
+    });
+
+    it("states the limit instead, once something carries it", () => {
+        renderIt(stats({ listings: [listing({ communityName: "Coimbra Connect" })] }), { requestOn });
+        expect(screen.queryByText(/Ask Coimbra Connect/)).not.toBeInTheDocument();
+        expect(screen.getByText(/carried by one community for now/)).toBeInTheDocument();
+    });
+
+    /*
+     * A PAUSED or PENDING listing still occupies the slot -- the server counts
+     * them -- so the page must not offer a second the API would refuse.
+     */
+    it.each(["PENDING", "PAUSED"])("counts a %s listing as carried", (status) => {
+        renderIt(stats({ listings: [listing({ status })] }), { requestOn });
+        expect(screen.queryByText(/Ask Coimbra Connect/)).not.toBeInTheDocument();
+    });
+
+    it("offers nothing when the host passes no community", () => {
+        renderIt(stats({ listings: [] }));
+        expect(screen.queryByText(/to carry it/)).not.toBeInTheDocument();
+    });
+});

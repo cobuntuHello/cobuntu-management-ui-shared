@@ -53,6 +53,18 @@ export interface ManageOverviewProps {
     locale?: string;
     /** Rendered under the listings; the host owns any further actions. */
     footer?: ReactNode;
+    /**
+     * The community whose site this is, and how to ask it to carry the item.
+     *
+     * Offered ONLY when nothing carries it yet. An item may be listed in one
+     * community for now, so once there is a listing the page states the limit
+     * instead of offering a second.
+     */
+    requestOn?: {
+        name: string;
+        onRequest: () => void;
+        pending?: boolean;
+    };
 }
 
 const STATUS_TONE: Record<string, string> = {
@@ -94,7 +106,7 @@ function Delta({ pct, t }: { pct: number | null; t: T }) {
 
 export function ManageOverview({
     stats, extras, listingHref, onRequestListing, onSelfList,
-    t, locale = "en-GB", footer,
+    t, locale = "en-GB", footer, requestOn,
 }: ManageOverviewProps) {
     const { money, views, listings, weekly } = stats;
     const isEvent = stats.kind === "event";
@@ -389,6 +401,42 @@ export function ManageOverview({
                         {t("overviewUnattributedViews", { count: views.unattributed })}
                     </p>
                 )}
+
+                {/*
+                  * ONE LISTING, AND THE PAGE SAYS SO EITHER WAY.
+                  *
+                  * This replaced a picker that offered every community you
+                  * belong to. The picker implied an item could be carried in
+                  * several places, which is not true yet -- and a control that
+                  * promises what the rule forbids is worse than no control at
+                  * all, because the refusal arrives after the click.
+                  *
+                  * Nothing carrying it: one button, this community, one press.
+                  * Something carrying it: the limit, stated, with nothing to
+                  * press against it.
+                  */}
+                {listings.length === 0 && requestOn ? (
+                    <div className="mt-4 rounded-xl border border-zinc-200/70 bg-white p-4">
+                        <p className="text-[14px] font-semibold text-zinc-900">
+                            {t("overviewNotCarriedTitle")}
+                        </p>
+                        <p className="mt-0.5 text-[13px] text-zinc-500">
+                            {t("overviewNotCarriedBody", { community: requestOn.name })}
+                        </p>
+                        <button
+                            type="button"
+                            disabled={requestOn.pending}
+                            onClick={requestOn.onRequest}
+                            className="mt-3 cursor-pointer rounded-lg bg-zinc-900 px-3.5 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                        >
+                            {requestOn.pending
+                                ? t("overviewRequesting")
+                                : t("overviewListItHere", { community: requestOn.name })}
+                        </button>
+                    </div>
+                ) : listings.length > 0 ? (
+                    <p className="mt-4 text-[12.5px] text-zinc-500">{t("overviewOneCommunityOnly")}</p>
+                ) : null}
 
                 {footer}
             </div>
