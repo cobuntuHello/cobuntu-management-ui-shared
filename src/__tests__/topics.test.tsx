@@ -259,3 +259,59 @@ describe("composing over an empty section", () => {
         expect(screen.getByText("Nothing raised yet")).toBeInTheDocument();
     });
 });
+
+/**
+ * The character limits, as the writer meets them.
+ *
+ * The server caps a subject at 120 and a body at 4000. A limit the writer
+ * cannot see is one they discover by losing work -- finishing a paragraph,
+ * pressing Post, and getting a 400 about something they can no longer see the
+ * end of.
+ */
+describe("the counter", () => {
+    const props = {
+        viewer: "owner" as const,
+        otherPartyName: "PBN",
+        topics: [],
+        onOpen: () => {},
+        onComment: () => {},
+        onToggleDone: () => {},
+        t: defaultTranslate,
+    };
+
+    const openComposer = () => {
+        render(<Topics {...props} />);
+        fireEvent.click(screen.getByText(/Raise something/));
+        return screen.getByPlaceholderText(/What is this about/);
+    };
+
+    /*
+     * Hidden early ON PURPOSE. A counter visible from the first keystroke turns
+     * writing a sentence into budgeting one.
+     */
+    it("stays out of the way until the text is nearly there", () => {
+        const subject = openComposer();
+        fireEvent.change(subject, { target: { value: "x".repeat(50) } });
+        expect(screen.queryByText(/left$/)).not.toBeInTheDocument();
+    });
+
+    it("counts DOWN once it appears, because what is left is the useful number", () => {
+        const subject = openComposer();
+        fireEvent.change(subject, { target: { value: "x".repeat(102) } });
+        expect(screen.getByText("18 left")).toBeInTheDocument();
+    });
+
+    /*
+     * It does NOT stop the keystroke. maxLength silently truncates a paste, and
+     * someone who pastes three paragraphs and sees two has no way to know.
+     */
+    it("lets the text go over, says how far, and refuses the post", () => {
+        const subject = openComposer();
+        fireEvent.change(subject, { target: { value: "x".repeat(125) } });
+        fireEvent.change(screen.getByPlaceholderText(/Say more/), { target: { value: "a body" } });
+
+        expect((subject as HTMLInputElement).value).toHaveLength(125);
+        expect(screen.getByText("5 too many")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Post" })).toBeDisabled();
+    });
+});

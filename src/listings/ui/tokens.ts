@@ -60,3 +60,39 @@ export const LISTING_TOKENS: Record<string, string> = {
 export function listingTokenStyle(extra?: Record<string, string>): Record<string, string> {
     return { ...LISTING_TOKENS, ...(extra ?? {}) };
 }
+
+/**
+ * The panel's motion, as a single injected stylesheet.
+ *
+ * Keyframes cannot be expressed as inline styles, and the package cannot ship a
+ * CSS file without asking every consumer to wire it into their build -- the
+ * same constraint that made the palette inline custom properties. So the one
+ * thing that genuinely needs a stylesheet is emitted as a <style> element from
+ * the panel root, with every name prefixed `cbt-` so it cannot collide with the
+ * host's own.
+ *
+ * REDUCED MOTION IS HONOURED HERE rather than at each call site. A guard that
+ * has to be remembered per animation is a guard that will be forgotten on the
+ * next one, and this page animates things that appear under the cursor.
+ */
+export const LISTING_MOTION = `
+@keyframes cbt-counter-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes cbt-expand {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes cbt-row-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-cbt-panel] *, [data-cbt-panel] *::before, [data-cbt-panel] *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+`;

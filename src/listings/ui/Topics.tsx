@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Card, Pill, Who, inputCls } from "./primitives";
 import { EmptyState } from "../../overview/EmptyState";
+import { TextField, TextArea } from "./TextField";
+import { TOPIC_LIMITS } from "./topicLimits";
 
 /**
  * Topics — the half of a listing negotiation that is not money.
@@ -225,21 +227,23 @@ function Composer({
                         {t("topicsComposerPlaceholder", { other: otherPartyName })}
                     </button>
                 ) : (
-                    <div className="min-w-0 flex-1">
-                        <input
+                    <div className="min-w-0 flex-1" style={{ animation: "cbt-expand 180ms ease-out" }}>
+                        <TextField
                             autoFocus
-                            className="w-full bg-transparent text-[15px] font-semibold text-[var(--ink)] outline-none placeholder:text-[var(--ink-3)]"
+                            label={t("topicsSubjectPlaceholder")}
                             placeholder={t("topicsSubjectPlaceholder")}
                             value={subject}
-                            onChange={(e) => setSubject(e.target.value)}
+                            onChange={setSubject}
+                            limit={TOPIC_LIMITS.subject}
                         />
-                        <textarea
-                            className="mt-1 w-full resize-y bg-transparent text-[13.5px] leading-relaxed text-[var(--ink)] outline-none placeholder:text-[var(--ink-3)]"
-                            rows={2}
+                        <TextArea
+                            label={t("topicsBodyPlaceholder")}
                             placeholder={t("topicsBodyPlaceholder")}
                             value={body}
-                            onChange={(e) => setBody(e.target.value)}
+                            onChange={setBody}
+                            limit={TOPIC_LIMITS.body}
                         />
+
                         {/*
                           * Reversed on mobile so the primary action sits at the
                           * bottom, under the thumb, and Cancel is not what you
@@ -255,7 +259,18 @@ function Composer({
                             </button>
                             <button
                                 type="button"
-                                disabled={!subject.trim() || !body.trim() || busy}
+                                /*
+                                  * Over the limit disables POST rather than
+                                  * blocking the keystroke. A field that stops
+                                  * accepting input silently swallows a paste,
+                                  * and someone who pastes three paragraphs and
+                                  * sees two has no way to know.
+                                  */
+                                disabled={
+                                    !subject.trim() || !body.trim() || busy
+                                    || subject.length > TOPIC_LIMITS.subject
+                                    || body.length > TOPIC_LIMITS.body
+                                }
                                 onClick={() => void post()}
                                 /*
                                   * Disabled swaps the FILL rather than fading

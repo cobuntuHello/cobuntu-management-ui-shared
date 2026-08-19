@@ -8,7 +8,7 @@ import { defaultTranslate } from "./copy";
 import { DealSpine } from "./ui/DealSpine";
 import { NextAction } from "./ui/NextAction";
 import { Topics, type Topic } from "./ui/Topics";
-import { listingTokenStyle } from "./ui/tokens";
+import { listingTokenStyle, LISTING_MOTION } from "./ui/tokens";
 import {
   isClosedState,
   normalizeListingState,
@@ -602,7 +602,18 @@ export function ManagedListingDetail({
      * I on" a colour-matching exercise. Only --commit moves: the paper, the ink
      * and the money bands stay, or the split stops being readable.
      */
-    <div style={listingTokenStyle(brand ? { "--commit": brand } : undefined)} className="text-[var(--ink)]">
+    <div
+      data-cbt-panel=""
+      style={listingTokenStyle(brand ? { "--commit": brand } : undefined)}
+      className="text-[var(--ink)]"
+    >
+      {/*
+        * The one stylesheet this panel needs, for the one thing inline styles
+        * cannot express: keyframes. Scoped by [data-cbt-panel] and prefixed
+        * `cbt-`, and it carries the reduced-motion guard for everything inside
+        * so no individual animation has to remember it.
+        */}
+      <style>{LISTING_MOTION}</style>
       {toast && (
         <div className="fixed top-4 right-4 z-50 bg-zinc-900 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-lg">
           {toast}
