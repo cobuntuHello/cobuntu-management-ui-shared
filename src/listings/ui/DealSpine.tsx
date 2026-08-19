@@ -36,6 +36,7 @@ export function DealSpine({
     rate,
     communityName,
     platformShare = 10,
+    sellerFee = null,
     locked = false,
     onCounter,
     counterLabel = "Suggest a different cut",
@@ -46,6 +47,21 @@ export function DealSpine({
     communityName: string;
     /** Cobuntu's cut OF the commission, as a percent. */
     platformShare?: number;
+    /**
+     * The OTHER deductions, from GET /api/config/fees.
+     *
+     * Rates only, and from the endpoint that publishes them rather than from a
+     * copy kept here: the fee file is the single definition and this page must
+     * not become a second one. Absent means the caller could not read them, and
+     * the bar then shows only what was agreed rather than inventing the rest.
+     */
+    sellerFee?: {
+        /** Cobuntu's fee on the seller's own share, as a fraction (0.04). */
+        rate: number;
+        /** The fixed part, in the smallest unit (30 = EUR 0.30). */
+        fixed: number;
+        currency?: string;
+    } | null;
     /** Agreed and live: there is nothing left to move. */
     locked?: boolean;
     onCounter?: (rate: number) => void;
@@ -65,19 +81,32 @@ export function DealSpine({
      * a fraction and stays small on purpose -- drawing it against the sale is
      * the only way that stays true as the rate moves.
      */
-    const platformOfSale = (shown * platformShare) / 100;
-    const communityOfSale = shown - platformOfSale;
-    const sellerOfSale = 100 - shown;
+    const cobuntuOfCommission = (shown * platformShare) / 100;
+    const communityOfSale = shown - cobuntuOfCommission;
+    /*
+     * WHAT THE SELLER ACTUALLY KEEPS, which is not "everything the community
+     * did not take".
+     *
+     * Cobuntu charges the seller a fee on their OWN share on top of its slice
+     * of the commission, so a 0% listing was drawing "Seller 100%" -- a
+     * confident, wrong number on the most common listing there is. That fee is
+     * all-in: Stripe's processing comes out of it, which is why Stripe is named
+     * below rather than drawn as a fourth band that would double-count.
+     */
+    const sellerShare = 100 - shown;
+    const cobuntuOfSeller = sellerFee ? sellerShare * sellerFee.rate : 0;
+    const platformOfSale = cobuntuOfCommission + cobuntuOfSeller;
+    const sellerOfSale = sellerShare - cobuntuOfSeller;
 
     return (
         <Card className="overflow-hidden text-[var(--ink)]">
             <div className="flex flex-col">
-                <div className="flex min-w-0 flex-1 flex-col gap-4 p-5">
+                <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 sm:p-5">
                     <div>
                         <p className="text-[11px] font-bold uppercase tracking-[.13em] text-[var(--ink-3)]">
                             {label("spineHeading", `${communityName}'s cut`)}
                         </p>
-                        <p className="tabular mt-1 text-[40px] font-bold leading-none tracking-tighter" style={{ fontVariantNumeric: "tabular-nums" }}>
+                        <p className="tabular mt-1 text-[32px] font-bold leading-none tracking-tighter sm:text-[40px]" style={{ fontVariantNumeric: "tabular-nums" }}>
                             {rate == null ? "—" : `${shown}%`}
                         </p>
                         <p className="mt-1.5 text-[12.5px] text-[var(--ink-3)]">
@@ -139,6 +168,12 @@ export function DealSpine({
                                     />
                                 )}
                             </div>
+
+                            {sellerFee && (
+                                <p className="mt-2 text-[11.5px] leading-relaxed text-[var(--ink-3)]">
+                                    {label("spineFixedFee", `Plus ${money(sellerFee.fixed, sellerFee.currency)} per sale to Cobuntu. Stripe's processing comes out of Cobuntu's fee, so it is not a separate deduction.`)}
+                                </p>
+                            )}
                         </div>
                     )}
 
@@ -197,6 +232,11 @@ function Band({ pct, value, label, className }: { pct: number; value: string; la
             <span className="text-[9px] font-bold uppercase tracking-wider opacity-85 px-1 text-center leading-tight">{label}</span>
         </div>
     );
+}
+
+/** The smallest unit, as money. Amounts here are cents, as everywhere. */
+function money(amount: number, currency = "EUR"): string {
+    return new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(amount / 100);
 }
 
 /** One percent, rounded for display without pretending to precision it lacks. */

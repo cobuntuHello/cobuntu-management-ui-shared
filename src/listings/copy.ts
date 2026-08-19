@@ -18,6 +18,8 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     /* The commission spine, ported from the negotiation MVP. */
     spineHeading: "The community's cut",
     spineZero: "No commission on this listing. Nothing to split.",
+    spineKeySeller: "You keep",
+    spineFixedFee: "Plus {amount} per sale to Cobuntu. Stripe's processing comes out of Cobuntu's fee, so it is not charged separately.",
     spineSub: "of every sale, split as shown",
     spineNotAgreed: "Nothing agreed yet",
     spineOffer: "Offer",
@@ -27,7 +29,7 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     turnLeaderBody: "This request is waiting on you. Agree the terms below, or propose different ones.",
     turnOwnerBody: "They have answered. Take a look at the terms below.",
     turnWaitBody: "Nothing for you to do until they answer. Their reply shows up below.",
-    settledTitle: "You both shook on it",
+    settledTitle: "Agreed",
     settledBody: "This listing is live.",
     theSeller: "the seller",
     waitingLeaderTitle: "Your turn",
@@ -88,6 +90,14 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     counterNotePlaceholder: "Why this one (optional)",
     counterSend: "Send",
     counterSending: "Sending...",
+    confirmApproveTitle: "Put this on the shelf?",
+    confirmApproveBody: "It becomes buyable in {community} straight away, at the terms agreed here. You can take it off again later.",
+    confirmPauseTitle: "Take it off the shelf?",
+    confirmPauseBody: "It stops selling immediately and disappears from the marketplace. The listing and its terms stay, so you can put it back without asking again.",
+    confirmResumeTitle: "Put it back on the shelf?",
+    confirmResumeBody: "It becomes buyable again at the same terms. Nothing is renegotiated.",
+    confirmRevokeTitle: "End this listing?",
+    confirmRevokeBody: "It stops selling and the arrangement ends. This is not a pause: getting it back means a fresh request and agreeing terms again.",
     counterCancel: "Cancel",
 
     /*

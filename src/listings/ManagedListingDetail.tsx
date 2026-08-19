@@ -191,6 +191,26 @@ export function ManagedListingDetail({
   const [busy, setBusy] = useState(false);
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   /*
+   * EVERY LEVER CONFIRMS FIRST.
+   *
+   * All of these are public and most are hard to undo: taking a live listing
+   * off the shelf stops sales immediately, approving puts an item in front of a
+   * community, and revoking ends the arrangement rather than pausing it. Only
+   * withdrawal used to ask, which meant the two acts that a leader performs on
+   * someone else's listing were the unguarded ones.
+   *
+   * The modal states what happens rather than asking "are you sure" -- a
+   * confirmation that only repeats the button teaches people to click through
+   * it, and the next one that matters gets the same reflex.
+   */
+  const [pending, setPending] = useState<null | {
+    to: "ACTIVE" | "PAUSED" | "REVOKED";
+    title: string;
+    body: string;
+    confirm: string;
+    danger?: boolean;
+  }>(null);
+  /*
    * TWO TABS, and the split is by how long you stay.
    *
    * "Terms" is what you came for: the rate, the agreement, and the points
@@ -200,6 +220,16 @@ export function ManagedListingDetail({
    * been a full card holding one grey sentence in the middle of the page.
    */
   const [tab, setTab] = useState<"terms" | "history">("terms");
+  /*
+   * The OTHER deductions, from the endpoint that publishes them.
+   *
+   * Not a copy of the rates kept here: feeConstants.ts is the single
+   * definition, /api/config/fees is its published form, and it honours a
+   * community's negotiated platform rate which a hardcoded 8% would not. Null
+   * while it loads and if it fails -- the bar then shows only what was agreed,
+   * which is less than the whole truth and better than an invented one.
+   */
+  const [fees, setFees] = useState<{ platformRate: number; memberSellerRate: number; memberSellerFixed: number } | null>(null);
   /*
    * Countering, from the SELLER's side.
    *
@@ -345,6 +375,17 @@ export function ManagedListingDetail({
   const state = normalizeListingState(listing.status);
   const rate = toRate(listing.commissionRate ?? listing.ticketListing?.commissionRate);
   const community = listing.community ?? listing.communities ?? null;
+
+  useEffect(() => {
+    let cancelled = false;
+    const tag = (community as any)?.tagLower || (community as any)?.communityTag;
+    fetch(`${API}/api/config/fees${tag ? `?communityTag=${encodeURIComponent(tag)}` : ""}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d) setFees(d); })
+      .catch(() => { /* the bar falls back to the agreement alone */ });
+    return () => { cancelled = true; };
+  }, [community]);
+
   /*
    * What is being listed, from the listing itself. The product side nests it as
    * `products` (the Prisma relation) and the event side as `events`; both have
@@ -662,7 +703,12 @@ export function ManagedListingDetail({
         * listings never have, and it kept a full card in the middle of the page
         * to say so.
         */}
-      <div className="mb-5 flex gap-1 border-b border-[var(--line)]">
+      {/*
+        * The strip scrolls rather than wraps on a narrow screen: a wrapped tab
+        * row changes height as you switch tabs, which moves the content under
+        * your thumb.
+        */}
+      <div className="mb-5 -mx-4 flex gap-1 overflow-x-auto border-b border-[var(--line)] px-4 sm:mx-0 sm:px-0">
         {([
           ["terms", t("tabTerms")],
           ["history", proposals.length > 0 ? t("tabHistoryCount", { count: proposals.length }) : t("tabHistory")],
@@ -698,6 +744,8 @@ export function ManagedListingDetail({
       <div className="mb-6">
         <DealSpine
           rate={rate}
+          platformShare={fees ? Math.round(fees.platformRate * 100) : undefined}
+          sellerFee={fees ? { rate: fees.memberSellerRate, fixed: fees.memberSellerFixed } : null}
           communityName={community?.name || t("community")}
           locked={state === "ACTIVE"}
           onCounter={canCounter ? (r) => void counterToRate(r) : undefined}
@@ -918,7 +966,7 @@ export function ManagedListingDetail({
         * permanent grey stripe advertising a capability this listing lacks.
         */}
       {(actions.length > 0 || reviewActions.length > 0) && (
-        <div className="sticky bottom-0 z-10 -mx-4 mt-6 flex flex-wrap justify-end gap-2 border-t border-[var(--line)] bg-[var(--card)] px-4 py-3 sm:-mx-6 sm:px-6">
+        <div className="sticky bottom-0 z-20 -mx-4 mt-6 flex flex-col-reverse gap-2 border-t border-[var(--line)] bg-[var(--card)] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:flex-row sm:flex-wrap sm:justify-end sm:px-6">
         {/*
         The levers, straight from the machine.
 
@@ -939,14 +987,25 @@ export function ManagedListingDetail({
           {reviewActions.map((action) => {
             if (action === "approve") {
               return (
-                <button key={action} type="button" onClick={() => move("ACTIVE")} disabled={busy}
+                <button key={action} type="button" onClick={() => setPending({
+                    to: "ACTIVE",
+                    title: t("confirmApproveTitle"),
+                    body: t("confirmApproveBody", { community: community?.name || t("community") }),
+                    confirm: t("approve"),
+                  })} disabled={busy}
                   className="px-4 py-2.5 text-[13px] font-medium text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 cursor-pointer disabled:opacity-40">
                   {t("approve")}
                 </button>
               );
             }
             return (
-              <button key={action} type="button" onClick={() => move("REVOKED")} disabled={busy}
+              <button key={action} type="button" onClick={() => setPending({
+                  to: "REVOKED",
+                  title: t("confirmRevokeTitle"),
+                  body: t("confirmRevokeBody"),
+                  confirm: t("revoke"),
+                  danger: true,
+                })} disabled={busy}
                 className="px-4 py-2.5 text-[13px] font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 cursor-pointer disabled:opacity-40">
                 {action === "decline" ? t("decline") : t("revoke")}
               </button>
@@ -960,7 +1019,12 @@ export function ManagedListingDetail({
           {actions.map((action) => {
             if (action === "pause") {
               return (
-                <button key={action} type="button" onClick={() => move("PAUSED")} disabled={busy}
+                <button key={action} type="button" onClick={() => setPending({
+                    to: "PAUSED",
+                    title: t("confirmPauseTitle"),
+                    body: t("confirmPauseBody"),
+                    confirm: t("pause"),
+                  })} disabled={busy}
                   className="px-4 py-2.5 text-[13px] font-medium text-zinc-700 bg-zinc-100 rounded-lg hover:bg-zinc-200 cursor-pointer disabled:opacity-40">
                   {t("pause")}
                 </button>
@@ -968,7 +1032,12 @@ export function ManagedListingDetail({
             }
             if (action === "resume") {
               return (
-                <button key={action} type="button" onClick={() => move("ACTIVE")} disabled={busy}
+                <button key={action} type="button" onClick={() => setPending({
+                    to: "ACTIVE",
+                    title: t("confirmResumeTitle"),
+                    body: t("confirmResumeBody"),
+                    confirm: t("resume"),
+                  })} disabled={busy}
                   className="px-4 py-2.5 text-[13px] font-medium text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 cursor-pointer disabled:opacity-40">
                   {t("resume")}
                 </button>
@@ -1007,6 +1076,19 @@ export function ManagedListingDetail({
         </div>
       )}
 
+
+      {pending && (
+        <ConfirmAction
+          title={pending.title}
+          body={pending.body}
+          confirmLabel={pending.confirm}
+          danger={pending.danger}
+          busy={busy}
+          onConfirm={async () => { const to = pending.to; setPending(null); await move(to); }}
+          onClose={() => setPending(null)}
+          t={t}
+        />
+      )}
 
       {confirmWithdraw && (
         <ConfirmWithdraw
@@ -1097,5 +1179,73 @@ function Meta({ label, value }: { label: string; value: string }) {
       <dt className="text-[11px] font-semibold uppercase tracking-[.1em] text-[var(--ink-3)]">{label}</dt>
       <dd className="m-0 text-[13px] text-[var(--ink-2)]">{value}</dd>
     </div>
+  );
+}
+
+/**
+ * One confirmation, for every act that is hard to take back.
+ *
+ * It states WHAT HAPPENS rather than asking whether you are sure. A dialog that
+ * only repeats its button teaches people to click through it, and then the one
+ * that actually matters gets the same reflex.
+ */
+function ConfirmAction({
+  title, body, confirmLabel, danger, busy, onConfirm, onClose, t,
+}: {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  danger?: boolean;
+  busy?: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+  t: (key: string, vars?: Record<string, unknown>) => string;
+}) {
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[120] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
+      onClick={onClose}
+    >
+      {/*
+        * Bottom sheet on a phone, centred card above it. A centred dialog on a
+        * small screen puts the confirm button under the thumb's reach and the
+        * cancel above it, which is the wrong way round for the one that undoes.
+        */}
+      <div
+        className="w-full overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:w-[420px] sm:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="px-5 pb-4 pt-5 sm:px-6 sm:pt-6">
+          <h3 className="text-[15px] font-semibold text-zinc-900">{title}</h3>
+          <p className="mt-2 text-[13px] leading-relaxed text-zinc-600">{body}</p>
+        </div>
+        <div className="space-y-2 border-t border-zinc-100 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-4">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className={`w-full cursor-pointer rounded-lg px-4 py-2.5 text-[13px] font-semibold disabled:opacity-40 ${
+              danger ? "bg-red-600 text-white hover:bg-red-700" : "bg-zinc-900 text-white hover:bg-zinc-800"
+            }`}
+          >
+            {confirmLabel}
+          </button>
+          {/*
+            * Close at the BOTTOM, and muted. The way out should not compete
+            * with the act you came to perform.
+            */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full cursor-pointer rounded-lg bg-zinc-100 px-4 py-2.5 text-[13px] font-semibold text-zinc-700 hover:bg-zinc-200"
+          >
+            {t("counterCancel")}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }

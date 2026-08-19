@@ -79,3 +79,44 @@ describe("the tab strip", () => {
         expect(LISTING_DETAIL_COPY.tabHistory).not.toContain("{count}");
     });
 });
+
+/**
+ * Every lever confirms first, and the dialog says what happens.
+ *
+ * All of these are public and most are hard to undo. Only withdrawal used to
+ * ask, which left the two acts a LEADER performs on somebody else's listing --
+ * approve and revoke -- as the unguarded ones.
+ */
+describe("the confirmations", () => {
+    const CRITICAL = ["Approve", "Pause", "Resume", "Revoke"];
+
+    it("has a title and a body for every lever", () => {
+        for (const act of CRITICAL) {
+            expect(LISTING_DETAIL_COPY[`confirm${act}Title`]).toBeTruthy();
+            expect(LISTING_DETAIL_COPY[`confirm${act}Body`]).toBeTruthy();
+        }
+    });
+
+    /*
+     * A dialog that only repeats its button teaches people to click through it,
+     * and then the one that matters gets the same reflex. Each body has to say
+     * what actually happens, so none of them may be a bare "are you sure".
+     */
+    it("explains rather than asking whether you are sure", () => {
+        for (const act of CRITICAL) {
+            const body = LISTING_DETAIL_COPY[`confirm${act}Body`];
+            expect(body.toLowerCase()).not.toContain("are you sure");
+            expect(body.length).toBeGreaterThan(40);
+        }
+    });
+
+    /*
+     * Revoke is the one people confuse with a pause, and the difference is the
+     * whole reason it is a separate act: the arrangement ends, and getting it
+     * back means asking again.
+     */
+    it("says plainly that revoking is not a pause", () => {
+        expect(LISTING_DETAIL_COPY.confirmRevokeBody).toMatch(/not a pause/i);
+        expect(LISTING_DETAIL_COPY.confirmPauseBody).toMatch(/put it back|without asking/i);
+    });
+});

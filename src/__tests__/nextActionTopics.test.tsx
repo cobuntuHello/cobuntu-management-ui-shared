@@ -88,7 +88,7 @@ describe("what leads", () => {
 describe("once it is live", () => {
     it("records what it took, when it took anything", () => {
         render(<NextAction {...base} state="ACTIVE" viewer="owner" totalTopics={3} openTopics={0} />);
-        expect(screen.getByText("You both shook on it")).toBeInTheDocument();
+        expect(screen.getByText("Agreed")).toBeInTheDocument();
         expect(screen.getByText("Live in PBN, with 3 topics settled along the way.")).toBeInTheDocument();
     });
 
