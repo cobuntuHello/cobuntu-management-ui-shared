@@ -201,6 +201,7 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     ledgerColGross: "Gross",
     ledgerColCommunity: "Community",
     ledgerColSeller: "Seller net",
+    ledgerGuestBuyer: "Guest",
     ledgerKind_sale: "Sale",
     ledgerKind_refund: "Refund",
     ledgerKind_payout: "Payout",

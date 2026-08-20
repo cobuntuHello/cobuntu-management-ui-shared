@@ -165,3 +165,35 @@ describe("an item nothing has happened to", () => {
         expect(container.querySelector("button")).toBeNull();
     });
 });
+
+/**
+ * A guest purchase is a complete row, not a missing one.
+ *
+ * The server falls back name -> usertag -> the email a guest checked out with;
+ * null means there was not even that. An empty cell on a ledger reads as a
+ * record that failed to load.
+ */
+describe("a buyer with no account", () => {
+    it("says Guest rather than leaving the cell blank", () => {
+        renderIt([movement({ buyerName: null })]);
+        expect(screen.getByText("Guest")).toBeInTheDocument();
+    });
+
+    it("prefers whatever the server could find", () => {
+        renderIt([movement({ buyerName: "someone@example.com" })]);
+        expect(screen.getByText("someone@example.com")).toBeInTheDocument();
+        expect(screen.queryByText("Guest")).not.toBeInTheDocument();
+    });
+
+    /*
+     * A payout has no buyer. Labelling one "Guest" would invent a person on a
+     * row that is about money moving, not about anyone buying.
+     */
+    it("never calls a payout a guest", () => {
+        renderIt([movement({
+            kind: "payout", sign: -1, gross: 0, sellerNet: 4926, communityCut: 0,
+            payoutLeg: "seller", payoutTotal: 4926, buyerName: null,
+        })]);
+        expect(screen.queryByText("Guest")).not.toBeInTheDocument();
+    });
+});

@@ -179,7 +179,24 @@ function Row({
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${TONE[m.kind] ?? "bg-zinc-100 text-zinc-600"}`}>
                         {t(`ledgerKind_${m.kind}`)}
                     </span>
-                    {m.buyerName && (
+                    {/*
+                      * "Guest" rather than nothing.
+                      *
+                      * A guest checkout has no account -- the server falls back
+                      * to the email it was made with, and null means there was
+                      * not even that. An empty cell on a ledger reads as a
+                      * missing record; naming the buyer as a guest says the row
+                      * is complete and the person simply never signed up.
+                      *
+                      * Sales only: a payout has no buyer, and labelling one
+                      * "Guest" would invent a person.
+                      */}
+                    {m.kind === "sale" && (
+                        <span className={`text-[13.5px] ${m.buyerName ? "font-medium text-zinc-900" : "text-zinc-500"}`}>
+                            {m.buyerName || t("ledgerGuestBuyer")}
+                        </span>
+                    )}
+                    {m.kind !== "sale" && m.buyerName && (
                         <span className="text-[13.5px] font-medium text-zinc-900">{m.buyerName}</span>
                     )}
                     {m.payoutLeg && (
