@@ -365,11 +365,27 @@ export function ManageOverview({
                                   */}
                                 {l.status === "ACTIVE" ? (
                                     <dl className="grid grid-cols-2 border-t border-zinc-200/70 bg-zinc-50/60 sm:grid-cols-4">
+                                        {/*
+                                          * BOTH SIDES OF THE SAME SALE.
+                                          *
+                                          * The row carried one net figure --
+                                          * the seller's -- under a heading
+                                          * reading "your net", and on a
+                                          * community's own admin page "you" is
+                                          * the community. A leader read the
+                                          * seller's EUR 37.08 as theirs on an
+                                          * event where they had earned about
+                                          * three.
+                                          *
+                                          * Each column is named for WHOSE money
+                                          * it is now, so neither can be read as
+                                          * the other.
+                                          */}
                                         {[
-                                            [t("overviewViews"), formatCount(l.views, locale)],
                                             [t("overviewSold"), formatCount(l.sold, locale)],
                                             [t("overviewGross"), cash(l.gross)],
-                                            [t("overviewYourNet"), cash(l.net)],
+                                            [t("overviewCommunityEarned"), cash(l.communityNet ?? 0)],
+                                            [t("overviewSellerNet"), cash(l.net)],
                                         ].map(([label, value], i) => (
                                             <div
                                                 key={label}

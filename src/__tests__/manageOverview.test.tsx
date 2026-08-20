@@ -412,3 +412,42 @@ describe("asking a community to carry it", () => {
         expect(screen.queryByText(/to carry it/)).not.toBeInTheDocument();
     });
 });
+
+/**
+ * A listing row names WHOSE money each column is.
+ *
+ * It showed one net figure -- the seller's -- under a heading reading "your
+ * net", and on a community's own admin page "you" is the community. A leader
+ * read the seller's EUR 37.08 as their own on an event where they had earned
+ * about three. Both numbers are wanted, for different reasons, and neither may
+ * be readable as the other.
+ */
+describe("a listing row shows both sides", () => {
+    it("labels the community's earnings and the seller's separately", () => {
+        renderIt(stats({ listings: [listing({ net: 3708, communityNet: 331, gross: 4500 })] }));
+        expect(screen.getByText("Community earned")).toBeInTheDocument();
+        expect(screen.getByText("Seller keeps")).toBeInTheDocument();
+        expect(screen.getByText("€3.31")).toBeInTheDocument();
+        expect(screen.getByText("€37.08")).toBeInTheDocument();
+    });
+
+    /*
+     * No column may be called "your" anything HERE. The same panel renders on
+     * the seller's page and on the community's, and "your" is a different
+     * person on each -- which is how the original wording came to be wrong on
+     * exactly one of them.
+     */
+    it("says whose money it is rather than 'yours'", () => {
+        const { container } = renderIt(stats({ listings: [listing({ net: 3708, communityNet: 331 })] }));
+        const band = container.querySelector("dl");
+        expect(band?.textContent?.toLowerCase()).not.toContain("your");
+    });
+
+    it("shows a zero community cut rather than hiding the column", () => {
+        renderIt(stats({ listings: [listing({ net: 5000, communityNet: 0 })] }));
+        // A self-run listing earned the community nothing, and saying so is
+        // the answer -- an absent column would read as "not measured".
+        expect(screen.getByText("Community earned")).toBeInTheDocument();
+        expect(screen.getByText("€0.00")).toBeInTheDocument();
+    });
+});

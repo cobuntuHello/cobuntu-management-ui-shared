@@ -36,7 +36,16 @@ export interface OverviewListing {
     views: number;
     sold: number;
     gross: number;
+    /**
+     * What the SELLER keeps. Named `net` for history; read it as the seller's.
+     *
+     * Shown beside `communityNet` because the same sale is two different
+     * numbers depending on who is looking, and a lone "net" column on a
+     * community's own admin page was read as the community's.
+     */
     net: number;
+    /** What the carrying COMMUNITY keeps, after Cobuntu's slice of it. */
+    communityNet?: number;
 }
 
 export interface OverviewMoney {

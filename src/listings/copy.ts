@@ -177,6 +177,8 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     overviewDays: "{count}d",
     overviewGross: "Gross taken",
     overviewGrossSub: "Before commission and fees",
+    overviewCommunityEarned: "Community earned",
+    overviewSellerNet: "Seller keeps",
     overviewYourNet: "Your net",
     overviewNetEarnings: "Net earnings",
     overviewGrossEarnings: "Gross earnings",
