@@ -133,7 +133,24 @@ export function ManageOverview({
                         {isEvent ? t("overviewNotSellableEvent") : t("overviewNotSellableProduct")}
                     </p>
                     <p className="mx-auto mt-2 max-w-[46ch] text-[13px] leading-relaxed text-zinc-600">
-                        {listings.length === 0 ? t("overviewNoListingsBody") : t("overviewNoActiveListingBody")}
+                        {/*
+                          * Three reasons, not two. "Off the shelf or still under
+                          * review" is the honest answer only when somebody has
+                          * acted on the listing; an event that was never
+                          * published is STORED the same way, and telling that
+                          * host a community shelved their event points them at
+                          * an inbox instead of at the Publish button.
+                          *
+                          * Strictly `=== false`: undefined means the caller did
+                          * not say (a product, or a backend older than the
+                          * field), and the general wording is what belongs
+                          * there.
+                          */}
+                        {listings.length === 0
+                            ? t("overviewNoListingsBody")
+                            : stats.everPublished === false
+                                ? t("overviewNotPublishedBody")
+                                : t("overviewNoActiveListingBody")}
                     </p>
                     {/*
                       * NO ASK BUTTON HERE, and that is not an omission.

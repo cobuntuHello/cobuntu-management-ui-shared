@@ -90,6 +90,23 @@ export interface OverviewStats {
     /** Oldest first. Only weeks with activity appear. */
     weekly: Array<{ week: string; sold: number; net: number; views: number }>;
     listings: OverviewListing[];
+    /**
+     * EVENTS ONLY. Has this event ever been published?
+     *
+     * The not-sellable banner has to explain WHY nothing can be bought, and two
+     * of the reasons are stored identically: an unpublished event is held as an
+     * off-the-shelf listing (publish flips PAUSED to ACTIVE), and a host who
+     * takes a live event down lands on PAUSED as well. Reading `status` alone,
+     * the page told a host who had never pressed Publish that a community had
+     * shelved their event.
+     *
+     * Only ever act on `=== false`. Undefined means the host did not tell us —
+     * a product, which has no publish step, or a backend older than the field —
+     * and the general wording is the safe answer there. Older events predating
+     * the audit log also read false, which is why the false branch must name an
+     * action the host can take rather than assert what happened.
+     */
+    everPublished?: boolean;
 }
 
 /** Event-only figures the product page has no equivalent for. */
