@@ -235,6 +235,11 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     overviewNotSellableEvent: "Nobody can get a ticket yet",
     overviewNoListingsBody: "It is not on any community's shelf, so there is no page a buyer can reach and no way to pay for it.",
     overviewNoActiveListingBody: "Every community carrying it has it off the shelf or still under review, so there is nowhere to buy it right now.",
+    /* Said instead of the line above when we know the event was never published.
+       Both states are stored as an off-the-shelf listing, and the general
+       wording sends a host who has simply not pressed Publish to wait on a
+       community that is not doing anything. */
+    overviewNotPublishedBody: "It has not been published yet, so there is nowhere to buy it. Publishing puts it in front of buyers in every community carrying it.",
     overviewNoListingsHere: "No community carries this yet. Once one does, its sales and views appear here.",
     overviewSellItMyself: "Sell it myself",
 

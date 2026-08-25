@@ -100,6 +100,48 @@ describe("whether it can be sold at all", () => {
         renderIt(stats({ kind: "event", listings: [] }));
         expect(screen.getByText("Nobody can get a ticket yet")).toBeInTheDocument();
     });
+
+    /*
+     * An unpublished event and a withdrawn one are the SAME listing row: publish
+     * flips PAUSED to ACTIVE, and taking a live event down returns it to PAUSED.
+     * Reading status alone, the page told a host who had never pressed Publish
+     * that a community had shelved their event.
+     */
+    it("tells a host who never published to publish, not to wait on a community", () => {
+        renderIt(stats({
+            kind: "event",
+            everPublished: false,
+            listings: [listing({ status: "PAUSED" })],
+        }));
+        expect(screen.getByText(/has not been published yet/)).toBeInTheDocument();
+        expect(screen.queryByText(/off the shelf or still under review/)).not.toBeInTheDocument();
+    });
+
+    it("keeps the shelf wording for an event that WAS published and came down", () => {
+        // Identical row to the case above. Only everPublished separates them.
+        renderIt(stats({
+            kind: "event",
+            everPublished: true,
+            listings: [listing({ status: "PAUSED" })],
+        }));
+        expect(screen.getByText(/off the shelf or still under review/)).toBeInTheDocument();
+        expect(screen.queryByText(/has not been published yet/)).not.toBeInTheDocument();
+    });
+
+    it("falls back to the general wording when nobody said either way", () => {
+        // Undefined is a product, or a backend older than the field. Guessing
+        // "not published" there would tell a seller to press a button that does
+        // not exist on their page.
+        renderIt(stats({ listings: [listing({ status: "PAUSED" })] }));
+        expect(screen.getByText(/off the shelf or still under review/)).toBeInTheDocument();
+    });
+
+    it("still leads with no-listings when there is no listing at all", () => {
+        // everPublished must not outrank the more basic problem.
+        renderIt(stats({ kind: "event", everPublished: false, listings: [] }));
+        expect(screen.getByText(/not on any community's shelf/)).toBeInTheDocument();
+        expect(screen.queryByText(/has not been published yet/)).not.toBeInTheDocument();
+    });
 });
 
 describe("one section per community", () => {
