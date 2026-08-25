@@ -172,3 +172,24 @@ export { EmptyState, LedgerIcon, ShelfIcon } from "./overview/EmptyState";
  */
 export { TOPIC_LIMITS } from "./listings/ui/topicLimits";
 export { LAYERS, type LayerName } from "./ui/layers";
+
+/*
+ * Unsplash. The three stock-photo pickers each held their own copy of the
+ * request shapes, the attribution links and (in no copy at all) the download
+ * ping. Attribution is a condition of using the API, so it cannot live in
+ * three places and drift.
+ */
+export {
+  UNSPLASH_APP_NAME,
+  UNSPLASH_DOWNLOAD_PATH,
+  UNSPLASH_PHOTOS_PATH,
+  UNSPLASH_URL,
+  fetchStockPhotos,
+  notifyDownload,
+  photographerUrl,
+  photosRequestUrl,
+  withReferral,
+  type StockPhotoRequestOptions,
+  type StockPhotoResult,
+  type UnsplashPhoto,
+} from "./lib/unsplash";
