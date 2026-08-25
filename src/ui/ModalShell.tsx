@@ -79,6 +79,12 @@ export function ModalShell({
        * behind it: the community app's Select is z-[200] and the admin's
        * DatePicker is z-[9999]. 120 clears every app shell and stays under
        * both. Anything opening from inside a modal must be above this.
+       *
+       * That last sentence was a comment and nothing else, so it did not hold:
+       * the management packages' date picker stayed at z-[60] when this moved
+       * from 50 to 120, and the calendar opened behind the modal it belongs
+       * to. The numbers now live together in ui/layers.ts -- LAYERS.modal is
+       * this one, LAYERS.popoverInModal is what a calendar takes.
        */
       className="fixed inset-0 bg-black/40 flex items-center justify-center z-[120] p-4"
       onClick={dismissOnBackdrop ? onClose : undefined}

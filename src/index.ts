@@ -171,3 +171,4 @@ export { EmptyState, LedgerIcon, ShelfIcon } from "./overview/EmptyState";
  * which is where they should have stayed.
  */
 export { TOPIC_LIMITS } from "./listings/ui/topicLimits";
+export { LAYERS, type LayerName } from "./ui/layers";
