@@ -5,7 +5,21 @@ export { ActionModalShell } from "./ui/ActionModalShell";
 export type { ActionModalShellProps } from "./ui/ActionModalShell";
 
 export { PersonPickerModal } from "./ui/PersonPickerModal";
-export type { PersonPickerModalProps, PersonPickerCopy, PersonPickerStepTwo } from "./ui/PersonPickerModal";
+export type {
+  PersonPickerModalProps, PersonPickerCopy, PersonPickerStepTwo,
+  PersonPickerEmails, PersonPickerPerRecipient,
+} from "./ui/PersonPickerModal";
+
+/*
+ * Staging people. Exported whole because the wrappers need the same identity
+ * rule the picker uses — `onConfirm` hands back Recipients, and the split into
+ * user ids and addresses is what every send endpoint asks for.
+ */
+export {
+  recipientKey, fromPerson, looksLikeEmail, parseCsvEmails,
+  addRecipients, visibleSuggestions, userIdsOf, emailsOf,
+} from "./lib/recipients";
+export type { Recipient } from "./lib/recipients";
 
 export { searchPeople, minQueryLength } from "./lib/searchPeople";
 export { fetchCommunityRoster, groupRoster, rosterRoles, UNGROUPED } from "./lib/communityRoster";
