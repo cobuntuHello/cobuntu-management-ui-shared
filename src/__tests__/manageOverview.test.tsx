@@ -175,16 +175,62 @@ describe("views that belong to no listing", () => {
     /*
      * Per-listing views summing to less than the total is a FACT: purchaser
      * views on a product, and every event view older than the community column.
-     * Unexplained, it reads as a bug to anyone who adds up.
+     * It used to be explained in a footnote under every card.
+     *
+     * The footnote is gone. The two numbers it reconciled are not on screen
+     * together -- total views is a tile at the top, per-listing views sit in a
+     * card below -- so it answered an arithmetic question nobody had performed,
+     * in the vocabulary of our instrumentation rather than the seller's. The
+     * predicate survives for wherever the difference is genuinely surfaced.
      */
-    it("explains the difference rather than leaving it to be noticed", () => {
+    it("does not explain an arithmetic nobody is doing", () => {
         renderIt(stats({ views: { total: 1284, unattributed: 42 } }));
-        expect(screen.getByText(/42 views are not counted against any community/)).toBeInTheDocument();
+        expect(screen.queryByText(/not counted against any community/)).not.toBeInTheDocument();
     });
 
-    it("says nothing when every view belongs somewhere", () => {
+    it("says nothing when every view belongs somewhere either", () => {
         renderIt(stats());
         expect(screen.queryByText(/not counted against any community/)).not.toBeInTheDocument();
+    });
+});
+
+describe("the listings section", () => {
+    /*
+     * The heading and the count both restated what the cards already showed:
+     * a community icon, a community name, a status pill, and one visible row.
+     * An item can only be carried by one community, so "Carried by 1" could
+     * never say anything new.
+     */
+    it("carries no heading and no count above the cards", () => {
+        renderIt(stats());
+        expect(screen.queryByText("Where this sells")).not.toBeInTheDocument();
+        expect(screen.queryByText(/Carried by/)).not.toBeInTheDocument();
+    });
+
+    /*
+     * The whole card is the target, via ONE stretched link rather than a
+     * wrapping anchor: one tab stop, one accessible name, a real href, and the
+     * figures stay selectable. The hit area is extended with a pseudo-element
+     * that must resolve against the CARD, so the card is positioned and the
+     * anchor is not. A positioned anchor would confine the hit area to the
+     * button and quietly undo the whole change.
+     */
+    it("stretches the manage link over the card without nesting anchors", () => {
+        const { container } = renderIt(stats());
+        const link = screen.getByText("Manage listing").closest("a");
+        expect(link).toBeTruthy();
+        expect(link!.className).toContain("after:absolute");
+        expect(link!.className).toContain("after:inset-0");
+        expect(link!.className).not.toMatch(/(^|\s)relative(\s|$)/);
+
+        const card = link!.closest("div.group");
+        expect(card).toBeTruthy();
+        expect(card!.className).toContain("relative");
+
+        // One link per card: a wrapping anchor plus the button would be two.
+        expect(container.querySelectorAll("a").length).toBe(
+            screen.getAllByText("Manage listing").length,
+        );
     });
 });
 

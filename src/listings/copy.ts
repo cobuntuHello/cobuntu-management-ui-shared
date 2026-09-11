@@ -226,13 +226,10 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     overviewTrendWeeks: "last {count} weeks",
     overviewTrendEarnings: "Your earnings",
     overviewTrendAria: "Weekly earnings and views over {weeks} weeks, most recently {latest}.",
-    overviewWhereItSells: "Where this sells",
-    overviewCarriedBy: "Carried by {count}",
     overviewCommission: "{rate}% commission",
     overviewApprovedOn: "agreed {date}",
     overviewRequestedOn: "asked {date}",
     overviewManageListing: "Manage listing",
-    overviewUnattributedViews: "{count} views are not counted against any community: people who bought it, or who looked before we recorded where from.",
 
     /* The state that matters most: it exists, and nobody can buy it. */
     overviewNotSellableProduct: "Nobody can buy this yet",
