@@ -233,11 +233,32 @@ describe("the event variant", () => {
             stats({ kind: "event" }),
             { extras: { going: 6, capacity: 40, startsAt: soon } },
         );
-        expect(screen.getByText("Going")).toBeInTheDocument();
+        expect(screen.getByText("Attending")).toBeInTheDocument();
         expect(screen.getByText("of 40 places")).toBeInTheDocument();
         // No countdown TILE: four tiles is the rule, and the start date is on
         // the event's own Details tab where it can say the actual date.
         expect(screen.queryByText("Starts in")).not.toBeInTheDocument();
+    });
+
+    it("shows attending and sold as SEPARATE figures when they disagree", () => {
+        // The real case this came from: 6 in the room, 1 ticket sold, because
+        // five of the six were hosts. One tile could only ever tell half of it.
+        renderIt(
+            stats({ kind: "event", sold: 1 }),
+            { extras: { going: 6, capacity: null, startsAt: null } },
+        );
+        expect(screen.getByText("Attending")).toBeInTheDocument();
+        expect(screen.getByText("6")).toBeInTheDocument();
+        expect(screen.getByText("Tickets sold")).toBeInTheDocument();
+        expect(screen.getByText("1")).toBeInTheDocument();
+    });
+
+    it("never labels a SOLD count as attendance when the count is missing", () => {
+        // The old tile said "Going" and silently rendered stats.sold whenever
+        // extras.going was absent, so a sales figure was read as a headcount.
+        renderIt(stats({ kind: "event", sold: 1 }), { extras: undefined });
+        expect(screen.queryByText("Tickets sold")).not.toBeInTheDocument();
+        expect(screen.getByText("Attending")).toBeInTheDocument();
     });
 
     it("drops the countdown for an event that has already run", () => {
