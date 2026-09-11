@@ -126,6 +126,55 @@ export function emailsOf(recipients: Recipient[]): string[] {
 }
 
 /**
+ * The same two halves, for the endpoints keyed by HANDLE rather than id.
+ *
+ * `POST /events/:id/add-attendees`, `POST /events/:id/invitations` and
+ * `POST /products/:id/invitations` all take `usertags` and `emails`. Splitting
+ * on the user id there puts a member in `emails`, where they are treated as
+ * somebody with no account.
+ *
+ * Order matters as much as it does above: a member whose address we happen to
+ * know goes in `usertags` ONLY. In both arrays they are one person, two
+ * invitation rows and two emails.
+ */
+export function recipientsToApi(recipients: Recipient[]): {
+    usertags: string[];
+    emails: string[];
+} {
+    const usertags: string[] = [];
+    const emails: string[] = [];
+    for (const r of recipients) {
+        if (r.usertag) usertags.push(r.usertag);
+        else if (r.email?.trim()) emails.push(r.email.trim());
+        /* Neither: an account with no handle and no address. Nothing the
+           endpoint could look them up by, so they are dropped rather than sent
+           as an empty string the server would 400 the whole batch on. */
+    }
+    return { usertags, emails };
+}
+
+/**
+ * The per-recipient overrides, in the shape the invite services read.
+ *
+ * The server picks the override when one is present and falls back to the
+ * shared `customMessage` otherwise, so only people who actually wrote their own
+ * note belong here. Sending an empty override REPLACES their shared note with
+ * nothing.
+ */
+export function perRecipientMessages(
+    recipients: Recipient[],
+): Array<{ usertag?: string; email?: string; message: string }> {
+    const out: Array<{ usertag?: string; email?: string; message: string }> = [];
+    for (const r of recipients) {
+        const message = r.note?.trim();
+        if (!message) continue;
+        if (r.usertag) out.push({ usertag: r.usertag, message });
+        else if (r.email?.trim()) out.push({ email: r.email.trim(), message });
+    }
+    return out;
+}
+
+/**
  * Suggestion rows, minus whoever is already staged.
  *
  * Deduped ACROSS rows as well as within them: somebody can be both "recently
