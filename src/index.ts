@@ -5,9 +5,11 @@ export { ActionModalShell } from "./ui/ActionModalShell";
 export type { ActionModalShellProps } from "./ui/ActionModalShell";
 
 export { PersonPickerModal } from "./ui/PersonPickerModal";
-export type { PersonPickerModalProps, PersonPickerCopy } from "./ui/PersonPickerModal";
+export type { PersonPickerModalProps, PersonPickerCopy, PersonPickerStepTwo } from "./ui/PersonPickerModal";
 
 export { searchPeople, minQueryLength } from "./lib/searchPeople";
+export { fetchCommunityRoster, groupRoster, rosterRoles, UNGROUPED } from "./lib/communityRoster";
+export type { RosterPerson, RosterGroup } from "./lib/communityRoster";
 export type { PersonSearchResult, SearchPeopleOptions } from "./lib/searchPeople";
 
 export { TextField } from "./ui/TextField";
