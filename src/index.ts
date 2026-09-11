@@ -7,7 +7,7 @@ export type { ActionModalShellProps } from "./ui/ActionModalShell";
 export { PersonPickerModal } from "./ui/PersonPickerModal";
 export type {
   PersonPickerModalProps, PersonPickerCopy, PersonPickerStepTwo,
-  PersonPickerEmails, PersonPickerPerRecipient,
+  PersonPickerEmails, PersonPickerPerRecipient, PersonPickerTierStep,
 } from "./ui/PersonPickerModal";
 
 /*
@@ -19,8 +19,10 @@ export {
   recipientKey, fromPerson, looksLikeEmail, parseCsvEmails,
   addRecipients, visibleSuggestions, userIdsOf, emailsOf,
   recipientsToApi, perRecipientMessages,
+  parseCsvRecipientRows, matchTier, planImport, recipientsFromPlan,
+  tierPlanFor, applyDefaultTier, allHaveTiers,
 } from "./lib/recipients";
-export type { Recipient } from "./lib/recipients";
+export type { Recipient, TierOption, ImportPlan, ImportPlanRow, ImportProblem } from "./lib/recipients";
 
 export { searchPeople, minQueryLength } from "./lib/searchPeople";
 export { fetchCommunityRoster, groupRoster, rosterRoles, UNGROUPED } from "./lib/communityRoster";

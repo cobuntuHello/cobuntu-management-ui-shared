@@ -33,6 +33,14 @@ export interface Recipient {
     profileImage?: string | null;
     /** Their own note, when the surface offers per-recipient personalisation. */
     note?: string;
+    /**
+     * Which tier's capacity this person consumes.
+     *
+     * Set on surfaces that ADD somebody — a seat belongs to a ticket tier, not
+     * to the event. Absent when inviting: an invitation is to the item itself
+     * and the invitee picks a tier at checkout.
+     */
+    tierId?: string;
 }
 
 /** Stable identity. User id wins; an address is the fallback. */
@@ -199,4 +207,212 @@ export function visibleSuggestions(
         if (people.length > 0) out.push({ label: row.label, people });
     }
     return out;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Tiers: which shelf each person comes off.
+ *
+ * Adding somebody consumes a specific tier's capacity, so adding takes a tier.
+ * Inviting does not — an invitation is to the event or product itself, and the
+ * invitee picks a tier at checkout.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export interface TierOption {
+    id: string;
+    name: string;
+    /** null = uncapped. */
+    remaining: number | null;
+    soldOut: boolean;
+}
+
+/** Why a row cannot be imported as written. */
+export type ImportProblem =
+    /** The CSV named a tier that does not exist on this item. */
+    | 'unknown-tier'
+    /** No tier named, and no default chosen. */
+    | 'no-tier'
+    /** The named tier has no room left for this row. */
+    | 'tier-full';
+
+export interface ImportPlanRow {
+    email: string;
+    tierId: string | null;
+    tierName: string | null;
+    problem: ImportProblem | null;
+}
+
+export interface ImportPlan {
+    rows: ImportPlanRow[];
+    ok: ImportPlanRow[];
+    problems: ImportPlanRow[];
+    /** What this import does to each tier, so the preview can show the damage. */
+    perTier: Array<{
+        tierId: string;
+        name: string;
+        adding: number;
+        remaining: number | null;
+        /** How many more than there is room for. 0 when it fits. */
+        overBy: number;
+    }>;
+}
+
+/**
+ * Rows out of a CSV that names a tier per person.
+ *
+ * Column one is the address, column two the tier name. First column only was
+ * the old rule and it stays the rule for the address, because exports from
+ * every mailing tool put it first and guessing which of six columns holds the
+ * email is how you import a column of first names.
+ *
+ * A header row is skipped when its first cell is not an address, so
+ * "email,tier" does not become a recipient called "email".
+ */
+export function parseCsvRecipientRows(text: string): Array<{ email: string; tierName: string | null }> {
+    const clean = (v: string | undefined) => (v ?? '').trim().replace(/^["']|["']$/g, '');
+    const out: Array<{ email: string; tierName: string | null }> = [];
+    const seen = new Set<string>();
+
+    for (const line of text.split(/\r?\n/)) {
+        if (!line.trim()) continue;
+        const cells = line.split(',');
+        const email = clean(cells[0]);
+        if (!looksLikeEmail(email)) continue;   // drops the header, and junk
+        const key = email.toLowerCase();
+        if (seen.has(key)) continue;            // a list pasted twice is one add
+        seen.add(key);
+        out.push({ email, tierName: clean(cells[1]) || null });
+    }
+    return out;
+}
+
+/** A tier by name, case- and space-insensitively. Exact match only. */
+export function matchTier(name: string | null, tiers: TierOption[]): TierOption | null {
+    if (!name) return null;
+    const want = name.trim().toLowerCase();
+    // Deliberately not fuzzy. Guessing that "VIP " meant "VIP Plus" would
+    // seat somebody on the wrong shelf, and this is the one place where being
+    // wrong is silent — the row looks imported either way.
+    return tiers.find((t) => t.name.trim().toLowerCase() === want) ?? null;
+}
+
+/**
+ * What this import would actually do, before it does it.
+ *
+ * ── Why a plan instead of just importing ────────────────────────────────────
+ *
+ * Adding consumes capacity, so a half-finished import leaves the host
+ * reconciling two lists: who got in, who did not, and how much room is left.
+ * The plan lets them see the whole outcome — including which tiers would fill
+ * and which rows name a tier that does not exist — and decide once.
+ *
+ * ── Overflow is per row, not per file ───────────────────────────────────────
+ *
+ * A tier with three seats left and five rows for it fits three. The first
+ * three are marked ok and the last two are marked full, in file order, rather
+ * than failing all five. The host can then raise that tier's cap and re-run,
+ * or drop the extras.
+ */
+export function planImport(
+    rows: Array<{ email: string; tierName: string | null }>,
+    tiers: TierOption[],
+    defaultTierId: string | null,
+): ImportPlan {
+    const byId = new Map(tiers.map((t) => [t.id, t]));
+    /* Seats consumed by earlier rows of THIS file, so row four is judged
+       against what rows one to three already took. */
+    const takenHere = new Map<string, number>();
+
+    const planned: ImportPlanRow[] = rows.map((r) => {
+        const named = r.tierName ? matchTier(r.tierName, tiers) : null;
+        if (r.tierName && !named) {
+            return { email: r.email, tierId: null, tierName: r.tierName, problem: 'unknown-tier' };
+        }
+
+        const tier = named ?? (defaultTierId ? byId.get(defaultTierId) ?? null : null);
+        if (!tier) {
+            return { email: r.email, tierId: null, tierName: r.tierName, problem: 'no-tier' };
+        }
+
+        const used = takenHere.get(tier.id) ?? 0;
+        const room = tier.remaining;
+        const fits = room === null || used < room;
+        takenHere.set(tier.id, used + 1);
+
+        return {
+            email: r.email,
+            tierId: tier.id,
+            tierName: tier.name,
+            problem: fits ? null : 'tier-full',
+        };
+    });
+
+    const perTier = [...takenHere.entries()].map(([tierId, adding]) => {
+        const t = byId.get(tierId)!;
+        const room = t.remaining;
+        return {
+            tierId, name: t.name, adding, remaining: room,
+            overBy: room === null ? 0 : Math.max(0, adding - room),
+        };
+    });
+
+    return {
+        rows: planned,
+        ok: planned.filter((r) => r.problem === null),
+        problems: planned.filter((r) => r.problem !== null),
+        perTier,
+    };
+}
+
+/** The importable half of a plan, as staged recipients. */
+export function recipientsFromPlan(plan: ImportPlan): Recipient[] {
+    return plan.ok.map((r) => ({ email: r.email, tierId: r.tierId ?? undefined }));
+}
+
+/**
+ * Where the currently staged people would land, per tier.
+ *
+ * The tier step's summary. A recipient who already carries a tier (imported
+ * from a CSV that named one) keeps it; everyone else falls to the tier chosen
+ * for the batch. That is the same rule the import planner uses, applied to the
+ * staged list rather than to a file.
+ */
+export function tierPlanFor(
+    recipients: Recipient[],
+    tiers: TierOption[],
+    defaultTierId: string | null,
+): ImportPlan['perTier'] {
+    const byId = new Map(tiers.map((t) => [t.id, t]));
+    const counts = new Map<string, number>();
+
+    for (const r of recipients) {
+        const id = r.tierId ?? defaultTierId;
+        if (!id || !byId.has(id)) continue;
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+
+    return [...counts.entries()].map(([tierId, adding]) => {
+        const t = byId.get(tierId)!;
+        return {
+            tierId, name: t.name, adding, remaining: t.remaining,
+            overBy: t.remaining === null ? 0 : Math.max(0, adding - t.remaining),
+        };
+    });
+}
+
+/**
+ * Stamp the chosen tier onto everyone who does not already have one.
+ *
+ * Called once on confirm, never as people are picked: doing it per pick would
+ * overwrite a tier that arrived with an imported row the moment the host
+ * changed the batch default.
+ */
+export function applyDefaultTier(recipients: Recipient[], defaultTierId: string | null): Recipient[] {
+    if (!defaultTierId) return recipients;
+    return recipients.map((r) => (r.tierId ? r : { ...r, tierId: defaultTierId }));
+}
+
+/** Everyone staged already knows which tier they are going into. */
+export function allHaveTiers(recipients: Recipient[], defaultTierId: string | null): boolean {
+    if (defaultTierId) return true;
+    return recipients.every((r) => Boolean(r.tierId));
 }
