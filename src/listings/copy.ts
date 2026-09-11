@@ -166,7 +166,11 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     overviewPaid: "{amount} paid",
     overviewNoEarningsYet: "Nothing earned yet",
     overviewSold: "Sold",
-    overviewGoing: "Going",
+    /* Everyone in the room: buyers, free tiers, hand-added guests, hosts. */
+    overviewAttending: "Attending",
+    overviewAttendingSub: "includes hosts and free entries",
+    /* Only tickets that produced money. Routinely lower than Attending. */
+    overviewTicketsSold: "Tickets sold",
     overviewOfCapacity: "of {capacity} places",
     overviewInLastWeeks: "{count} in the last 4 weeks",
     overviewViews: "Views",

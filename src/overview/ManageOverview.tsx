@@ -233,15 +233,45 @@ export function ManageOverview({
                         sub={<Delta pct={delta(viewWindow.current, viewWindow.previous)} t={t} />}
                     />
 
-                    <Tile
-                        label={isEvent ? t("overviewGoing") : t("overviewSales")}
-                        value={isEvent && extras?.going !== undefined
-                            ? formatCount(extras.going, locale)
-                            : formatCount(stats.sold, locale)}
-                        sub={isEvent && extras?.capacity
-                            ? t("overviewOfCapacity", { capacity: extras.capacity })
-                            : t("overviewInLastWeeks", { count: soldWindow.current })}
-                    />
+                    {/*
+                      * TWO figures for an event, because they are two questions
+                      * and they routinely disagree.
+                      *
+                      * Attending counts everyone in the room: paid buyers, free
+                      * tiers, guests added by hand, and the hosts running it.
+                      * Sold counts tickets that produced money. A five-host
+                      * event with one buyer is 6 and 1, and both are true.
+                      *
+                      * One tile could not say both, and the one that existed
+                      * said "Going" while FALLING BACK to the sold count
+                      * whenever `extras.going` was absent -- silently, so a
+                      * host read a sales figure as a headcount. A product has
+                      * no attendance, so it keeps the single Sales tile.
+                      */}
+                    {isEvent && extras?.going !== undefined ? (
+                        <>
+                            <Tile
+                                label={t("overviewAttending")}
+                                value={formatCount(extras.going, locale)}
+                                sub={extras.capacity
+                                    ? t("overviewOfCapacity", { capacity: extras.capacity })
+                                    : t("overviewAttendingSub")}
+                            />
+                            <Tile
+                                label={t("overviewTicketsSold")}
+                                value={formatCount(stats.sold, locale)}
+                                sub={t("overviewInLastWeeks", { count: soldWindow.current })}
+                            />
+                        </>
+                    ) : (
+                        <Tile
+                            label={isEvent ? t("overviewAttending") : t("overviewSales")}
+                            value={formatCount(stats.sold, locale)}
+                            sub={isEvent && extras?.capacity
+                                ? t("overviewOfCapacity", { capacity: extras.capacity })
+                                : t("overviewInLastWeeks", { count: soldWindow.current })}
+                        />
+                    )}
                 </div>
 
                 {/*
