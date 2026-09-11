@@ -18,6 +18,7 @@ export type {
 export {
   recipientKey, fromPerson, looksLikeEmail, parseCsvEmails,
   addRecipients, visibleSuggestions, userIdsOf, emailsOf,
+  recipientsToApi, perRecipientMessages,
 } from "./lib/recipients";
 export type { Recipient } from "./lib/recipients";
 

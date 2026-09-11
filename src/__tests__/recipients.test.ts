@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
     recipientKey, fromPerson, looksLikeEmail, parseCsvEmails,
-    addRecipients, visibleSuggestions, userIdsOf, emailsOf, type Recipient,
+    addRecipients, visibleSuggestions, userIdsOf, emailsOf,
+    recipientsToApi, perRecipientMessages, type Recipient,
 } from "../lib/recipients";
 
 /**
@@ -123,6 +124,67 @@ describe("splitting for the send endpoint", () => {
         // Callers spread these into a request body behind `length > 0`.
         expect(userIdsOf([])).toEqual([]);
         expect(emailsOf([])).toEqual([]);
+    });
+});
+
+describe("splitting for the handle-keyed endpoints", () => {
+    const member: Recipient = {
+        id: "u-ana", name: "Ana Neto", usertag: "ana-neto", email: "ana@example.com",
+    };
+    const outsider: Recipient = { email: "outsider@example.com" };
+
+    it("sends a member by handle, never also by address", () => {
+        /*
+         * The one that matters. Ana is a member whose address the roster
+         * happens to know. Putting her in BOTH arrays is one person, two
+         * invitation rows and two emails.
+         */
+        expect(recipientsToApi([member])).toEqual({ usertags: ["ana-neto"], emails: [] });
+    });
+
+    it("sends somebody with no account by address", () => {
+        expect(recipientsToApi([outsider])).toEqual({
+            usertags: [], emails: ["outsider@example.com"],
+        });
+    });
+
+    it("keeps a mixed list in its two halves", () => {
+        expect(recipientsToApi([member, outsider])).toEqual({
+            usertags: ["ana-neto"], emails: ["outsider@example.com"],
+        });
+    });
+
+    it("trims an address rather than posting whitespace", () => {
+        expect(recipientsToApi([{ email: "  bo@example.com " }]).emails).toEqual(["bo@example.com"]);
+    });
+
+    it("drops somebody the endpoint could not look up at all", () => {
+        // An account with no handle and no address. An empty string is a 400
+        // that costs the operator the whole batch.
+        expect(recipientsToApi([{ id: "u-ghost" }, member])).toEqual({
+            usertags: ["ana-neto"], emails: [],
+        });
+    });
+
+    it("returns both arrays empty rather than undefined", () => {
+        expect(recipientsToApi([])).toEqual({ usertags: [], emails: [] });
+    });
+
+    it("carries only the people who actually wrote their own note", () => {
+        // Everyone else falls back to customMessage server-side. An empty
+        // override would replace their shared note with nothing.
+        expect(perRecipientMessages([{ ...member, note: "Bring the slides" }, outsider]))
+            .toEqual([{ usertag: "ana-neto", message: "Bring the slides" }]);
+    });
+
+    it("addresses an override the same way the main list does", () => {
+        expect(perRecipientMessages([{ ...outsider, note: "Details attached" }]))
+            .toEqual([{ email: "outsider@example.com", message: "Details attached" }]);
+    });
+
+    it("treats a whitespace-only note as no note, and trims the rest", () => {
+        expect(perRecipientMessages([{ ...member, note: "   " }])).toEqual([]);
+        expect(perRecipientMessages([{ ...member, note: " See you\n" }])[0].message).toBe("See you");
     });
 });
 
