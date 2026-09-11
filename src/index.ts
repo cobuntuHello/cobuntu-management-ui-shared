@@ -1,6 +1,15 @@
 export { ModalShell } from "./ui/ModalShell";
 export type { ModalShellProps, ModalShellWidth } from "./ui/ModalShell";
 
+export { ActionModalShell } from "./ui/ActionModalShell";
+export type { ActionModalShellProps } from "./ui/ActionModalShell";
+
+export { PersonPickerModal } from "./ui/PersonPickerModal";
+export type { PersonPickerModalProps, PersonPickerCopy } from "./ui/PersonPickerModal";
+
+export { searchPeople, minQueryLength } from "./lib/searchPeople";
+export type { PersonSearchResult, SearchPeopleOptions } from "./lib/searchPeople";
+
 export { TextField } from "./ui/TextField";
 export type { TextFieldProps } from "./ui/TextField";
 
