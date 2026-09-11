@@ -1,8 +1,11 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { PersonPickerModal, type PersonPickerCopy, type PersonPickerStepTwo } from "../ui/PersonPickerModal";
-import type { PersonSearchResult } from "../lib/searchPeople";
+import {
+    PersonPickerModal,
+    type PersonPickerCopy, type PersonPickerStepTwo, type PersonPickerEmails,
+} from "../ui/PersonPickerModal";
+import type { Recipient } from "../lib/recipients";
 
 /**
  * Choose people, then confirm what happens to them.
@@ -35,6 +38,9 @@ const COPY: PersonPickerCopy = {
     showingLabel: "Showing",
     allMembersLabel: "All members",
     selectedLabel: (n) => `${n} selected`,
+    selectedTitle: "Selected",
+    clearAll: "Clear all",
+    remove: (name) => `Remove ${name}`,
     messageLabel: "Personal note",
     messagePlaceholder: "Add a note",
 };
@@ -68,7 +74,7 @@ const CONSEQUENCES: PersonPickerStepTwo = { kind: "consequences", items: ["They 
 
 function setup(
     over: Partial<Props> = {},
-    confirmImpl: (people: PersonSearchResult[], message: string | null) => Promise<void> = async () => {},
+    confirmImpl: (recipients: Recipient[], message: string | null) => Promise<void> = async () => {},
 ) {
     const onConfirm = vi.fn(confirmImpl);
     const onClose = vi.fn();
@@ -294,6 +300,309 @@ describe("compose mode", () => {
 
         await waitFor(() => expect(onConfirm).toHaveBeenCalled());
         expect(onConfirm.mock.calls[0][1]).toBeNull();
+    });
+});
+
+/*
+ * ── The three things invitations need ───────────────────────────────────────
+ *
+ * The events invite modal had all of these before it was a shared component.
+ * Moving it here without them would be a silent feature removal from a flow
+ * people use every week, so each one is pinned.
+ */
+
+const EMAILS: PersonPickerEmails = {
+    addRow: (a) => `Invite ${a}`,
+    importCsv: "Import CSV",
+    imported: (n) => `Imported ${n} addresses`,
+    importedNothing: "No addresses in that file.",
+    importFailed: "Could not read that file.",
+};
+
+/** A File whose text() resolves — jsdom's File does not implement it. */
+function csvFile(body: string): File {
+    const f = new File([body], "guests.csv", { type: "text/csv" });
+    Object.defineProperty(f, "text", { value: async () => body });
+    return f;
+}
+
+describe("recipients with no account", () => {
+    it("offers a typed address as a recipient", async () => {
+        // Inviting somebody who is not a member yet is most of what inviting
+        // is for. Without this the modal can only reach people already inside.
+        vi.stubGlobal("fetch", mockApi());
+        const { onConfirm } = setup({ emails: EMAILS, multiple: true });
+        await screen.findByText("Ana Neto");
+
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "outsider@example.com");
+        await userEvent.click(await screen.findByText("Invite outsider@example.com"));
+
+        await userEvent.click(screen.getByRole("button", { name: COPY.stepTwo }));
+        await userEvent.click(screen.getByRole("button", { name: COPY.confirm }));
+        await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+        expect(onConfirm.mock.calls[0][0]).toEqual([{ email: "outsider@example.com" }]);
+    });
+
+    it("does not offer one on a surface that cannot use it", async () => {
+        // A host or co-seller write needs a user id. Offering an address there
+        // stages somebody the endpoint will reject.
+        vi.stubGlobal("fetch", mockApi());
+        setup({ multiple: true });
+        await screen.findByText("Ana Neto");
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "outsider@example.com");
+        await waitFor(() => expect(screen.getByText(COPY.noMatches)).toBeInTheDocument());
+        expect(screen.queryByText(/^Invite /)).not.toBeInTheDocument();
+    });
+
+    it("clears the box after staging, so the next one can be typed", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        setup({ emails: EMAILS, multiple: true });
+        await screen.findByText("Ana Neto");
+
+        const box = screen.getByPlaceholderText(COPY.searchPlaceholder) as HTMLInputElement;
+        await userEvent.type(box, "a@example.com");
+        await userEvent.click(await screen.findByText("Invite a@example.com"));
+        expect(box.value).toBe("");
+    });
+
+    it("will not offer the same address twice", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        setup({ emails: EMAILS, multiple: true });
+        await screen.findByText("Ana Neto");
+
+        const box = screen.getByPlaceholderText(COPY.searchPlaceholder);
+        await userEvent.type(box, "a@example.com");
+        await userEvent.click(await screen.findByText("Invite a@example.com"));
+        await userEvent.type(box, "a@example.com");
+        await waitFor(() => expect(screen.queryByText("Invite a@example.com")).not.toBeInTheDocument());
+    });
+});
+
+describe("CSV import", () => {
+    it("stages every address in the file", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        const { onConfirm } = setup({ emails: EMAILS, multiple: true });
+        await screen.findByText("Ana Neto");
+
+        await userEvent.upload(
+            document.querySelector('input[type="file"]') as HTMLInputElement,
+            csvFile("email,name\na@example.com,A\nb@example.com,B"),
+        );
+
+        expect(await screen.findByText("Imported 2 addresses")).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: COPY.stepTwo }));
+        await userEvent.click(screen.getByRole("button", { name: COPY.confirm }));
+        await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+        expect(onConfirm.mock.calls[0][0]).toEqual([
+            { email: "a@example.com" }, { email: "b@example.com" },
+        ]);
+    });
+
+    it("says so when the file had nothing usable, instead of looking broken", async () => {
+        // The common miss is a file whose first column is names. Reporting
+        // "imported 0" beats a control that appears to do nothing.
+        vi.stubGlobal("fetch", mockApi());
+        setup({ emails: EMAILS, multiple: true });
+        await screen.findByText("Ana Neto");
+
+        await userEvent.upload(
+            document.querySelector('input[type="file"]') as HTMLInputElement,
+            csvFile("Ana,a@example.com\nBo,b@example.com"),
+        );
+        expect(await screen.findByText("No addresses in that file.")).toBeInTheDocument();
+    });
+
+    it("does not re-stage somebody already picked from the roster", async () => {
+        // Importing a list you had already half worked through is normal.
+        vi.stubGlobal("fetch", mockApi());
+        const { onConfirm } = setup({ emails: EMAILS, multiple: true });
+        await screen.findByText("Ana Neto");
+        await userEvent.click(screen.getByText("Ana Neto"));
+
+        await userEvent.upload(
+            document.querySelector('input[type="file"]') as HTMLInputElement,
+            csvFile("a@example.com\na@example.com"),
+        );
+        await screen.findByText("Imported 1 addresses");
+
+        await userEvent.click(screen.getByRole("button", { name: COPY.stepTwo }));
+        await userEvent.click(screen.getByRole("button", { name: COPY.confirm }));
+        await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+        expect(onConfirm.mock.calls[0][0]).toHaveLength(2);
+    });
+});
+
+describe("the staged strip", () => {
+    it("can remove somebody who is not on screen to untick", async () => {
+        /*
+         * This is why the strip exists. An imported address has no roster row,
+         * so without a chip there is no way to take it back out short of
+         * closing the modal and starting again.
+         */
+        vi.stubGlobal("fetch", mockApi());
+        setup({ emails: EMAILS, multiple: true });
+        await screen.findByText("Ana Neto");
+
+        await userEvent.upload(
+            document.querySelector('input[type="file"]') as HTMLInputElement,
+            csvFile("gone@example.com"),
+        );
+        await screen.findByText("Imported 1 addresses");
+
+        await userEvent.click(screen.getByRole("button", { name: "Remove gone@example.com" }));
+        await waitFor(() => expect(screen.queryByText("gone@example.com")).not.toBeInTheDocument());
+        expect(screen.getByRole("button", { name: COPY.stepTwo })).toBeDisabled();
+    });
+
+    it("empties in one go", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        setup({ multiple: true });
+        await screen.findByText("Ana Neto");
+        await userEvent.click(screen.getByText("Ana Neto"));
+        await userEvent.click(screen.getByText("Sofia Correia"));
+
+        await userEvent.click(screen.getByRole("button", { name: COPY.clearAll }));
+        await waitFor(() => expect(screen.queryByText("2 selected")).not.toBeInTheDocument());
+        expect(screen.getByRole("button", { name: COPY.stepTwo })).toBeDisabled();
+    });
+
+    it("stays out of the way when only one person can be picked", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        setup({ multiple: false });
+        await screen.findByText("Ana Neto");
+        await userEvent.click(screen.getByText("Ana Neto"));
+        expect(screen.queryByText(COPY.selectedTitle)).not.toBeInTheDocument();
+    });
+});
+
+describe("suggestion chips", () => {
+    const rita = { id: "u-r1", name: "Rita Reis", usertag: "rita", profileImage: null };
+    const ROWS = [
+        { label: "Recently invited", people: [rita] },
+        { label: "Frequent attendees", people: [rita] },
+    ];
+
+    it("stages somebody in one tap", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        const { onConfirm } = setup({ suggestions: ROWS, multiple: true });
+        await screen.findByText("Ana Neto");
+
+        await userEvent.click(screen.getByRole("button", { name: /Rita Reis/ }));
+        await userEvent.click(screen.getByRole("button", { name: COPY.stepTwo }));
+        await userEvent.click(screen.getByRole("button", { name: COPY.confirm }));
+        await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+        expect(onConfirm.mock.calls[0][0]).toEqual([expect.objectContaining({ id: "u-r1" })]);
+    });
+
+    it("shows a person once across rows, not once per row", async () => {
+        // Somebody can be both recently invited and a frequent attendee. The
+        // events modal renders that as two identical chips.
+        vi.stubGlobal("fetch", mockApi());
+        setup({ suggestions: ROWS, multiple: true });
+        await screen.findByText("Ana Neto");
+        expect(screen.getAllByRole("button", { name: /Rita Reis/ })).toHaveLength(1);
+    });
+
+    it("drops the chip once that person is staged", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        setup({ suggestions: ROWS, multiple: true });
+        await screen.findByText("Ana Neto");
+
+        await userEvent.click(screen.getByRole("button", { name: /Rita Reis/ }));
+        // The name survives in the staged strip; the shortcut row is gone.
+        await waitFor(() => expect(screen.queryByText("Recently invited")).not.toBeInTheDocument());
+    });
+
+    it("gets out of the way once a search is under way", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        setup({ suggestions: ROWS, multiple: true });
+        await screen.findByText("Ana Neto");
+
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "sofia");
+        await waitFor(() => expect(screen.queryByText("Recently invited")).not.toBeInTheDocument());
+    });
+});
+
+describe("per-recipient notes", () => {
+    const PER_RECIPIENT: PersonPickerStepTwo = {
+        kind: "compose",
+        preview: (m) => <div data-testid="preview">{m || "(no note)"}</div>,
+        maxLength: 200,
+        perRecipient: {
+            personalize: "Personalize",
+            personalized: "Has its own note",
+            save: "Save",
+            cancel: "Discard",
+            placeholder: (name) => `Write to ${name}`,
+        },
+    };
+
+    async function toStepTwo() {
+        await screen.findByText("Ana Neto");
+        await userEvent.click(screen.getByText("Ana Neto"));
+        await userEvent.click(screen.getByText("Sofia Correia"));
+        await userEvent.click(screen.getByRole("button", { name: COPY.stepTwo }));
+    }
+
+    it("sends one person's note alongside the shared one", async () => {
+        /*
+         * The BE takes both: customMessage for everyone, plus an override
+         * array. Ana gets her own words; Sofia gets the shared note.
+         */
+        vi.stubGlobal("fetch", mockApi());
+        const { onConfirm } = setup({ stepTwo: PER_RECIPIENT, multiple: true });
+        await toStepTwo();
+
+        await userEvent.type(screen.getByPlaceholderText("Add a note"), "See you there");
+        await userEvent.click(screen.getAllByRole("button", { name: "Personalize" })[0]);
+        await userEvent.type(screen.getByPlaceholderText("Write to Ana Neto"), "Bring the slides");
+        await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+        await userEvent.click(screen.getByRole("button", { name: COPY.confirm }));
+        await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+        const [recipients, shared] = onConfirm.mock.calls[0];
+        expect(shared).toBe("See you there");
+        expect(recipients).toHaveLength(2);
+        expect(recipients[0]).toMatchObject({ id: "u-lead", note: "Bring the slides" });
+        // Sofia carries no note at all, so the server falls back to the shared one.
+        expect(recipients[1].id).toBe("u-lead2");
+        expect(recipients[1].note).toBeUndefined();
+    });
+
+    it("marks who already has one", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        setup({ stepTwo: PER_RECIPIENT, multiple: true });
+        await toStepTwo();
+
+        expect(screen.queryByText("Has its own note")).not.toBeInTheDocument();
+        await userEvent.click(screen.getAllByRole("button", { name: "Personalize" })[0]);
+        await userEvent.type(screen.getByPlaceholderText("Write to Ana Neto"), "hi");
+        await userEvent.click(screen.getByRole("button", { name: "Save" }));
+        expect(screen.getByText("Has its own note")).toBeInTheDocument();
+    });
+
+    it("discards a draft rather than keeping what was typed", async () => {
+        // Cancel that silently saves is the reason the editor holds its own
+        // draft instead of writing through on every keystroke.
+        vi.stubGlobal("fetch", mockApi());
+        const { onConfirm } = setup({ stepTwo: PER_RECIPIENT, multiple: true });
+        await toStepTwo();
+
+        await userEvent.click(screen.getAllByRole("button", { name: "Personalize" })[0]);
+        await userEvent.type(screen.getByPlaceholderText("Write to Ana Neto"), "never mind");
+        await userEvent.click(screen.getByRole("button", { name: "Discard" }));
+
+        await userEvent.click(screen.getByRole("button", { name: COPY.confirm }));
+        await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+        expect(onConfirm.mock.calls[0][0][0].note).toBeUndefined();
+    });
+
+    it("keeps the compact summary when the surface has no per-recipient notes", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        setup({ multiple: true });
+        await toStepTwo();
+        expect(screen.queryByRole("button", { name: "Personalize" })).not.toBeInTheDocument();
+        expect(screen.getByText("Ana Neto, Sofia Correia")).toBeInTheDocument();
     });
 });
 
