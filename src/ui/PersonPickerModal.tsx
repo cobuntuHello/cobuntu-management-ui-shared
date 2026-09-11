@@ -5,8 +5,9 @@ import { ActionModalShell } from "./ActionModalShell";
 import { searchPeople, minQueryLength, type PersonSearchResult } from "../lib/searchPeople";
 import { fetchCommunityRoster, groupRoster, rosterRoles, type RosterPerson, type RosterGroup } from "../lib/communityRoster";
 import {
-    addRecipients, fromPerson, looksLikeEmail, parseCsvEmails, recipientKey,
-    visibleSuggestions, type Recipient,
+    addRecipients, fromPerson, looksLikeEmail, parseCsvEmails, parseCsvRecipientRows,
+    planImport, recipientsFromPlan, recipientKey, tierPlanFor, applyDefaultTier,
+    visibleSuggestions, type Recipient, type ImportPlan,
 } from "../lib/recipients";
 
 /**
@@ -130,6 +131,59 @@ export type PersonPickerStepTwo =
         perRecipient?: PersonPickerPerRecipient;
     };
 
+/**
+ * Choosing which tier the people being added will occupy.
+ *
+ * ── Why adding takes a tier and inviting does not ───────────────────────────
+ *
+ * A seat belongs to a ticket tier, and a unit of stock belongs to a product
+ * variant — never to the event or product as a whole. So adding somebody
+ * consumes a specific tier and has to say which one. Inviting consumes
+ * nothing: the invitee picks a tier at checkout, so an invite surface leaves
+ * this prop off and keeps its two steps.
+ *
+ * ── A full tier is shown, not hidden ────────────────────────────────────────
+ *
+ * It cannot be chosen, but it stays on screen with its numbers. Hiding it
+ * would leave a host wondering where VIP went; showing it full is what tells
+ * them to go raise the cap and come back.
+ */
+export interface PersonPickerTierStep {
+    tiers: Array<{
+        id: string;
+        name: string;
+        /** null = uncapped. */
+        remaining: number | null;
+        soldOut: boolean;
+    }>;
+    copy: {
+        /** Breadcrumb label and the button that leads here. */
+        stepLabel: string;
+        subtitle: string;
+        /** "3 left" beside a capped tier. */
+        remaining: (n: number) => string;
+        unlimited: string;
+        soldOut: string;
+        /** Shown when every tier is full and nobody can be added at all. */
+        allFull: string;
+        /** "12 going to General" in the summary. */
+        summary: (n: number, tierName: string) => string;
+        /** "2 more than General has room for". */
+        overBy: (n: number, tierName: string) => string;
+        /** Heading over the CSV import preview. */
+        importPreviewTitle: string;
+        /** "{n} rows will be added". */
+        importReady: (n: number) => string;
+        /** "{n} rows cannot be added". */
+        importProblems: (n: number) => string;
+        problemUnknownTier: (tierName: string) => string;
+        problemNoTier: string;
+        problemTierFull: string;
+        importConfirm: string;
+        importCancel: string;
+    };
+}
+
 export interface PersonPickerModalProps {
     open: boolean;
     onClose: () => void;
@@ -146,6 +200,14 @@ export interface PersonPickerModalProps {
     stepTwo: PersonPickerStepTwo;
     /** Opt in to addresses with no account behind them. */
     emails?: PersonPickerEmails;
+    /**
+     * Opt in to a tier step between choosing people and confirming.
+     *
+     * Present on surfaces that ADD somebody, because adding consumes a
+     * specific tier's capacity. Absent on invite surfaces, which consume
+     * nothing and stay two steps.
+     */
+    tierStep?: PersonPickerTierStep;
     /**
      * Shortcut rows above the list — recently invited, frequent attendees.
      * The caller fetches them, because which list is worth suggesting is a
@@ -167,9 +229,23 @@ const CHEVRON = (
 export function PersonPickerModal({
     open, onClose, apiBaseUrl, authHeaders, communityTag, excludeUserIds,
     currentUserId, UserAvatar, multiple = false, copy, stepTwo, emails, suggestions,
-    onConfirm, onAdded,
+    tierStep, onConfirm, onAdded,
 }: PersonPickerModalProps) {
-    const [step, setStep] = React.useState<1 | 2>(1);
+    /*
+     * The steps, derived from the props rather than hard-coded.
+     *
+     * This was `useState<1 | 2>`, which forbade a third step at the type
+     * level. Adding a tier step is not an extra screen bolted on — it is the
+     * difference between a surface that consumes capacity and one that does
+     * not, so the flow's SHAPE follows from whether `tierStep` is given.
+     */
+    const stepNames = React.useMemo(
+        () => (tierStep ? (['people', 'tier', 'confirm'] as const) : (['people', 'confirm'] as const)),
+        [tierStep],
+    );
+    const [stepIdx, setStepIdx] = React.useState(0);
+    const step = stepNames[Math.min(stepIdx, stepNames.length - 1)];
+    const goTo = (i: number) => setStepIdx(Math.max(0, Math.min(i, stepNames.length - 1)));
     const [query, setQuery] = React.useState("");
     const [roster, setRoster] = React.useState<RosterPerson[]>([]);
     const [rosterLoading, setRosterLoading] = React.useState(false);
@@ -183,6 +259,33 @@ export function PersonPickerModal({
     const [submitting, setSubmitting] = React.useState(false);
     const [error, setError] = React.useState<string | null>(null);
     const csvInput = React.useRef<HTMLInputElement>(null);
+    /** The tier everyone gets unless their own row named a different one. */
+    const [defaultTierId, setDefaultTierId] = React.useState<string | null>(null);
+    /** A parsed CSV awaiting confirmation. Nothing is staged until it is. */
+    const [plan, setPlan] = React.useState<ImportPlan | null>(null);
+
+    /*
+     * The breadcrumb trail. Two steps or three, depending on whether this
+     * surface consumes capacity.
+     */
+    const stepLabels = React.useMemo(
+        () => (tierStep
+            ? [copy.stepOne, tierStep.copy.stepLabel, copy.stepTwo]
+            : [copy.stepOne, copy.stepTwo]),
+        [tierStep, copy.stepOne, copy.stepTwo],
+    );
+    const nextLabel = stepLabels[1];
+
+    /* Every tier full means nobody can be added at all — worth saying plainly
+       rather than leaving a list where nothing is clickable. */
+    const anyTierOpen = !tierStep || tierStep.tiers.some((t) => !t.soldOut);
+
+    /* Where the staged people would land. Anyone carrying their own tier (an
+       imported row that named one) keeps it; the rest fall to the default. */
+    const tierSummary = React.useMemo(
+        () => (tierStep ? tierPlanFor(picked, tierStep.tiers, defaultTierId) : []),
+        [tierStep, picked, defaultTierId],
+    );
 
     const excludeKey = excludeUserIds.join(",");
     const maxLength = stepTwo.kind === "compose" ? (stepTwo.maxLength ?? 500) : 0;
@@ -190,8 +293,21 @@ export function PersonPickerModal({
 
     React.useEffect(() => {
         if (!open) return;
-        setStep(1); setQuery(""); setRole(""); setPicked([]);
+        setStepIdx(0); setQuery(""); setRole(""); setPicked([]);
         setMessage(""); setError(null); setFound([]); setEditing(null); setNotice(null);
+        setPlan(null);
+        /*
+         * Opening state for the tier, decided HERE rather than in an effect of
+         * its own. A separate preselect effect declared above this one ran
+         * first, set the tier, and was then wiped by this reset in the same
+         * commit — after which its deps never changed again, so it never fired
+         * a second time and the tier stayed unchosen forever.
+         *
+         * One open tier is not a choice, so it is preselected rather than
+         * making the host click the only thing on screen.
+         */
+        const openTiers = (tierStep?.tiers ?? []).filter((t) => !t.soldOut);
+        setDefaultTierId(openTiers.length === 1 ? openTiers[0].id : null);
     }, [open]);
 
     /*
@@ -244,7 +360,7 @@ export function PersonPickerModal({
      * at all.
      */
     React.useEffect(() => {
-        if (!open || step === 2) return;
+        if (!open || step !== 'people') return;
         const q = query.trim();
         if (q.length < minQueryLength(communityTag) || rosterHitCount > 0) {
             setFound([]);
@@ -308,7 +424,26 @@ export function PersonPickerModal({
     async function importCsv(file: File) {
         if (!emails) return;
         try {
-            const addresses = parseCsvEmails(await file.text());
+            const text = await file.text();
+
+            /*
+             * With tiers in play, an import is PLANNED, not performed.
+             *
+             * Every row consumes a seat, so committing first and reporting
+             * afterwards leaves the host reconciling two lists: who got in,
+             * who did not, and how much room is left. The plan shows the whole
+             * outcome — which tiers would fill, which rows name a tier that
+             * does not exist — and they decide once.
+             */
+            if (tierStep) {
+                const rows = parseCsvRecipientRows(text);
+                if (rows.length === 0) { setNotice(emails.importedNothing); return; }
+                setPlan(planImport(rows, tierStep.tiers, defaultTierId));
+                setNotice(null);
+                return;
+            }
+
+            const addresses = parseCsvEmails(text);
             stage(addresses.map((email) => ({ email })));
             setNotice(addresses.length > 0 ? emails.imported(addresses.length) : emails.importedNothing);
         } catch {
@@ -316,13 +451,26 @@ export function PersonPickerModal({
         }
     }
 
+    /** Commit the plan: stage only the rows that can actually be added. */
+    function commitPlan() {
+        if (!plan) return;
+        stage(recipientsFromPlan(plan));
+        setPlan(null);
+    }
+
     async function confirm() {
         if (picked.length === 0 || submitting) return;
         setSubmitting(true);
         setError(null);
         try {
-            await onConfirm(picked, message.trim() || null);
-            onAdded?.(picked);
+            /*
+             * The chosen tier is stamped ONCE, here — never as people are
+             * picked. Doing it per pick would overwrite a tier that arrived
+             * with an imported row the moment the host changed the default.
+             */
+            const finalRecipients = tierStep ? applyDefaultTier(picked, defaultTierId) : picked;
+            await onConfirm(finalRecipients, message.trim() || null);
+            onAdded?.(finalRecipients);
             onClose();
         } catch (e: any) {
             setError(e?.message || "Something went wrong.");
@@ -336,25 +484,29 @@ export function PersonPickerModal({
         && found.length === 0 && !offerTyped;
     const motion = entered
         ? "opacity-100 translate-x-0"
-        : `opacity-0 ${step === 2 ? "translate-x-3" : "-translate-x-3"}`;
+        : `opacity-0 ${stepIdx > 0 ? "translate-x-3" : "-translate-x-3"}`;
 
     return (
         <ActionModalShell
             isOpen={open}
             onClose={onClose}
             title={copy.title}
-            subtitle={step === 2 ? copy.pickedSubtitle : copy.searchSubtitle}
+            subtitle={
+                step === 'people' ? copy.searchSubtitle
+                    : step === 'tier' ? (tierStep?.copy.subtitle ?? copy.pickedSubtitle)
+                        : copy.pickedSubtitle
+            }
             unsavedCount={picked.length > 0 ? picked.length : 0}
             unsavedMessage={copy.discardConfirm ? () => copy.discardConfirm! : undefined}
             footer={
                 <div className="flex items-center gap-3">
-                    {step === 1 && multiple && picked.length > 0 && (
+                    {step === 'people' && multiple && picked.length > 0 && (
                         <span className="text-[12px] text-zinc-500 tabular-nums">
                             {copy.selectedLabel(picked.length)}
                         </span>
                     )}
                     <span className="flex-1" />
-                    {step === 1 ? (
+                    {step === 'people' ? (
                         <>
                             {/* Muted plate, never a transparent ghost — same
                                 treatment as the shell's circular dismiss. */}
@@ -365,13 +517,23 @@ export function PersonPickerModal({
                                 {copy.cancel}
                             </button>
                             <button
-                                onClick={() => setStep(2)}
+                                onClick={() => goTo(1)}
                                 disabled={picked.length === 0}
                                 className="px-5 py-2.5 text-[13px] font-medium bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                             >
-                                {copy.stepTwo}
+                                {nextLabel}
                             </button>
                         </>
+                    ) : step === 'tier' ? (
+                        <button
+                            onClick={() => goTo(stepIdx + 1)}
+                            /* No tier chosen means nobody has a seat to take.
+                               The summary above already says what is wrong. */
+                            disabled={!defaultTierId && picked.some((r) => !r.tierId)}
+                            className="px-5 py-2.5 text-[13px] font-medium bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                            {copy.stepTwo}
+                        </button>
                     ) : (
                         /* No Back button: the breadcrumb above owns that, the
                            way it does on the detail pages. */
@@ -386,28 +548,28 @@ export function PersonPickerModal({
                 </div>
             }
         >
-            {step === 2 && (
+            {stepIdx > 0 && (
                 <div className="flex items-center gap-2 px-5 sm:px-6 py-2.5 border-b border-zinc-100">
                     <button
-                        onClick={() => setStep(1)}
+                        onClick={() => goTo(stepIdx - 1)}
                         aria-label={copy.back}
                         className="h-[26px] w-[26px] rounded-full grid place-items-center cursor-pointer bg-zinc-100 hover:bg-zinc-200 text-zinc-900 shrink-0"
                     >
                         {CHEVRON}
                     </button>
                     <button
-                        onClick={() => setStep(1)}
+                        onClick={() => goTo(stepIdx - 1)}
                         className="text-[13px] text-zinc-900 opacity-50 hover:opacity-80 cursor-pointer shrink-0 bg-transparent border-0 p-0"
                     >
-                        {copy.stepOne}
+                        {stepLabels[stepIdx - 1]}
                     </button>
                     <span className="text-[13px] text-zinc-900 opacity-20 shrink-0">/</span>
-                    <span className="text-[13px] font-medium text-zinc-900 truncate">{copy.stepTwo}</span>
+                    <span className="text-[13px] font-medium text-zinc-900 truncate">{stepLabels[stepIdx]}</span>
                 </div>
             )}
 
             <div className={`transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none ${motion}`}>
-                {step === 1 ? (
+                {step === 'people' ? (
                     <div>
                         <div className="flex items-center gap-2.5 px-5 sm:px-6 py-2.5 border-b border-zinc-100">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400 shrink-0" aria-hidden="true">
@@ -507,7 +669,84 @@ export function PersonPickerModal({
                             </p>
                         )}
 
-                        <div className="max-h-[340px] overflow-y-auto">
+                        {/*
+                          * The import, before it happens.
+                          *
+                          * Replaces the list rather than sitting under it: the
+                          * host has one decision to make here, and leaving the
+                          * roster interactive behind a pending import invites
+                          * them to do something else and forget this.
+                          */}
+                        {plan && tierStep && (
+                            <div className="px-5 sm:px-6 py-4 border-b border-zinc-100 space-y-3">
+                                <p className="m-0 text-[13px] font-medium text-zinc-900">
+                                    {tierStep.copy.importPreviewTitle}
+                                </p>
+
+                                <div className="rounded-xl bg-zinc-50 border border-zinc-100 p-3 space-y-1">
+                                    <p className="m-0 text-[12px] text-zinc-700">
+                                        {tierStep.copy.importReady(plan.ok.length)}
+                                    </p>
+                                    {plan.problems.length > 0 && (
+                                        <p className="m-0 text-[12px] text-red-600">
+                                            {tierStep.copy.importProblems(plan.problems.length)}
+                                        </p>
+                                    )}
+                                    {plan.perTier.map((t) => (
+                                        <p key={t.tierId} className="m-0 text-[12px] text-zinc-600">
+                                            {tierStep.copy.summary(t.adding, t.name)}
+                                            {t.overBy > 0 && (
+                                                <span className="text-red-600">
+                                                    {" "}{tierStep.copy.overBy(t.overBy, t.name)}
+                                                </span>
+                                            )}
+                                        </p>
+                                    ))}
+                                </div>
+
+                                {/* Named, with the reason. A count alone does not
+                                    tell anybody which line to go and fix. */}
+                                {plan.problems.length > 0 && (
+                                    <div className="max-h-[160px] overflow-y-auto rounded-xl border border-zinc-200 divide-y divide-zinc-100">
+                                        {plan.problems.map((r) => (
+                                            <div key={r.email} className="flex items-center gap-3 px-3 py-2">
+                                                <span className="text-[12px] text-zinc-700 min-w-0 flex-1 truncate">
+                                                    {r.email}
+                                                </span>
+                                                <span className="text-[11.5px] text-red-600 shrink-0">
+                                                    {r.problem === 'unknown-tier'
+                                                        ? tierStep.copy.problemUnknownTier(r.tierName ?? '')
+                                                        : r.problem === 'no-tier'
+                                                            ? tierStep.copy.problemNoTier
+                                                            : tierStep.copy.problemTierFull}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="flex items-center gap-2">
+                                    <span className="flex-1" />
+                                    <button
+                                        type="button"
+                                        onClick={() => setPlan(null)}
+                                        className="px-3 py-1.5 text-[12px] rounded-lg cursor-pointer bg-zinc-100 text-zinc-900 hover:bg-zinc-200 transition-colors"
+                                    >
+                                        {tierStep.copy.importCancel}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={commitPlan}
+                                        disabled={plan.ok.length === 0}
+                                        className="px-3 py-1.5 text-[12px] font-medium rounded-lg cursor-pointer bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        {tierStep.copy.importConfirm}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className={`max-h-[340px] overflow-y-auto ${plan ? "hidden" : ""}`}>
                             {offerTyped && emails && (
                                 <button
                                     type="button"
@@ -586,6 +825,74 @@ export function PersonPickerModal({
                         )}
 
                         {error && <p className="px-5 sm:px-6 py-3 text-[12px] text-red-600">{error}</p>}
+                    </div>
+                ) : step === 'tier' && tierStep ? (
+                    <div className="px-5 sm:px-6 py-5 space-y-4">
+                        {!anyTierOpen && (
+                            <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-[13px] text-amber-800">
+                                {tierStep.copy.allFull}
+                            </div>
+                        )}
+
+                        <div className="rounded-xl border border-zinc-200 divide-y divide-zinc-100 overflow-hidden">
+                            {tierStep.tiers.map((t) => {
+                                const chosen = defaultTierId === t.id;
+                                return (
+                                    <button
+                                        key={t.id}
+                                        type="button"
+                                        /* Shown but not choosable. Hiding a full tier leaves a
+                                           host wondering where it went; showing it full is what
+                                           tells them to go raise the cap. */
+                                        disabled={t.soldOut}
+                                        aria-pressed={chosen}
+                                        onClick={() => setDefaultTierId(t.id)}
+                                        className={`w-full flex items-center gap-3 px-3.5 py-3 text-left min-h-[52px] transition-colors ${t.soldOut
+                                            ? "bg-zinc-50 cursor-not-allowed"
+                                            : chosen ? "bg-zinc-50 cursor-pointer" : "bg-white hover:bg-zinc-50 cursor-pointer"}`}
+                                    >
+                                        <span className={`w-[17px] h-[17px] rounded-full shrink-0 grid place-items-center border-[1.5px] ${chosen ? "bg-zinc-900 border-zinc-900" : "border-zinc-200"}`}>
+                                            {chosen && <span className="w-[6px] h-[6px] rounded-full bg-white" />}
+                                        </span>
+                                        <span className="min-w-0 flex-1">
+                                            <span className={`block text-[13px] truncate ${t.soldOut ? "text-zinc-400" : "text-zinc-900"}`}>
+                                                {t.name}
+                                            </span>
+                                        </span>
+                                        <span className="text-[11.5px] text-zinc-400 shrink-0 tabular-nums">
+                                            {t.soldOut ? tierStep.copy.soldOut
+                                                : t.remaining === null ? tierStep.copy.unlimited
+                                                    : tierStep.copy.remaining(t.remaining)}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/*
+                          * What this actually does, per tier, before it does it.
+                          *
+                          * Somebody imported with their own tier keeps it, so this is
+                          * not simply "everyone into the chosen one" — and a tier that
+                          * would overflow says so here rather than failing halfway
+                          * through the write.
+                          */}
+                        {tierSummary.length > 0 && (
+                            <div className="rounded-xl bg-zinc-50 border border-zinc-100 p-3 space-y-1">
+                                {tierSummary.map((t) => (
+                                    <p key={t.tierId} className="m-0 text-[12px] text-zinc-600">
+                                        {tierStep.copy.summary(t.adding, t.name)}
+                                        {t.overBy > 0 && (
+                                            <span className="text-red-600">
+                                                {" "}{tierStep.copy.overBy(t.overBy, t.name)}
+                                            </span>
+                                        )}
+                                    </p>
+                                ))}
+                            </div>
+                        )}
+
+                        {error && <p className="text-[12px] text-red-600">{error}</p>}
                     </div>
                 ) : (
                     <div className="px-5 sm:px-6 py-5 space-y-4">
