@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type { EventExtras, OverviewListing, OverviewStats } from "./types";
 import {
     conversion, daysUntil, delta, formatCount, formatMoney,
-    hasUnattributedViews, isSellable, recentWindows,
+    isSellable, recentWindows,
 } from "./format";
 import { TrendChart, hasTrend } from "./TrendChart";
 import { EmptyState, ShelfIcon } from "./EmptyState";
@@ -155,7 +155,7 @@ export function ManageOverview({
                     {/*
                       * NO ASK BUTTON HERE, and that is not an omission.
                       *
-                      * The ask lives once, in "Where this sells" below, beside
+                      * The ask lives once, in the listings section below, beside
                       * the listings it is about. Two buttons for one act is how
                       * the publish control came to exist in two places and get
                       * removed from only one; this banner's job is to say why
@@ -289,17 +289,17 @@ export function ManageOverview({
                 )}
             </div>
 
-            {/* Listings: one section per community */}
+            {/*
+              * Listings: one section per community.
+              *
+              * NO HEADING AND NO COUNT. "Where this sells" labelled a section
+              * whose cards already carry a community icon, a community name and
+              * a status pill, and "Carried by 1" counted a list of one visible
+              * row. Both restated what was directly below them, and an item can
+              * only be carried by one community anyway, so the count could never
+              * say anything the eye had not already taken in.
+              */}
             <div>
-                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                    <h2 className="text-[16px] font-semibold text-zinc-900">{t("overviewWhereItSells")}</h2>
-                    {listings.length > 0 && (
-                        <span className="text-[13px] text-zinc-500">
-                            {t("overviewCarriedBy", { count: listings.length })}
-                        </span>
-                    )}
-                </div>
-
                 {listings.length === 0 ? (
                     /*
                       * A DIFFERENT sentence from the banner above, which has
@@ -316,14 +316,27 @@ export function ManageOverview({
                     <div className="space-y-3">
                         {listings.map((l) => (
                             /*
-                              * A CARD WITH A BUTTON, not a giant link.
+                              * THE WHOLE CARD IS THE TARGET, via one stretched
+                              * link rather than a wrapping anchor.
                               *
-                              * The card carries four figures and three facts
-                              * about the agreement; making all of it one click
-                              * target means a seller reading the numbers
-                              * navigates away by accident, and leaves no room
-                              * for a second action later. The way in is named
-                              * and sized like a way in.
+                              * It was a card with a small button, on the reasoning
+                              * that a card carrying four figures should not
+                              * navigate when a seller means to read it. In
+                              * practice the way in was the quietest thing on the
+                              * card, and people did not find it.
+                              *
+                              * The anchor stays exactly where it was, so there is
+                              * still one link and one accessible name, and
+                              * `after:absolute after:inset-0` extends its hit area
+                              * over the card. That keeps a single tab stop and a
+                              * real href, which a div with an onClick would not,
+                              * and leaves the figures selectable: a drag to select
+                              * text does not fire the link.
+                              *
+                              * `relative` on the card establishes the containing
+                              * block the stretched pseudo-element resolves
+                              * against. Without it the hit area escapes to the
+                              * nearest positioned ancestor and swallows the page.
                               *
                               * The community's ICON leads, because a seller
                               * carried by four communities recognises a logo
@@ -334,7 +347,7 @@ export function ManageOverview({
                               */
                             <div
                                 key={l.listingId}
-                                className="overflow-hidden rounded-xl border border-zinc-200/70 bg-white"
+                                className="group relative overflow-hidden rounded-xl border border-zinc-200/70 bg-white transition-colors hover:border-zinc-300 hover:bg-zinc-50/60"
                             >
                                 <div className="flex items-start gap-3 p-4">
                                     {l.communityIcon ? (
@@ -386,9 +399,30 @@ export function ManageOverview({
                                         </p>
                                     </div>
 
+                                    {/*
+                                      * Solid, not the grey it was: this is the
+                                      * primary action of the card and now also
+                                      * its visible affordance, since the whole
+                                      * card follows it.
+                                      *
+                                      * `cursor-pointer` is explicit. Tailwind v4
+                                      * dropped the preflight rule that gave
+                                      * interactive elements a pointer, so an
+                                      * anchor styled as a button shows the text
+                                      * caret without it and reads as dead.
+                                      */}
                                     <a
                                         href={listingHref(l)}
-                                        className="flex-none rounded-lg bg-zinc-100 px-3 py-1.5 text-[12.5px] font-semibold text-zinc-700 transition-colors hover:bg-zinc-200"
+                                        /*
+                                          * NOT `relative`. The stretched
+                                          * pseudo-element resolves against the
+                                          * nearest POSITIONED ancestor, so a
+                                          * positioned anchor would confine the
+                                          * hit area to the button and undo the
+                                          * whole point. The card holds the
+                                          * `relative`; this stays static.
+                                          */
+                                        className="flex-none cursor-pointer rounded-lg bg-zinc-900 px-3.5 py-2 text-[12.5px] font-semibold text-white transition-colors after:absolute after:inset-0 after:content-[''] hover:bg-zinc-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 group-hover:bg-zinc-700"
                                     >
                                         {t("overviewManageListing")}
                                     </a>
@@ -458,15 +492,26 @@ export function ManageOverview({
                 )}
 
                 {/*
-                  * The footnote that stops the sections looking broken. Views
-                  * belonging to no listing are real views; the two numbers are
-                  * not a partition and never were.
+                  * The unattributed-views footnote is GONE.
+                  *
+                  * It existed to stop the sections looking broken: views
+                  * belonging to no listing are real views, so the per-listing
+                  * figures never summed to the total. True, and invisible. It
+                  * appeared under every card and explained an attribution
+                  * detail nobody had asked about, in the vocabulary of the
+                  * system rather than of the seller: "people who looked before
+                  * we recorded where from" describes our instrumentation, not
+                  * their event.
+                  *
+                  * The arithmetic it defended is not on screen together. Total
+                  * views sits in a tile at the top; the per-listing view count
+                  * sits in a card below. Nobody subtracts one from the other
+                  * unprompted, and the footnote prompted them to.
+                  *
+                  * `hasUnattributedViews` stays exported and tested: it is the
+                  * right predicate if the difference is ever surfaced somewhere
+                  * the two numbers genuinely sit side by side.
                   */}
-                {hasUnattributedViews(stats) && (
-                    <p className="mt-3 text-[12px] text-zinc-500">
-                        {t("overviewUnattributedViews", { count: views.unattributed })}
-                    </p>
-                )}
 
                 {/*
                   * ONE LISTING, AND THE PAGE SAYS SO EITHER WAY.
