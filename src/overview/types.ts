@@ -110,10 +110,23 @@ export interface OverviewStats {
 }
 
 /** Event-only figures the product page has no equivalent for. */
-export interface EventExtras {
-    /** Attendees going, and the cap if there is one. */
+export interface OverviewExtras {
+    /** Attendees going, and the cap if there is one. EVENTS ONLY. */
     going?: number;
+    /**
+     * The summed tier cap, or null when any tier is uncapped.
+     *
+     * Read by events AND products now: an event shows "of N places", a product
+     * "of N in stock". Null means genuinely unknown rather than zero -- the
+     * backend sums tiers and will not invent a total when one is unlimited.
+     */
     capacity?: number | null;
-    /** ISO start, for the "starts in" tile. */
+    /** ISO start, for the "starts in" tile. EVENTS ONLY. */
     startsAt?: string | null;
 }
+
+/**
+ * @deprecated Named when only events used it. Kept so both apps keep compiling
+ * across the bump; prefer `OverviewExtras`.
+ */
+export type EventExtras = OverviewExtras;

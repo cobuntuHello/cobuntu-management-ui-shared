@@ -172,6 +172,9 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     /* Only tickets that produced money. Routinely lower than Attending. */
     overviewTicketsSold: "Tickets sold",
     overviewOfCapacity: "of {capacity} places",
+    /* A product has stock, not places. Same shape, different vocabulary --
+       "of 40 places" under a jacket is the event wording leaking. */
+    overviewOfStock: "of {capacity} in stock",
     overviewInLastWeeks: "{count} in the last 4 weeks",
     overviewViews: "Views",
     overviewVsPrevious: "vs the 4 weeks before",

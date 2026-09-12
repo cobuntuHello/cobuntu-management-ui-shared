@@ -264,11 +264,29 @@ export function ManageOverview({
                             />
                         </>
                     ) : (
+                        /*
+                          * A CAPPED PRODUCT GETS ITS STOCK POSITION TOO.
+                          *
+                          * This used to read `isEvent && extras?.capacity`, so a
+                          * seller who had capped their variants could not see it
+                          * anywhere on Overview: the tile fell through to the
+                          * four-week figure and the cap was invisible on the one
+                          * screen that exists to answer "how is this doing".
+                          *
+                          * Different WORDS, deliberately. An event sells places
+                          * in a room; a product has stock. "of 40 places" under
+                          * a jacket is the event vocabulary leaking.
+                          *
+                          * `capacity` is null whenever ANY tier is uncapped --
+                          * the backend sums tiers and refuses to invent a total
+                          * it cannot know -- so an unlimited product keeps the
+                          * four-week figure rather than claiming a cap of zero.
+                          */
                         <Tile
                             label={isEvent ? t("overviewAttending") : t("overviewSales")}
                             value={formatCount(stats.sold, locale)}
-                            sub={isEvent && extras?.capacity
-                                ? t("overviewOfCapacity", { capacity: extras.capacity })
+                            sub={extras?.capacity
+                                ? t(isEvent ? "overviewOfCapacity" : "overviewOfStock", { capacity: extras.capacity })
                                 : t("overviewInLastWeeks", { count: soldWindow.current })}
                         />
                     )}
