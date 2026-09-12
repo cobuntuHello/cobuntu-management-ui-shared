@@ -560,3 +560,43 @@ describe("a listing row shows both sides", () => {
         expect(screen.getByText("€0.00")).toBeInTheDocument();
     });
 });
+
+/**
+ * A CAPPED PRODUCT CAN SEE ITS OWN STOCK.
+ *
+ * The sub-line under the sold figure used to be gated on `isEvent`, so a
+ * seller who had capped their variants found the cap nowhere on the one screen
+ * that exists to answer "how is this doing". The tile quietly fell through to
+ * the four-week figure and the cap was invisible.
+ *
+ * The words differ on purpose. An event sells places in a room; a product has
+ * stock. "of 40 places" under a jacket is the event vocabulary leaking, and it
+ * is the kind of thing nobody files a bug about and everybody notices.
+ */
+describe("the stock position of a capped item", () => {
+    it("a product says stock, not places", () => {
+        renderIt(stats({ kind: "product", sold: 12 }), { extras: { capacity: 40 } });
+        expect(screen.getByText("of 40 in stock")).toBeInTheDocument();
+        expect(screen.queryByText("of 40 places")).toBeNull();
+    });
+
+    it("an event still says places", () => {
+        renderIt(stats({ kind: "event", sold: 9 }), { extras: { capacity: 12 } });
+        expect(screen.getByText("of 12 places")).toBeInTheDocument();
+    });
+
+    it("an uncapped product keeps the four-week figure rather than claiming a cap", () => {
+        // capacity is null whenever ANY tier is uncapped: the backend sums
+        // tiers and will not invent a total it cannot know. Rendering that as
+        // "of 0 in stock" would read as sold out.
+        renderIt(stats({ kind: "product" }), { extras: { capacity: null } });
+        expect(screen.queryByText(/in stock/)).toBeNull();
+    });
+
+    it("a product with no extras at all is unchanged", () => {
+        // Both apps shipped without passing extras for a product, and a bump
+        // that broke that tile would be a worse bug than the one being fixed.
+        renderIt(stats({ kind: "product" }));
+        expect(screen.queryByText(/in stock/)).toBeNull();
+    });
+});
