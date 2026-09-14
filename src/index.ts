@@ -4,6 +4,11 @@ export type { ModalShellProps, ModalShellWidth } from "./ui/ModalShell";
 export { ActionModalShell } from "./ui/ActionModalShell";
 export type { ActionModalShellProps } from "./ui/ActionModalShell";
 
+export { PeopleListModal } from "./ui/PeopleListModal";
+export type {
+  PeopleListModalProps, PeopleListModalCopy, PeopleListPerson,
+} from "./ui/PeopleListModal";
+
 export { PersonPickerModal } from "./ui/PersonPickerModal";
 export type {
   PersonPickerModalProps, PersonPickerCopy, PersonPickerStepTwo,
