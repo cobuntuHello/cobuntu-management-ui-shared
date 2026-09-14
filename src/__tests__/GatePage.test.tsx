@@ -58,6 +58,91 @@ describe("GatePage", () => {
     expect(screen.getByRole("link", { name: /back to PBN/i })).toHaveAttribute("href", "/hub");
   });
 
+  // ─── accessibility-aware secondary CTA ─────────────────────────────
+  // A private community's accessibility (OPEN / APPLICATION / INVITE_ONLY)
+  // is independent of its visibility, but the gate previously showed the
+  // same "Apply to join" CTA regardless — a dead end under INVITE_ONLY,
+  // since /apply hard-blocks the APPLY intent server-side (assertJoinable).
+  describe("accessibility prop", () => {
+    it('INVITE_ONLY: no "Apply to join" secondary CTA — applying is blocked server-side', () => {
+      render(
+        <GatePage
+          gate={{ kind: "community_private", communityName: "PBN" }}
+          returnTo="/feed"
+          accessibility="INVITE_ONLY"
+        />,
+      );
+      expect(screen.queryByRole("link", { name: /apply to join/i })).not.toBeInTheDocument();
+      expect(screen.getByText(/invite from an existing member/i)).toBeInTheDocument();
+      // Only the primary sign-in + the "Back to" escape hatch remain.
+      expect(screen.getAllByRole("link")).toHaveLength(2);
+    });
+
+    it("INVITE_ONLY + viewerLoggedIn: primary CTA stays 'Sign in', does not route to /apply", () => {
+      // Unlike OPEN/APPLICATION, a logged-in non-member here has nowhere
+      // self-serve to go — /apply would reject them too.
+      render(
+        <GatePage
+          gate={{ kind: "community_private", communityName: "PBN" }}
+          returnTo="/feed"
+          accessibility="INVITE_ONLY"
+          viewerLoggedIn
+        />,
+      );
+      const primary = screen.getByRole("link", { name: /^sign in$/i });
+      expect(primary).toHaveAttribute("href", "/login?returnTo=%2Ffeed");
+    });
+
+    it('OPEN: secondary CTA relabels to "Join now" (no review step to "apply" into)', () => {
+      render(
+        <GatePage
+          gate={{ kind: "community_private", communityName: "PBN" }}
+          returnTo="/feed"
+          accessibility="OPEN"
+        />,
+      );
+      const cta = screen.getByRole("link", { name: /join now/i });
+      expect(cta).toHaveAttribute("href", "/apply?returnTo=%2Ffeed");
+      expect(screen.getByText(/join instantly/i)).toBeInTheDocument();
+    });
+
+    it("OPEN + viewerLoggedIn: primary CTA reads 'Join {community}', not 'Apply to join {community}'", () => {
+      render(
+        <GatePage
+          gate={{ kind: "community_private", communityName: "PBN" }}
+          returnTo="/feed"
+          accessibility="OPEN"
+          viewerLoggedIn
+        />,
+      );
+      expect(screen.getByRole("link", { name: /^join pbn$/i })).toHaveAttribute(
+        "href",
+        "/apply?returnTo=%2Ffeed",
+      );
+    });
+
+    it("accessibility omitted: unchanged 'Apply to join' behaviour (back-compat for admin / event-ui)", () => {
+      render(
+        <GatePage
+          gate={{ kind: "community_private", communityName: "PBN" }}
+          returnTo="/feed"
+        />,
+      );
+      expect(screen.getByRole("link", { name: /apply to join$/i })).toBeInTheDocument();
+    });
+
+    it("the dead-end applies to every member-gated variant, not just community_private — INVITE_ONLY drops it on channel_members_only too", () => {
+      render(
+        <GatePage
+          gate={{ kind: "channel_members_only", communityName: "Bela Escala", channelName: "#leaders" }}
+          returnTo="/feed?channel=leaders-id"
+          accessibility="INVITE_ONLY"
+        />,
+      );
+      expect(screen.queryByRole("link", { name: /apply to join/i })).not.toBeInTheDocument();
+    });
+  });
+
   // ─── page_members_only ─────────────────────────────────────────────
   it("page_members_only: headlines with page name, not community name", () => {
     render(

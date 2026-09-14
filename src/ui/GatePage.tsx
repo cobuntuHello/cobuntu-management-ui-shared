@@ -62,8 +62,19 @@ export interface GatePageProps {
   upgradeHref?: string;
   /** Override for the application page (default "/apply"). Shown as a
    *  secondary CTA on community-private + page-members-only gates so
-   *  non-members can jump straight to the application form. */
+   *  non-members can jump straight to the application form. Suppressed
+   *  entirely when `accessibility` is "INVITE_ONLY" — applying is
+   *  hard-blocked server-side there (assertJoinable), so the button would
+   *  be a dead end. */
   applyHref?: string;
+  /** The community's join method (`communities.accessibility`). Drives the
+   *  secondary "self-serve" CTA on every member-gated variant: omitted →
+   *  "Apply to join" (today's behaviour, unchanged); "OPEN" → relabelled
+   *  "Join now" (there's no review step to "apply" into); "INVITE_ONLY" →
+   *  the CTA is dropped, since /apply rejects non-invited visitors under
+   *  this setting. Optional and back-compat: callers that don't pass it
+   *  (admin, event-ui) keep the current "Apply to join" behaviour exactly. */
+  accessibility?: "OPEN" | "APPLICATION" | "INVITE_ONLY";
   /** When true, the primary CTA on member-gated variants flips from
    *  "Sign in" to "Apply to join $community" — because /login won't help
    *  someone who's already authenticated but not a member. The login
@@ -116,28 +127,47 @@ function buildCopy(props: GatePageProps): CopyVariant {
     upgradeHref = "/membership",
     applyHref = "/apply",
     viewerLoggedIn = false,
+    accessibility,
   } = props;
   const enc = (s: string) => encodeURIComponent(s);
   const signInUrl = `${signInHref}?returnTo=${enc(returnTo)}`;
   const applyUrl = `${applyHref}?returnTo=${enc(returnTo)}`;
   const upgradeUrl = `${upgradeHref}?returnTo=${enc(returnTo)}`;
 
+  const inviteOnly = accessibility === "INVITE_ONLY";
+  const open = accessibility === "OPEN";
+
   // For member-gated variants where viewer is logged in but not a member:
-  // /login is a dead end, so primary CTA jumps to /apply. The login-page
-  // handoff is only useful for anonymous viewers.
-  const primaryAuthLabel = viewerLoggedIn
-    ? `Apply to join ${gate.communityName}`
-    : "Sign in";
-  const primaryAuthHref = viewerLoggedIn ? applyUrl : signInUrl;
+  // /login is a dead end, so primary CTA jumps to /apply — except Invite
+  // Only, where /apply rejects them too (assertJoinable blocks the APPLY
+  // intent server-side), so there is genuinely nothing self-serve to offer.
+  // Primary CTA falls back to "Sign in", the least-wrong option left.
+  const primaryAuthLabel = !viewerLoggedIn
+    ? "Sign in"
+    : inviteOnly
+      ? "Sign in"
+      : open
+        ? `Join ${gate.communityName}`
+        : `Apply to join ${gate.communityName}`;
+  const primaryAuthHref = viewerLoggedIn && !inviteOnly ? applyUrl : signInUrl;
+
+  // The secondary self-serve CTA below the primary. Invite Only has none to
+  // offer — showing "Apply to join" here would be a dead end. Open relabels
+  // it, since there's no review step to "apply" into.
+  const secondaryCta = viewerLoggedIn || inviteOnly
+    ? undefined
+    : { label: open ? "Join now" : "Apply to join", href: applyUrl };
 
   switch (gate.kind) {
     case "community_private":
       return {
         headline: `${gate.communityName} is a private community`,
-        subhead: "Sign in to access content for members, or apply to join.",
+        subhead: inviteOnly
+          ? "Sign in to access content for members — you'll need an invite from an existing member to join."
+          : `Sign in to access content for members, or ${open ? "join instantly" : "apply to join"}.`,
         primaryCtaLabel: primaryAuthLabel,
         primaryCtaHref: primaryAuthHref,
-        secondaryCta: viewerLoggedIn ? undefined : { label: "Apply to join", href: applyUrl },
+        secondaryCta,
       };
     case "page_members_only":
       return {
@@ -145,7 +175,7 @@ function buildCopy(props: GatePageProps): CopyVariant {
         subhead: `Sign in or join ${gate.communityName} to see ${gate.pageName}.`,
         primaryCtaLabel: primaryAuthLabel,
         primaryCtaHref: primaryAuthHref,
-        secondaryCta: viewerLoggedIn ? undefined : { label: "Apply to join", href: applyUrl },
+        secondaryCta,
       };
     case "entity_members_only":
       return {
@@ -153,7 +183,7 @@ function buildCopy(props: GatePageProps): CopyVariant {
         subhead: `Sign in or join ${gate.communityName} to see this ${gate.entityType}.`,
         primaryCtaLabel: primaryAuthLabel,
         primaryCtaHref: primaryAuthHref,
-        secondaryCta: viewerLoggedIn ? undefined : { label: "Apply to join", href: applyUrl },
+        secondaryCta,
       };
     case "channel_members_only":
       return {
@@ -161,7 +191,7 @@ function buildCopy(props: GatePageProps): CopyVariant {
         subhead: `Sign in or join ${gate.communityName} to read ${gate.channelName}.`,
         primaryCtaLabel: primaryAuthLabel,
         primaryCtaHref: primaryAuthHref,
-        secondaryCta: viewerLoggedIn ? undefined : { label: "Apply to join", href: applyUrl },
+        secondaryCta,
       };
     case "wrong_tier": {
       const target = gate.channelName ?? "this content";
