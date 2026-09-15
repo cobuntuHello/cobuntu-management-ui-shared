@@ -36,15 +36,14 @@ export interface ResolveOutcomeInput {
      *
      * False for a member whose community reviews submissions — the same
      * `canSelfList` that decides whether the button says "Save & Publish" or
-     * "Save & Request Listing". An admin acting as the community can always
-     * self-list, so it passes true.
+     * "Save & Request Listing".
      */
     canSelfList: boolean;
     /**
      * Did they ask a community to carry it at all? The Listing step's answer.
      *
      * Optional, and absent means yes — the admin app never asks the question,
-     * and neither did the community app before the step existed.
+     * and neither did this app before the step existed.
      */
     requestedListing?: boolean;
 }
@@ -82,12 +81,11 @@ export function primaryDestination(outcome: CreateOutcome): "view" | "manage" {
 }
 
 /**
- * Copy keys for the modal, so the four endings cannot be described by one
+ * Copy keys for the modal, so the three endings cannot be described by one
  * hopeful sentence.
  *
- * Returned as keys rather than strings for a caller that resolves them through
- * an i18n layer. The CreatedModal itself ships English literals; a locale-aware
- * host can map these keys instead.
+ * Returned as keys rather than strings because this app ships in ten locales;
+ * the caller resolves them through next-intl.
  */
 export function outcomeCopyKey(outcome: CreateOutcome, kind: "product" | "event"): {
     title: string;
