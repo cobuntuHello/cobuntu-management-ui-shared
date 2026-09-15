@@ -14,17 +14,23 @@ import {
  * showing an unfinished flow behind it. It is a step now: the flow completes
  * rather than being covered up.
  *
- * ── It should feel like finishing something ─────────────────────────
+ * ── It has to LOOK like a step, and it did not ──────────────────────
  *
- * The step used to be a small bordered card with an icon in the corner: an
- * acknowledgement, not an arrival. Making something and putting it in front of
- * a community is the whole point of the flow, and the last screen was the one
- * screen that did not say so.
+ * Becoming a step changed where it rendered, not how it was drawn: a centred,
+ * bordered card on a brand gradient, with a 56px circle and stacked
+ * full-width buttons. Every other step is left-aligned content at 560px with
+ * no chrome at all, so the last screen of the flow read as a dialog that had
+ * been dropped into the page — the modal it used to be, still wearing modal
+ * clothes.
  *
- * So it opens on a large centred mark and the listing's own name, on a soft
- * brand wash that is the only place in the wizard using it. The wash is a tint
- * of the community's colour rather than a success green, because what is being
- * celebrated is joining THAT community's shelf.
+ * It is drawn like the other steps now: same width, same alignment, no card,
+ * no wash, buttons in a row rather than a stack.
+ *
+ * The TITLE moved out entirely. The page heading names the step someone is on,
+ * every step, and here it was still showing the previous step's title while
+ * this card announced its own — two headings, disagreeing, one of them wrong.
+ * The heading does the titling; the pane says what happened to WHICH item and
+ * offers the next move.
  *
  * It stays a step, not a party: no confetti, no illustration. The reward is
  * that the thing is done and the next move is obvious.
@@ -46,6 +52,14 @@ import {
  *
  * Only the first is filled. Four solid buttons is a menu, not a
  * recommendation, and the ranking above is the whole point.
+ *
+ * ── Why "Follow the review" ─────────────────────────────────────────
+ *
+ * It is one thread that does two jobs: it shows where the request stands, and
+ * it is where the leader and the member settle terms. Names that only describe
+ * the first ("Track your request", "See status") make the negotiation look
+ * like it lives somewhere else, and someone waiting on a reply would not think
+ * to open it. "Follow" says both watch it and take part.
  *
  * Deliberately NOT dismissible to nowhere: every path leads somewhere, because
  * a step that can be closed onto a form which has already been submitted
@@ -90,20 +104,6 @@ export function CreatedModal({
   const primary = primaryDestination(outcome);
   const isPending = outcome === "pending";
 
-  /*
-   * What the person just DID, in their own terms.
-   *
-   * The outcome titles below describe the resulting STATE ("With the
-   * leaders"), which answers "what happened to it" but not "what did I just
-   * do". Someone who has clicked Save & Request Listing wants confirmation
-   * that the thing they pressed is the thing that happened.
-   */
-  const DID: Record<CreateOutcome, string> = {
-    published: `Created and listed your ${noun}`,
-    saved: `Created your ${noun} as a draft`,
-    pending: `Created your ${noun} and requested a listing`,
-    unlisted: `Created your ${noun}`,
-  };
 
   const COPY: Record<CreateOutcome, { title: string; body: string }> = {
     published: {
@@ -147,7 +147,7 @@ export function CreatedModal({
         key={key}
         type="button"
         onClick={() => router.push(href)}
-        className="w-full px-5 py-3 text-[14px] font-semibold cursor-pointer transition-opacity hover:opacity-90"
+        className="px-6 py-2.5 max-md:w-full max-md:py-3.5 text-[14.5px] font-semibold cursor-pointer transition-opacity hover:opacity-90"
         style={
           filled
             ? {
@@ -195,67 +195,66 @@ export function CreatedModal({
   }
 
   return (
-    <div className="w-full" role="status" aria-label={copy.title}>
-      <div
-        className="mx-auto w-full max-w-[520px] overflow-hidden"
-        style={{
-          background: "var(--bg-color, #fff)",
-          color: "var(--text-color, #18181b)",
-          border: "1px solid color-mix(in srgb, currentColor 10%, transparent)",
-          borderRadius: "var(--card-radius, 18px)",
-        }}
-      >
-        {/* The arrival. Centred, and the only brand wash in the wizard. */}
-        <div
-          className="flex flex-col items-center px-6 pb-7 pt-9 text-center"
+    /*
+     * `role="status"` is load-bearing, not decoration: this content replaces a
+     * form the person just submitted, and a screen reader is otherwise given no
+     * reason to announce that anything happened.
+     */
+    <div className="max-w-[560px]" role="status" aria-label={copy.title}>
+      <div className="flex items-start gap-3.5">
+        {/*
+          * A mark, at the size of the icons everywhere else in this flow. It
+          * was a 56px circle centred on the page, which is a dialog's gesture;
+          * the community's colour still carries the meaning at this size.
+          */}
+        <span
+          className="grid size-9 shrink-0 place-items-center rounded-lg"
           style={{
-            background:
-              "linear-gradient(to bottom, color-mix(in srgb, var(--brand-color, #18181b) 9%, transparent), transparent)",
+            background: "color-mix(in srgb, var(--brand-color, #18181b) 12%, transparent)",
+            color: "var(--brand-color, #18181b)",
           }}
+          aria-hidden="true"
         >
-          <span
-            className="grid size-14 place-items-center rounded-full"
-            style={{
-              background: "var(--brand-color, #18181b)",
-              color: "var(--brand-contrast, #fff)",
-            }}
-          >
-            {isPending ? (
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
-              </svg>
-            ) : (
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            )}
-          </span>
+          {isPending ? (
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+            </svg>
+          ) : (
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+        </span>
 
-          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.08em] opacity-50">
-            {DID[outcome]}
-          </p>
-          <h2 className="mt-1.5 text-[21px] font-semibold leading-tight">{copy.title}</h2>
-          {/* The name, so it is obvious the right thing saved. */}
-          <p className="mt-1 max-w-full truncate text-[14px] opacity-65">{name}</p>
-        </div>
-
-        <div className="px-6 pb-6">
-          <p className="text-center text-[13.5px] leading-relaxed opacity-65">{copy.body}</p>
-
-          {/* Ranked, not enumerated: the filled one is the recommendation. */}
-          <div className="mt-6 flex flex-col gap-2">
-            {actions.map((a, i) => action(a.label, a.href, i === 0, a.key))}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => router.push(createAnotherHref)}
-            className="mt-4 w-full py-2 text-[13px] font-medium cursor-pointer opacity-55 transition-opacity hover:opacity-100"
-          >
-            Create another {noun}
-          </button>
+        <div className="min-w-0">
+          {/*
+            * What happened, and to WHAT. The outcome line stays here rather
+            * than becoming the page heading, because it varies with the result
+            * (awaiting review, live, saved) while the step is always "Done" —
+            * and the name is the part that proves the right thing saved.
+            */}
+          <p className="text-[15px] font-semibold leading-snug">{copy.title}</p>
+          <p className="mt-0.5 truncate text-[13.5px] opacity-65">{name}</p>
         </div>
       </div>
+
+      <p className="mt-4 text-[13.5px] leading-relaxed opacity-65">{copy.body}</p>
+
+      {/* Ranked, not enumerated: the filled one is the recommendation. In a
+          ROW, like the wizard footer, rather than a stack of full-width bars —
+          three equally wide buttons read as a menu, which is the opposite of
+          a ranking. */}
+      <div className="mt-6 flex flex-wrap items-center gap-2.5">
+        {actions.map((a, i) => action(a.label, a.href, i === 0, a.key))}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => router.push(createAnotherHref)}
+        className="mt-5 text-[13px] font-medium cursor-pointer opacity-55 transition-opacity hover:opacity-100"
+      >
+        Create another {noun}
+      </button>
     </div>
   );
 }

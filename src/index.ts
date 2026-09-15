@@ -245,7 +245,7 @@ export {
 } from "./create/createWizard";
 export type { CreateStepId, CreateStepsInput } from "./create/createWizard";
 
-export { CreateStepRail, StepPane, StepTransition, WizardButton } from "./create/CreateStepRail";
+export { CreateStepRail, StepPane, StepTransition, WizardButton, stepLabel } from "./create/CreateStepRail";
 
 export { ListingAccessStep } from "./create/ListingAccessStep";
 export type { ListingAccessStepProps } from "./create/ListingAccessStep";

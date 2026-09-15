@@ -5,7 +5,8 @@ import type { CreateStepId } from "./createWizard";
 
 /**
  * The pane transition keyframes, injected as plain global CSS (see StepPane).
- * Global because the .cbt-pane-* classes are applied to individual panes.
+ * A bare <style>, not styled-jsx: this lives in a package both apps transpile,
+ * and idempotent global CSS needs no styled-jsx plugin on either side.
  */
 const PANE_ANIMATION_CSS = `
 @keyframes cbtPaneFwd {
@@ -47,12 +48,40 @@ const PANE_ANIMATION_CSS = `
  */
 
 const LABELS: Record<"product" | "event", Record<CreateStepId, string>> = {
-  // "Terms" rather than "Packages": the member is agreeing to an arrangement,
-  // not picking a product. The word they see in the rail should be the thing
-  // they are deciding.
-  product: { ownership: "Who is selling", details: "Details", listing: "Listing", access: "Access", done: "Done" },
-  event: { ownership: "Who is hosting", details: "Details", listing: "Listing", access: "Access", done: "Done" },
+  // "Arrangement", not "Listing".
+  //
+  // "Listing" was apt when this step asked whether a community should carry the
+  // item at all. That question is the footer buttons now, and the step decides
+  // ONE thing: the commission the seller goes up under. Its own heading has
+  // said "Your arrangement" since then, so the rail was the last place still
+  // using the old word -- and the resume step, which names the step a draft was
+  // left on, inherited it and showed "Left on Listing" for a screen titled
+  // "Your arrangement".
+  //
+  // The word a step is called has to be the same in the rail, in its heading,
+  // and anywhere else that names it. Three surfaces, one name.
+  // "Continue", not "Drafts": the rail names what you DO at each step, and the
+  // step exists to offer picking work back up rather than to file it.
+  product: { resume: "Continue", ownership: "Who is selling", type: "What you are selling", details: "Details", commerce: "Deliverable Variants & Pricing", listing: "Arrangement", access: "Access", done: "Done" },
+  event: { resume: "Continue", ownership: "Who is hosting", type: "What you are selling", details: "Details", commerce: "Pricing & Deliverables", listing: "Arrangement", access: "Access", done: "Done" },
 };
+
+/**
+ * What a step is CALLED, for anything outside the rail that needs to name one.
+ *
+ * The rail's own words, deliberately: the resume step tells someone a draft was
+ * "left on Details", and that has to be the label they saw in the progress bar
+ * when they left it. A second set of names for the same steps is how the two
+ * halves of a flow start describing different things.
+ *
+ * Returns null for steps that are not a place in the flow — "resume" is where
+ * you are told about drafts, and "done" is after the work, so neither is
+ * somewhere a draft can have been left.
+ */
+export function stepLabel(kind: "product" | "event", step: CreateStepId): string | null {
+  if (step === "resume" || step === "done") return null;
+  return LABELS[kind][step] ?? null;
+}
 
 export function CreateStepRail({
   steps,
@@ -183,14 +212,7 @@ export function StepPane({
       }
     >
       {children}
-      {/*
-        * A plain <style> tag, not styled-jsx.
-        *
-        * This lives in a package that both apps transpile; a bare <style> with
-        * global keyframes is idempotent CSS (duplicate identical blocks are
-        * harmless) and needs no styled-jsx plugin on either side. The keyframes
-        * are global on purpose — the animation classes are applied per-pane.
-        */}
+      {/* Plain <style>, not styled-jsx — see PANE_ANIMATION_CSS. */}
       <style dangerouslySetInnerHTML={{ __html: PANE_ANIMATION_CSS }} />
     </div>
   );
