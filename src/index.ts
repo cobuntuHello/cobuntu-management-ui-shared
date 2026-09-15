@@ -226,3 +226,32 @@ export {
   type StockPhotoResult,
   type UnsplashPhoto,
 } from "./lib/unsplash";
+
+/*
+ * Create-wizard scaffold — the shared brain and chrome behind both apps'
+ * product/event create flows. The step ENGINE (which steps exist, where Next
+ * goes, where a draft reopens), the progress rail + animated panes + themed
+ * buttons, the community-access step, and the completion modal. Each app keeps
+ * only a thin orchestrator (routing, auth, i18n, drafts) around these.
+ */
+export {
+  resolveCreateSteps,
+  isFinalStep,
+  nextStep,
+  previousStep,
+  clampStep,
+  resumeStep,
+  stepHeaderKeys,
+} from "./create/createWizard";
+export type { CreateStepId, CreateStepsInput } from "./create/createWizard";
+
+export { CreateStepRail, StepPane, StepTransition, WizardButton } from "./create/CreateStepRail";
+
+export { ListingAccessStep } from "./create/ListingAccessStep";
+export type { ListingAccessStepProps } from "./create/ListingAccessStep";
+
+export { resolveCreateOutcome, primaryDestination, outcomeCopyKey } from "./create/createOutcome";
+export type { CreateOutcome, ResolveOutcomeInput } from "./create/createOutcome";
+
+export { CreatedModal } from "./create/CreatedModal";
+export type { CreatedModalProps } from "./create/CreatedModal";

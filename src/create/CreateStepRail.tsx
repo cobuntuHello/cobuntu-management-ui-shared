@@ -1,0 +1,247 @@
+"use client";
+
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { CreateStepId } from "./createWizard";
+
+/**
+ * The pane transition keyframes, injected as plain global CSS (see StepPane).
+ * Global because the .cbt-pane-* classes are applied to individual panes.
+ */
+const PANE_ANIMATION_CSS = `
+@keyframes cbtPaneFwd {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes cbtPaneBack {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.cbt-pane-fwd  { animation: cbtPaneFwd 240ms cubic-bezier(.22,.61,.36,1) both; }
+.cbt-pane-back { animation: cbtPaneBack 240ms cubic-bezier(.22,.61,.36,1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .cbt-pane-fwd, .cbt-pane-back { animation: cbtPaneFade 140ms ease both; }
+  @keyframes cbtPaneFade { from { opacity: 0; } to { opacity: 1; } }
+}
+`;
+
+/**
+ * Progress through a stepped create flow, and the motion between steps.
+ *
+ * ── Progress, not a table of contents ───────────────────────────────
+ *
+ * The first version listed every step as a labelled node. That is a menu: it
+ * spends the full width of the page telling you about screens you have not
+ * reached, and the one fact you actually want — how far along am I — has to be
+ * inferred from which dot is filled.
+ *
+ * This shows where you ARE: the step you are on, out of how many, with a bar
+ * that fills as you go. What is coming is named in one short phrase rather
+ * than laid out as furniture.
+ *
+ * ── One step, no bar ────────────────────────────────────────────────
+ *
+ * A member has a single step: no ownership choice (the backend refuses
+ * community ownership for a non-leader whatever the client sends) and no
+ * community access to configure on a listing that is not the community's. A
+ * progress bar for one step claims there is progress to make when there is not.
+ */
+
+const LABELS: Record<"product" | "event", Record<CreateStepId, string>> = {
+  // "Terms" rather than "Packages": the member is agreeing to an arrangement,
+  // not picking a product. The word they see in the rail should be the thing
+  // they are deciding.
+  product: { ownership: "Who is selling", details: "Details", listing: "Listing", access: "Access", done: "Done" },
+  event: { ownership: "Who is hosting", details: "Details", listing: "Listing", access: "Access", done: "Done" },
+};
+
+export function CreateStepRail({
+  steps,
+  current,
+  kind,
+}: {
+  steps: CreateStepId[];
+  current: CreateStepId;
+  kind: "product" | "event";
+  /** Accepted for call-site compatibility; the bar is not a navigation control. */
+  onStepClick?: (step: CreateStepId) => void;
+}) {
+  if (steps.length < 2) return null;
+
+  const index = steps.indexOf(current);
+  const labels = LABELS[kind];
+  const next = steps[index + 1];
+  /*
+   * Fill measures the steps BEHIND you, not the one you are standing on.
+   *
+   * It used to be `(index + 1) / length`, which made the bar jump the moment
+   * someone picked "You" on step one: choosing personal deletes the access
+   * step, so the denominator went 3 -> 2 and the fill went 33% -> 50% without
+   * anyone advancing. The scale moved under the marker.
+   *
+   * Measuring completed transitions makes step one 0% in BOTH flows, so
+   * changing the answer cannot move the bar. The "of N" count still changes,
+   * and should: the flow genuinely got shorter, and that is the one honest
+   * thing to say about it.
+   */
+  const pct = steps.length > 1 ? Math.round((index / (steps.length - 1)) * 100) : 0;
+
+  return (
+    <div className="mb-7">
+      <div className="flex items-baseline justify-between gap-4">
+        <p className="text-[13.5px] font-semibold" style={{ color: "var(--text-color)" }}>
+          <span className="opacity-50 font-medium">
+            Step {index + 1} of {steps.length}
+          </span>
+          <span className="mx-2 opacity-25">·</span>
+          {labels[current]}
+        </p>
+        {next && (
+          <p className="text-[12.5px] opacity-45 whitespace-nowrap">Next: {labels[next]}</p>
+        )}
+      </div>
+
+      <div
+        className="mt-2 h-[3px] w-full overflow-hidden rounded-full"
+        style={{ background: "color-mix(in srgb, currentColor 12%, transparent)" }}
+        role="progressbar"
+        aria-valuenow={index + 1}
+        aria-valuemin={1}
+        aria-valuemax={steps.length}
+        aria-label={`Step ${index + 1} of ${steps.length}`}
+      >
+        <div
+          className="h-full rounded-full"
+          style={{
+            width: `${pct}%`,
+            background: "var(--brand-color, #18181b)",
+            // Matches the step transition, so the bar advances WITH the content
+            // instead of snapping ahead of it.
+            transition: "width 240ms cubic-bezier(.22,.61,.36,1)",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One pane of the wizard.
+ *
+ * ── Why this is not `{active && <Form/>}` ───────────────────────────
+ *
+ * Both create forms hold their own draft state — the tier wizard, the media
+ * gallery, the cropped banner — and `formDataRef` only mirrors what onChange
+ * last emitted. It cannot restore a File. Unmounting a step on Next therefore
+ * destroys the draft, so every pane stays MOUNTED and is hidden with CSS.
+ *
+ * Which is exactly why the first cut did not appear to animate: a keyed
+ * wrapper only animates on mount, and the pane that matters most — the form —
+ * never mounts again. So the animation is re-triggered by hand: when a pane
+ * becomes active, the class is removed and re-applied across a frame, which
+ * restarts the CSS animation on an element that never left the tree.
+ *
+ * Direction comes from the step INDEX rather than the button pressed, because
+ * jumping back two steps at once still has to read as "backwards".
+ */
+export function StepPane({
+  active,
+  direction,
+  children,
+}: {
+  active: boolean;
+  direction: "forward" | "back";
+  children: ReactNode;
+}) {
+  const [animating, setAnimating] = useState(false);
+  const wasActive = useRef(active);
+
+  useEffect(() => {
+    if (active && !wasActive.current) {
+      // Off, then on across a frame — assigning the same animation to an
+      // element that already has it is a no-op, so it has to be removed first.
+      setAnimating(false);
+      const id = requestAnimationFrame(() => setAnimating(true));
+      return () => cancelAnimationFrame(id);
+    }
+    wasActive.current = active;
+  }, [active]);
+
+  useEffect(() => {
+    wasActive.current = active;
+  }, [active]);
+
+  return (
+    <div
+      className={
+        active
+          ? animating
+            ? direction === "forward"
+              ? "cbt-pane-fwd"
+              : "cbt-pane-back"
+            : undefined
+          : "hidden"
+      }
+    >
+      {children}
+      {/*
+        * A plain <style> tag, not styled-jsx.
+        *
+        * This lives in a package that both apps transpile; a bare <style> with
+        * global keyframes is idempotent CSS (duplicate identical blocks are
+        * harmless) and needs no styled-jsx plugin on either side. The keyframes
+        * are global on purpose — the animation classes are applied per-pane.
+        */}
+      <style dangerouslySetInnerHTML={{ __html: PANE_ANIMATION_CSS }} />
+    </div>
+  );
+}
+
+/** Kept as an alias so existing call sites keep working. */
+export const StepTransition = ({
+  children,
+  direction,
+}: {
+  stepKey?: string;
+  direction: "forward" | "back";
+  children: ReactNode;
+}) => (
+  <StepPane active direction={direction}>
+    {children}
+  </StepPane>
+);
+
+/** The footer buttons, styled to the community's theme. */
+export function WizardButton({
+  children,
+  onClick,
+  primary = false,
+  disabled = false,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  primary?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="px-7 py-2.5 max-md:w-full max-md:py-3.5 text-[14.5px] font-semibold disabled:opacity-30 cursor-pointer transition-opacity hover:opacity-90"
+      style={
+        primary
+          ? {
+              borderRadius: "var(--button-radius, 12px)",
+              background: "var(--primary-btn-bg, var(--brand-color, #1a1a1a))",
+              color: "var(--brand-contrast, #ffffff)",
+            }
+          : {
+              borderRadius: "var(--button-radius, 12px)",
+              background: "color-mix(in srgb, currentColor 8%, transparent)",
+            }
+      }
+    >
+      {children}
+    </button>
+  );
+}
