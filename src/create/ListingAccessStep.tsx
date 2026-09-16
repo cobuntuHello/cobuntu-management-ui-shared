@@ -82,8 +82,8 @@ export function ListingAccessStep({
         */}
 
       <div className="rounded-2xl bg-zinc-50 divide-y divide-zinc-100 overflow-hidden">
-        <div className="px-5 py-4">
-          <p className="text-[13.5px] font-semibold text-zinc-800 mb-3">Who can see it</p>
+        <div className="px-4 py-4">
+          <p className="text-[13.5px] font-semibold text-zinc-800 mb-2 px-3">Who can see it</p>
           <MembershipTierPicker
             value={viewAccess}
             onChange={changeView}
@@ -93,8 +93,8 @@ export function ListingAccessStep({
           />
         </div>
 
-        <div className="px-5 py-4">
-          <p className="text-[13.5px] font-semibold text-zinc-800 mb-3">
+        <div className="px-4 py-4">
+          <p className="text-[13.5px] font-semibold text-zinc-800 mb-2 px-3">
             {isEvent ? "Who can register" : "Who can buy it"}
           </p>
           <MembershipTierPicker
