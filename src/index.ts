@@ -255,3 +255,17 @@ export type { CreateOutcome, ResolveOutcomeInput } from "./create/createOutcome"
 
 export { CreatedModal } from "./create/CreatedModal";
 export type { CreatedModalProps } from "./create/CreatedModal";
+
+/*
+ * Navigation resolution. One answer to "what is in the nav?", shared by the
+ * community app's surfaces and the admin's Access screen, which used to answer
+ * it four separate ways and drift. See src/lib/resolveNav.ts.
+ */
+export {
+  resolveNav, isPageInNav, neverAppearsInNav, appNavHref,
+  BUILT_IN_MODULES, NAV_RENDERS_ITSELF,
+} from "./lib/resolveNav";
+export type {
+  ResolveNavInput, ResolvedNavEntry, ResolveNavApp, ResolveNavEntry,
+  ResolveNavLink, ResolveNavGroup, NavVisibility,
+} from "./lib/resolveNav";
