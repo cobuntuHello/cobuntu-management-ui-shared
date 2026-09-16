@@ -63,7 +63,7 @@ const LABELS: Record<"product" | "event", Record<CreateStepId, string>> = {
   // "Continue", not "Drafts": the rail names what you DO at each step, and the
   // step exists to offer picking work back up rather than to file it.
   product: { resume: "Continue", ownership: "Who is selling", type: "What you are selling", details: "Details", commerce: "Deliverable Variants & Pricing", listing: "Arrangement", access: "Access", done: "Done" },
-  event: { resume: "Continue", ownership: "Who is hosting", type: "What you are selling", details: "Details", commerce: "Pricing & Deliverables", listing: "Arrangement", access: "Access", done: "Done" },
+  event: { resume: "Continue", ownership: "Who is hosting", type: "What you are selling", details: "Details", commerce: "Pricing", listing: "Arrangement", access: "Access", done: "Done" },
 };
 
 /**
