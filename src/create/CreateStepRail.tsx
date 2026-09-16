@@ -130,8 +130,13 @@ export function CreateStepRail({
       </div>
 
       <div
-        className="mt-2 h-[3px] w-full overflow-hidden rounded-full"
-        style={{ background: "color-mix(in srgb, currentColor 12%, transparent)" }}
+        className="mt-2 h-[5px] w-full overflow-hidden rounded-full"
+        // The unfilled track. 12% of currentColor was barely visible on a light
+        // ground — and on step one, where the fill is 0%, the track is the only
+        // thing showing, so the whole bar read as absent. 22% + a slightly taller
+        // bar makes it a clear rail; it stays currentColor-relative so it adapts
+        // to a community's dark theme too.
+        style={{ background: "color-mix(in srgb, currentColor 22%, transparent)" }}
         role="progressbar"
         aria-valuenow={index + 1}
         aria-valuemin={1}
