@@ -269,3 +269,17 @@ export type {
   ResolveNavInput, ResolvedNavEntry, ResolveNavApp, ResolveNavEntry,
   ResolveNavLink, ResolveNavGroup, NavVisibility,
 } from "./lib/resolveNav";
+
+/*
+ * Donations editor. One implementation of the listing-level "add a
+ * contribution at checkout" settings, shared by the product and event
+ * management packages, which used to keep byte-identical copies and fix them
+ * one at a time. See src/donations/ and T-123.
+ */
+export {
+  DonationsField, DonationsSection,
+} from "./donations";
+export type {
+  DonationsFieldProps, DonationsSectionProps, DonationsModalShell,
+  DonationDraft, SymbolFor,
+} from "./donations";
