@@ -114,6 +114,9 @@ export function CreateStepRail({
    */
   const pct = steps.length > 1 ? Math.round((index / (steps.length - 1)) * 100) : 0;
 
+  /** The stub shown when `pct` is 0, so the bar never renders empty. */
+  const MIN_FILL = "14px";
+
   return (
     <div className="mb-7">
       <div className="flex items-baseline justify-between gap-4">
@@ -131,12 +134,28 @@ export function CreateStepRail({
 
       <div
         className="mt-2 h-[5px] w-full overflow-hidden rounded-full"
-        // The unfilled track. 12% of currentColor was barely visible on a light
-        // ground — and on step one, where the fill is 0%, the track is the only
-        // thing showing, so the whole bar read as absent. 22% + a slightly taller
-        // bar makes it a clear rail; it stays currentColor-relative so it adapts
-        // to a community's dark theme too.
-        style={{ background: "color-mix(in srgb, currentColor 22%, transparent)" }}
+        /*
+         * The unfilled track.
+         *
+         * Reported as invisible THREE times now, and the first two fixes both
+         * reached for the percentage (12% -> 22%) when the percentage was only
+         * half the story. Two things were actually wrong:
+         *
+         *  1. It mixed against ambient `currentColor`, while the sibling <p>
+         *     right above it explicitly paints `var(--text-color)`. Nothing in
+         *     the chain between them sets `color`, so the track was tinting
+         *     against whatever the shell happened to inherit rather than
+         *     against the text colour the page deliberately pins. Same markup,
+         *     two different answers, depending on the host app.
+         *  2. On step one the fill is 0% by design (see `pct`), so the track is
+         *     the ENTIRE bar. A faint track is survivable when it frames a
+         *     visible fill; it is the whole widget when there is nothing in it.
+         *
+         * So: tint against the same `--text-color` the label uses, and fall
+         * back to currentColor only where that var is unset. Still
+         * theme-relative, now deterministic.
+         */
+        style={{ background: "color-mix(in srgb, var(--text-color, currentColor) 26%, transparent)" }}
         role="progressbar"
         aria-valuenow={index + 1}
         aria-valuemin={1}
@@ -146,7 +165,28 @@ export function CreateStepRail({
         <div
           className="h-full rounded-full"
           style={{
-            width: `${pct}%`,
+            /*
+             * Never render an EMPTY bar.
+             *
+             * `pct` is 0 on step one, on purpose — it measures transitions
+             * completed, so that answering a question which SHORTENS the flow
+             * cannot slide the marker (see the note on `pct`). That maths is
+             * right and stays. What it produced was a progress bar with nothing
+             * in it, which does not read as "0% done", it reads as broken or
+             * missing — which is exactly how it kept getting reported.
+             *
+             * A fixed stub in PIXELS, not percent, because a percentage floor
+             * would scale with the step count and reintroduce the very jump
+             * `pct` exists to prevent: 14px is 14px whether the flow has two
+             * steps or six.
+             *
+             * A plain conditional rather than CSS `max()`: the smallest real
+             * increment any flow produces is ~20% of a 760px rail, which is
+             * never anywhere near 14px, so `max()` bought nothing — and jsdom
+             * drops width values it cannot parse, which silently made this
+             * untestable.
+             */
+            width: pct > 0 ? `${pct}%` : MIN_FILL,
             background: "var(--brand-color, #18181b)",
             // Matches the step transition, so the bar advances WITH the content
             // instead of snapping ahead of it.
