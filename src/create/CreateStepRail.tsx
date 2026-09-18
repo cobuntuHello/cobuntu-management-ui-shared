@@ -128,7 +128,26 @@ export function CreateStepRail({
           {labels[current]}
         </p>
         {next && (
-          <p className="text-[12.5px] opacity-45 whitespace-nowrap">Next: {labels[next]}</p>
+          /*
+           * Paints `--text-color` explicitly, for the same reason the track
+           * below does: the "Step N of M" line beside it already pins that var,
+           * nothing between them sets `color`, and so this line alone was
+           * tinting against whatever the host shell happened to inherit. At 45%
+           * of an unknown, usually-light ambient colour it was barely on the
+           * page — the same complaint as the bar, from the same cause.
+           *
+           * 60%, not more: this is a secondary hint and must stay quieter than
+           * the current step's label. It sits a little above the 50% of "Step N
+           * of M" only because it is smaller text (12.5 vs 13.5px) and needs
+           * the extra weight to read as that line's equal rather than its
+           * senior.
+           */
+          <p
+            className="text-[12.5px] opacity-60 whitespace-nowrap"
+            style={{ color: "var(--text-color)" }}
+          >
+            Next: {labels[next]}
+          </p>
         )}
       </div>
 

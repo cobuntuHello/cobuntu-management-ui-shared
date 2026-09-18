@@ -104,3 +104,43 @@ describe("CreateStepRail — the fill measure itself is unchanged", () => {
     expect(bar()).toHaveAttribute("aria-valuemax", "3");
   });
 });
+
+describe("CreateStepRail — the Next hint is legible and correctly ranked", () => {
+  /*
+   * Same root cause as the track, one line up: the "Step N of M" paragraph
+   * pins `--text-color`, this one did not, and nothing between them sets
+   * `color`. At 45% of an unknown ambient colour it was barely on the page.
+   *
+   * These read the SOURCE for the same reason the track cases do — the fix is
+   * a style declaration, and asserting the rendered value would pass
+   * identically before and after.
+   */
+  const SRC = readFileSync(join(__dirname, "..", "create", "CreateStepRail.tsx"), "utf8");
+
+  it("renders the next step's label", () => {
+    render(<CreateStepRail steps={THREE} current="details" kind="product" />);
+    expect(screen.getByText(/^Next:/)).toBeInTheDocument();
+  });
+
+  it("is hidden on the last step, where there is no next", () => {
+    render(<CreateStepRail steps={THREE} current="access" kind="product" />);
+    expect(screen.queryByText(/^Next:/)).not.toBeInTheDocument();
+  });
+
+  it("paints --text-color rather than inheriting an unknown ambient colour", () => {
+    const hint = SRC.match(/className="text-\[12\.5px\][^"]*"[\s\S]{0,160}?Next:/);
+    expect(hint).not.toBeNull();
+    expect(hint![0]).toContain('color: "var(--text-color)"');
+  });
+
+  it("stays QUIETER than the current step, and no darker than it should be", () => {
+    /*
+     * The ranking is the point, not the number. "Details" is the current step
+     * and carries full weight; this is a hint about a screen you have not
+     * reached. Anything at or above ~70% would make the hint darker than the
+     * "Step N of M" label at 50%, inverting the hierarchy.
+     */
+    expect(SRC).toMatch(/text-\[12\.5px\] opacity-60/);
+    expect(SRC).not.toMatch(/text-\[12\.5px\] opacity-(7|8|9|100)/);
+  });
+});
