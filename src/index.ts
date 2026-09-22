@@ -129,7 +129,11 @@ export { Topics, type Topic, type TopicComment } from "./listings/ui/Topics";
  * keeps one component serving two domains and two apps.
  */
 export { ManageOverview, type ManageOverviewProps } from "./overview/ManageOverview";
-export type { OverviewStats, OverviewListing, OverviewMoney, OverviewExtras, EventExtras } from "./overview/types";
+export { PayoutsAndFees } from "./overview/PayoutsAndFees";
+export type {
+    OverviewStats, OverviewListing, OverviewMoney, OverviewExtras, EventExtras,
+    FeeBreakdown, FeeRates, StripeDestination, OwnershipModel,
+} from "./overview/types";
 export {
   conversion, delta, recentWindows, daysUntil, isSellable, hasUnattributedViews,
   formatMoney, formatCount,
