@@ -6,6 +6,7 @@ import {
 } from "./format";
 import { TrendChart, hasTrend } from "./TrendChart";
 import { EmptyState, ShelfIcon } from "./EmptyState";
+import { PayoutsAndFees } from "./PayoutsAndFees";
 
 /**
  * The manage page's first tab: how this is doing, and whether it can be sold.
@@ -306,6 +307,22 @@ export function ManageOverview({
                     </div>
                 )}
             </div>
+
+            {/*
+              * PAYOUTS & FEES. Where the gross went, where it lands, and when --
+              * the three questions the tiles do not answer. Renders itself only
+              * when the backend sends the split (`money.breakdown` + `ownership`),
+              * so an older payload simply shows the tiles and listings as before.
+              */}
+            <PayoutsAndFees
+                money={money}
+                ownership={stats.ownership}
+                rates={stats.rates}
+                destination={stats.destination}
+                t={t}
+                cash={cash}
+                locale={locale}
+            />
 
             {/*
               * Listings: one section per community.

@@ -8,6 +8,8 @@
  * expressible in the type, and `Record<string, number>` would express neither.
  */
 
+import type { StripeDestination } from "../overview/types";
+
 export interface LedgerMovement {
     key: string;
     kind: "sale" | "refund" | "payout" | "dispute";
@@ -36,11 +38,31 @@ export interface LedgerMovement {
      */
     payoutTotal?: number;
     salesFromThisItem?: number;
+    /*
+     * Owner-perspective fee lines for the expandable per-row breakdown. On sales
+     * and refunds; absent on payouts and disputes. `stripeFee` is 0 on a member
+     * item (Cobuntu absorbs it -- see `ItemLedger.ownership`); `communityFee` is
+     * the broker's full commission (0 when there is no broker). Smallest unit.
+     */
+    vat?: number;
+    stripeFee?: number;
+    cobuntuFee?: number;
+    communityFee?: number;
+    /** Payout only: when the transfer is (or was) scheduled to fire. ISO. */
+    scheduledFor?: string | null;
+    /** Payout only: the account it lands in, once one is attached. */
+    destination?: StripeDestination | null;
 }
 
 export interface ItemLedger {
     kind: "product" | "event";
     currency: string;
+    /**
+     * The payout model, so a row's fee lines are labelled right -- notably
+     * showing Stripe as "absorbed by Cobuntu" on a member item, not a bare zero.
+     * Absent on an older backend or an empty ledger.
+     */
+    ownership?: "community" | "member";
     /** Newest first. */
     movements: LedgerMovement[];
 }

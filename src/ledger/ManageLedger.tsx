@@ -1,4 +1,6 @@
+import { useState } from "react";
 import type { ItemLedger, LedgerMovement } from "./types";
+import type { StripeDestination } from "../overview/types";
 import { formatMoney } from "../overview/format";
 import { EmptyState, LedgerIcon } from "../overview/EmptyState";
 
@@ -55,6 +57,18 @@ function humanise(status: string): string {
     return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+/** A short account label for a payout sub-line: "Millennium ••4242". */
+function destLabel(d: StripeDestination): string {
+    const parts = [d.bankBrand, d.last4 ? `••${d.last4}` : null].filter(Boolean);
+    return parts.length ? parts.join(" ") : (d.scope === "community" ? "community account" : "your account");
+}
+
+/** True when a sale/refund row carries fee lines worth expanding. */
+function hasBreakdown(m: LedgerMovement): boolean {
+    return (m.kind === "sale" || m.kind === "refund")
+        && [m.vat, m.stripeFee, m.cobuntuFee, m.communityFee].some((v) => v !== undefined);
+}
+
 function statusLabel(status: string, t: (key: string) => string): string {
     return TRANSLATED_STATUSES.has(status) ? t(`ledgerStatus_${status}`) : humanise(status);
 }
@@ -79,9 +93,20 @@ export function ManageLedger({
     t: (key: string, vars?: Record<string, string | number>) => string;
 }) {
     const { movements, currency } = ledger;
+    const isMember = ledger.ownership === "member";
     const cash = (n: number) => formatMoney(n, currency, locale);
     const day = (iso: string) =>
         new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
+
+    // Which sale/refund rows have their fee breakdown open. Per-viewer, local.
+    const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
+    const toggle = (key: string) =>
+        setOpenKeys((prev) => {
+            const next = new Set(prev);
+            next.has(key) ? next.delete(key) : next.add(key);
+            return next;
+        });
+    const columns = 3 + (showCommunity ? 1 : 0); // movement + gross + [community] + seller
 
     if (movements.length === 0) {
         /*
@@ -142,6 +167,10 @@ export function ManageLedger({
                                 key={m.key}
                                 m={m}
                                 showCommunity={showCommunity}
+                                isMember={isMember}
+                                columns={columns}
+                                expanded={openKeys.has(m.key)}
+                                onToggle={toggle}
                                 cash={cash}
                                 day={day}
                                 t={t}
@@ -155,10 +184,14 @@ export function ManageLedger({
 }
 
 function Row({
-    m, showCommunity, cash, day, t,
+    m, showCommunity, isMember, columns, expanded, onToggle, cash, day, t,
 }: {
     m: LedgerMovement;
     showCommunity: boolean;
+    isMember: boolean;
+    columns: number;
+    expanded: boolean;
+    onToggle: (key: string) => void;
     cash: (n: number) => string;
     day: (iso: string) => string;
     t: (key: string, vars?: Record<string, string | number>) => string;
@@ -171,70 +204,116 @@ function Row({
     const negative = m.sign === -1 && !won;
     const amount = (n: number) => (n === 0 ? "—" : `${negative ? "−" : ""}${cash(n)}`);
     const tone = negative ? "text-red-700" : "text-zinc-900";
+    const expandable = hasBreakdown(m);
+
+    const subline = [
+        day(m.at),
+        statusLabel(m.status, t),
+        /*
+         * The whole transfer, in the SUB-LINE. It must never reach the amount
+         * column, where it would read as this item's earnings.
+         */
+        m.kind === "payout" && m.payoutTotal !== undefined
+            ? t("ledgerOfPayout", { total: cash(m.payoutTotal), count: m.salesFromThisItem ?? 0 })
+            : null,
+        /* The "when" and "where" a payout is the reason to open this page. */
+        m.kind === "payout" && m.scheduledFor
+            ? t("ledgerScheduledFor", { date: day(m.scheduledFor) })
+            : null,
+        m.kind === "payout" && m.destination
+            ? t("ledgerPaidTo", { account: destLabel(m.destination) })
+            : null,
+        m.reason,
+    ].filter(Boolean).join(" · ");
 
     return (
-        <tr className="border-b border-zinc-200/70 last:border-b-0 align-top">
-            <td className="px-4 py-3">
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${TONE[m.kind] ?? "bg-zinc-100 text-zinc-600"}`}>
-                        {t(`ledgerKind_${m.kind}`)}
-                    </span>
-                    {/*
-                      * "Guest" rather than nothing.
-                      *
-                      * A guest checkout has no account -- the server falls back
-                      * to the email it was made with, and null means there was
-                      * not even that. An empty cell on a ledger reads as a
-                      * missing record; naming the buyer as a guest says the row
-                      * is complete and the person simply never signed up.
-                      *
-                      * Sales only: a payout has no buyer, and labelling one
-                      * "Guest" would invent a person.
-                      */}
-                    {m.kind === "sale" && (
-                        <span className={`text-[13.5px] ${m.buyerName ? "font-medium text-zinc-900" : "text-zinc-500"}`}>
-                            {m.buyerName || t("ledgerGuestBuyer")}
+        <>
+            <tr className="border-b border-zinc-200/70 last:border-b-0 align-top">
+                <td className="px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${TONE[m.kind] ?? "bg-zinc-100 text-zinc-600"}`}>
+                            {t(`ledgerKind_${m.kind}`)}
                         </span>
-                    )}
-                    {m.kind !== "sale" && m.buyerName && (
-                        <span className="text-[13.5px] font-medium text-zinc-900">{m.buyerName}</span>
-                    )}
-                    {m.payoutLeg && (
-                        <span className="text-[13.5px] font-medium text-zinc-900">
-                            {t(`ledgerLeg_${m.payoutLeg}`)}
-                        </span>
-                    )}
-                </div>
-                <p className="mt-0.5 text-[12px] text-zinc-500">
-                    {[
-                        day(m.at),
-                        statusLabel(m.status, t),
-                        /*
-                         * The whole transfer, in the SUB-LINE. It must never
-                         * reach the amount column, where it would read as this
-                         * item's earnings.
-                         */
-                        m.kind === "payout" && m.payoutTotal !== undefined
-                            ? t("ledgerOfPayout", {
-                                  total: cash(m.payoutTotal),
-                                  count: m.salesFromThisItem ?? 0,
-                              })
-                            : null,
-                        m.reason,
-                    ].filter(Boolean).join(" · ")}
-                </p>
-            </td>
-            <td className={`px-4 py-3 text-right text-[13.5px] tabular-nums ${tone}`}>
-                {amount(m.gross)}
-            </td>
-            {showCommunity && (
-                <td className={`px-4 py-3 text-right text-[13.5px] tabular-nums ${tone}`}>
-                    {amount(m.communityCut)}
+                        {/*
+                          * "Guest" rather than nothing. A guest checkout has no
+                          * account; the server falls back to the email, and null
+                          * means not even that. An empty cell reads as a missing
+                          * record. Sales only -- a payout has no buyer.
+                          */}
+                        {m.kind === "sale" && (
+                            <span className={`text-[13.5px] ${m.buyerName ? "font-medium text-zinc-900" : "text-zinc-500"}`}>
+                                {m.buyerName || t("ledgerGuestBuyer")}
+                            </span>
+                        )}
+                        {m.kind !== "sale" && m.buyerName && (
+                            <span className="text-[13.5px] font-medium text-zinc-900">{m.buyerName}</span>
+                        )}
+                        {m.payoutLeg && (
+                            <span className="text-[13.5px] font-medium text-zinc-900">
+                                {t(`ledgerLeg_${m.payoutLeg}`)}
+                            </span>
+                        )}
+                        {/*
+                          * The fee-breakdown toggle. A quiet text button rather
+                          * than a row-wide click target: the amounts stay
+                          * selectable, and only rows that carry fee lines get it.
+                          */}
+                        {expandable && (
+                            <button
+                                type="button"
+                                onClick={() => onToggle(m.key)}
+                                aria-expanded={expanded}
+                                className="cursor-pointer text-[11.5px] font-semibold text-zinc-400 hover:text-zinc-700"
+                            >
+                                {expanded ? "▾ " : "▸ "}{t("ledgerShowBreakdown")}
+                            </button>
+                        )}
+                    </div>
+                    <p className="mt-0.5 text-[12px] text-zinc-500">{subline}</p>
                 </td>
+                <td className={`px-4 py-3 text-right text-[13.5px] tabular-nums ${tone}`}>
+                    {amount(m.gross)}
+                </td>
+                {showCommunity && (
+                    <td className={`px-4 py-3 text-right text-[13.5px] tabular-nums ${tone}`}>
+                        {amount(m.communityCut)}
+                    </td>
+                )}
+                <td className={`px-4 py-3 text-right text-[13.5px] font-semibold tabular-nums ${tone}`}>
+                    {amount(m.sellerNet)}
+                </td>
+            </tr>
+
+            {expandable && expanded && (
+                <tr className="border-b border-zinc-200/70 last:border-b-0 bg-zinc-50/60">
+                    <td colSpan={columns} className="px-4 pb-3 pt-0">
+                        <dl className="grid gap-x-8 gap-y-1 sm:grid-cols-2">
+                            {(m.vat ?? 0) > 0 && (
+                                <FeeLine k={t("ledgerFeeVat")} v={cash(m.vat ?? 0)} />
+                            )}
+                            <FeeLine
+                                k={t("ledgerFeeStripe")}
+                                v={isMember ? t("ledgerFeeStripeAbsorbed") : cash(m.stripeFee ?? 0)}
+                                muted={isMember}
+                            />
+                            <FeeLine k={t("ledgerFeeCobuntu")} v={cash(m.cobuntuFee ?? 0)} />
+                            {(m.communityFee ?? 0) > 0 && (
+                                <FeeLine k={t("ledgerFeeCommunity")} v={cash(m.communityFee ?? 0)} />
+                            )}
+                        </dl>
+                    </td>
+                </tr>
             )}
-            <td className={`px-4 py-3 text-right text-[13.5px] font-semibold tabular-nums ${tone}`}>
-                {amount(m.sellerNet)}
-            </td>
-        </tr>
+        </>
+    );
+}
+
+/** One line in a row's expanded fee breakdown. */
+function FeeLine({ k, v, muted }: { k: string; v: string; muted?: boolean }) {
+    return (
+        <div className="flex items-baseline justify-between gap-4">
+            <dt className="text-[12px] text-zinc-500">{k}</dt>
+            <dd className={`text-[12.5px] tabular-nums ${muted ? "text-zinc-400" : "font-medium text-zinc-800"}`}>{v}</dd>
+        </div>
     );
 }

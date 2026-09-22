@@ -48,6 +48,57 @@ export interface OverviewListing {
     communityNet?: number;
 }
 
+/**
+ * The gross split from the OWNER's side -- the deductions the person viewing
+ * this page bears, ending at what they keep. Reconciles by construction:
+ *   gross = vat + stripe + cobuntu + community + net
+ * Two models fill it differently (see `OverviewStats.ownership`): a member
+ * seller has `stripe = 0` (Cobuntu absorbs it), `cobuntu` = the member fee,
+ * `community` = the broker's FULL commission; a community has real `stripe`,
+ * `cobuntu` = the platform fee, `community = 0`. Smallest currency unit
+ * throughout. Optional so the package keeps compiling against an older backend.
+ */
+export interface FeeBreakdown {
+    /** Tax collected for the authorities. Part of gross, not a fee. */
+    vat: number;
+    /** Stripe fee the owner bears. Zero on member sales (Cobuntu absorbs it). */
+    stripe: number;
+    /** What the owner pays Cobuntu (member fee, or the platform fee). */
+    cobuntu: number;
+    /** What the owner pays the broker community (its full commission; 0 if none). */
+    community: number;
+    /** What the owner keeps. Equal to `money.net`. */
+    net: number;
+}
+
+/** Which payout model an item is on. See `OverviewStats.ownership`. */
+export type OwnershipModel = "community" | "member";
+
+/**
+ * The rates behind the amounts, each named only when it can be without guessing.
+ * `cobuntuPct` is the variable per-community platform fee (community-owned only);
+ * `communityPct` is the broker's commission on the seller (member-owned only).
+ */
+export interface FeeRates {
+    cobuntuPct: number | null;
+    communityPct: number | null;
+}
+
+/**
+ * The connected account a payout lands in. No nickname is stored, so the label
+ * is the bank/card brand + last four + country, from Stripe's external account.
+ * `connected` false means no account is linked yet (the seller has not onboarded).
+ */
+export interface StripeDestination {
+    scope: "user" | "community";
+    connected: boolean;
+    payoutsEnabled: boolean;
+    bankBrand: string | null;
+    last4: string | null;
+    country: string | null;
+    currency: string | null;
+}
+
 export interface OverviewMoney {
     /**
      * What the seller has EARNED. Not what they have received.
@@ -67,6 +118,8 @@ export interface OverviewMoney {
     /** When the earliest held money becomes due. Null when nothing is held. */
     nextPayoutAt: string | null;
     currency: string;
+    /** Where the gross went, all time. Absent on a pre-feature backend. */
+    breakdown?: FeeBreakdown;
 }
 
 export interface OverviewStats {
@@ -107,6 +160,17 @@ export interface OverviewStats {
      * action the host can take rather than assert what happened.
      */
     everPublished?: boolean;
+    /**
+     * Which payout model this item is on -- `community` (the community sells and
+     * pays only Cobuntu) or `member` (a user sells, a community brokers it,
+     * Cobuntu absorbs Stripe). Drives which fee lines the card renders. Absent
+     * on a pre-feature backend; the card hides itself when it is.
+     */
+    ownership?: OwnershipModel;
+    /** The rates behind the amounts, when one can honestly be named. */
+    rates?: FeeRates;
+    /** The connected account this item's payouts land in. Null if none resolved. */
+    destination?: StripeDestination | null;
 }
 
 /** Event-only figures the product page has no equivalent for. */

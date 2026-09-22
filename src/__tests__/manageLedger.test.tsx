@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ManageLedger } from "../ledger/ManageLedger";
 import type { ItemLedger, LedgerMovement } from "../ledger/types";
@@ -195,5 +195,74 @@ describe("a buyer with no account", () => {
             payoutLeg: "seller", payoutTotal: 4926, buyerName: null,
         })]);
         expect(screen.queryByText("Guest")).not.toBeInTheDocument();
+    });
+});
+
+/*
+ * Fee lines + payout timing/destination -- the "how much in fees" and
+ * "when/where" a seller opens the ledger for.
+ */
+describe("fee lines and payout when/where", () => {
+    const memberLedger = (movements: LedgerMovement[]): ItemLedger => ({
+        kind: "product", currency: "EUR", ownership: "member", movements,
+    });
+
+    it("puts a payout's scheduled date and destination in the sub-line", () => {
+        render(
+            <ManageLedger
+                ledger={{
+                    kind: "product", currency: "EUR", ownership: "community",
+                    movements: [movement({
+                        kind: "payout", sign: -1, gross: 0, communityCut: 0, sellerNet: 5284,
+                        status: "PENDING", payoutLeg: "seller", payoutTotal: 5284, salesFromThisItem: 5,
+                        scheduledFor: "2026-09-22T19:00:00.000Z",
+                        destination: { scope: "user", connected: true, payoutsEnabled: true, bankBrand: "Revolut", last4: "9931", country: "PT", currency: "EUR" },
+                    })],
+                }}
+                t={defaultTranslate}
+            />,
+        );
+        expect(screen.getByText(/fires 22 Sept 2026/)).toBeInTheDocument();
+        expect(screen.getByText(/to Revolut ••9931/)).toBeInTheDocument();
+    });
+
+    it("expands a member sale into its fee lines with Stripe absorbed", () => {
+        render(
+            <ManageLedger
+                ledger={memberLedger([movement({
+                    kind: "sale", gross: 4500, communityCut: 328, sellerNet: 3930,
+                    vat: 0, stripeFee: 0, cobuntuFee: 210, communityFee: 360,
+                })])}
+                t={defaultTranslate}
+            />,
+        );
+        // Collapsed by default: the fee lines are not shown until asked for.
+        expect(screen.queryByText("Absorbed by Cobuntu")).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: /Fee breakdown/ }));
+
+        expect(screen.getByText("Absorbed by Cobuntu")).toBeInTheDocument();  // Stripe, member
+        expect(screen.getByText("€2.10")).toBeInTheDocument();                // Cobuntu fee
+        expect(screen.getByText("€3.60")).toBeInTheDocument();                // community commission
+    });
+
+    it("shows real Stripe on a community sale breakdown", () => {
+        render(
+            <ManageLedger
+                ledger={{
+                    kind: "product", currency: "EUR", ownership: "community",
+                    movements: [movement({
+                        kind: "sale", gross: 5900, communityCut: 0, sellerNet: 5284,
+                        vat: 0, stripeFee: 144, cobuntuFee: 472, communityFee: 0,
+                    })],
+                }}
+                showCommunity={false}
+                t={defaultTranslate}
+            />,
+        );
+        fireEvent.click(screen.getByRole("button", { name: /Fee breakdown/ }));
+        expect(screen.getByText("€1.44")).toBeInTheDocument();   // real Stripe
+        expect(screen.getByText("€4.72")).toBeInTheDocument();   // platform fee
+        expect(screen.queryByText("Absorbed by Cobuntu")).not.toBeInTheDocument();
     });
 });

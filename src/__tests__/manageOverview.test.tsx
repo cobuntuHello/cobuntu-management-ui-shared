@@ -600,3 +600,65 @@ describe("the stock position of a capped item", () => {
         expect(screen.queryByText(/in stock/)).toBeNull();
     });
 });
+
+/*
+ * Payouts & fees card. The three questions the tiles do not answer: how much in
+ * fees and to whom, where the money lands, and when. Owner perspective, so a
+ * member seller sees Stripe as absorbed rather than as a charge.
+ */
+describe("payouts & fees card", () => {
+    const withFees = (over: Partial<OverviewStats> = {}): OverviewStats =>
+        stats({
+            money: { net: 3930, gross: 4500, held: 1000, due: 0, paid: 0, nextPayoutAt: "2026-09-29T12:00:00.000Z", currency: "EUR",
+                breakdown: { vat: 0, stripe: 0, cobuntu: 210, community: 360, net: 3930 } },
+            ownership: "member",
+            rates: { cobuntuPct: null, communityPct: 8 },
+            destination: { scope: "user", connected: true, payoutsEnabled: true, bankBrand: "Millennium", last4: "4242", country: "PT", currency: "EUR" },
+            ...over,
+        });
+
+    it("shows a member split with Stripe absorbed and the full community commission", () => {
+        renderIt(withFees());
+        expect(screen.getByText("Payouts & fees")).toBeInTheDocument();
+        expect(screen.getByText("Absorbed by Cobuntu")).toBeInTheDocument();     // Stripe
+        expect(screen.getByText("−€2.10")).toBeInTheDocument();                  // Cobuntu member fee
+        expect(screen.getByText("−€3.60")).toBeInTheDocument();                  // community commission
+        expect(screen.getByText("8%")).toBeInTheDocument();                      // the community's rate
+        expect(screen.getByText("You keep")).toBeInTheDocument();
+        // €39.30 is the net -- it appears both in the headline tile and here.
+        expect(screen.getAllByText("€39.30").length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("names the destination account with bank last4 and country", () => {
+        renderIt(withFees());
+        expect(screen.getByText(/Your Stripe account · Millennium ••4242 · PT/)).toBeInTheDocument();
+        expect(screen.getByText("29 Sept 2026")).toBeInTheDocument();            // next payout date
+    });
+
+    it("shows a community split with real Stripe, platform rate and no broker", () => {
+        renderIt(withFees({
+            money: { net: 5284, gross: 5900, held: 0, due: 5284, paid: 0, nextPayoutAt: null, currency: "EUR",
+                breakdown: { vat: 0, stripe: 144, cobuntu: 472, community: 0, net: 5284 } },
+            ownership: "community",
+            rates: { cobuntuPct: 8, communityPct: null },
+            destination: { scope: "community", connected: true, payoutsEnabled: true, bankBrand: "Revolut", last4: "9931", country: "PT", currency: "EUR" },
+        }));
+        expect(screen.getByText("Community net")).toBeInTheDocument();
+        expect(screen.getByText("−€1.44")).toBeInTheDocument();  // real Stripe, not absorbed
+        expect(screen.getByText("−€4.72")).toBeInTheDocument();  // platform fee
+        expect(screen.getByText("8%")).toBeInTheDocument();
+        expect(screen.queryByText("Absorbed by Cobuntu")).not.toBeInTheDocument();
+    });
+
+    it("flags a missing Stripe account", () => {
+        renderIt(withFees({
+            destination: { scope: "user", connected: false, payoutsEnabled: false, bankBrand: null, last4: null, country: null, currency: null },
+        }));
+        expect(screen.getByText("No Stripe account connected yet")).toBeInTheDocument();
+    });
+
+    it("renders nothing on a pre-feature payload (no breakdown / ownership)", () => {
+        renderIt(stats());
+        expect(screen.queryByText("Payouts & fees")).not.toBeInTheDocument();
+    });
+});
