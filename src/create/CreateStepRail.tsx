@@ -47,7 +47,20 @@ const PANE_ANIMATION_CSS = `
  * progress bar for one step claims there is progress to make when there is not.
  */
 
-const LABELS: Record<"product" | "event", Record<CreateStepId, string>> = {
+/**
+ * Which wizard is being labelled.
+ *
+ * A third value rather than courses borrowing the product labels, because the
+ * rail is where the flow says what it is. Borrowing would have told someone
+ * publishing a course that step two is "Deliverable Variants & Pricing", which
+ * is accurate about the mechanism and wrong about the thing: they are pricing a
+ * course, and the variants are how. It would also have left `content` unlabelled
+ * in both existing maps, which `Record<CreateStepId, string>` would not have
+ * caught for them because they simply never render that step.
+ */
+export type CreateWizardKind = "product" | "event" | "course";
+
+const LABELS: Record<CreateWizardKind, Record<CreateStepId, string>> = {
   // "Arrangement", not "Listing".
   //
   // "Listing" was apt when this step asked whether a community should carry the
@@ -62,8 +75,18 @@ const LABELS: Record<"product" | "event", Record<CreateStepId, string>> = {
   // and anywhere else that names it. Three surfaces, one name.
   // "Continue", not "Drafts": the rail names what you DO at each step, and the
   // step exists to offer picking work back up rather than to file it.
-  product: { resume: "Continue", ownership: "Who is selling", type: "What you are selling", details: "Details", commerce: "Deliverable Variants & Pricing", listing: "Arrangement", access: "Access", done: "Done" },
-  event: { resume: "Continue", ownership: "Who is hosting", type: "What you are selling", details: "Details", commerce: "Pricing", listing: "Arrangement", access: "Access", done: "Done" },
+  product: { resume: "Continue", ownership: "Who is selling", type: "What you are selling", details: "Details", commerce: "Deliverable Variants & Pricing", content: "Course content", listing: "Arrangement", access: "Access", done: "Done" },
+  event: { resume: "Continue", ownership: "Who is hosting", type: "What you are selling", details: "Details", commerce: "Pricing", content: "Course content", listing: "Arrangement", access: "Access", done: "Done" },
+  /*
+   * "Teaching", not "Selling", for ownership: a course's author is the person
+   * whose teaching it is, and that is the word a creator uses about it.
+   *
+   * `type` is unreachable here (a course create never offers the digital /
+   * physical choice) but the map must be total, so it carries the product
+   * wording rather than a placeholder that would read as a bug if it ever did
+   * render.
+   */
+  course: { resume: "Continue", ownership: "Who is teaching", type: "What you are selling", details: "Details", commerce: "Pricing", content: "Course content", listing: "Arrangement", access: "Access", done: "Done" },
 };
 
 /**
@@ -78,7 +101,7 @@ const LABELS: Record<"product" | "event", Record<CreateStepId, string>> = {
  * you are told about drafts, and "done" is after the work, so neither is
  * somewhere a draft can have been left.
  */
-export function stepLabel(kind: "product" | "event", step: CreateStepId): string | null {
+export function stepLabel(kind: CreateWizardKind, step: CreateStepId): string | null {
   if (step === "resume" || step === "done") return null;
   return LABELS[kind][step] ?? null;
 }
@@ -90,7 +113,7 @@ export function CreateStepRail({
 }: {
   steps: CreateStepId[];
   current: CreateStepId;
-  kind: "product" | "event";
+  kind: CreateWizardKind;
   /** Accepted for call-site compatibility; the bar is not a navigation control. */
   onStepClick?: (step: CreateStepId) => void;
 }) {

@@ -20,7 +20,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CreateStepRail } from "../create/CreateStepRail";
+import { CreateStepRail, stepLabel } from "../create/CreateStepRail";
 import type { CreateStepId } from "../create/createWizard";
 
 afterEach(() => cleanup());
@@ -143,4 +143,59 @@ describe("CreateStepRail — the Next hint is legible and correctly ranked", () 
     expect(SRC).toMatch(/text-\[12\.5px\] opacity-60/);
     expect(SRC).not.toMatch(/text-\[12\.5px\] opacity-(7|8|9|100)/);
   });
+});
+
+/**
+ * The course kind.
+ *
+ * Courses got their own label map rather than borrowing the product one, so
+ * these pin the two words that differ and the one that would otherwise have
+ * been missing entirely.
+ */
+describe("the course wizard's labels", () => {
+    it("names the syllabus step", () => {
+        render(
+            <CreateStepRail
+                steps={["details", "commerce", "content", "listing"]}
+                current="content"
+                kind="course"
+            />,
+        );
+        expect(screen.getByText(/Course content/)).toBeTruthy();
+    });
+
+    it("prices a course rather than its deliverable variants", () => {
+        /*
+         * The product label is "Deliverable Variants & Pricing", which is
+         * accurate about the mechanism and wrong about the thing: a course is
+         * priced, and variants are how. This is the whole reason for a third
+         * kind rather than borrowing.
+         */
+        render(
+            <CreateStepRail
+                steps={["details", "commerce", "content", "listing"]}
+                current="commerce"
+                kind="course"
+            />,
+        );
+        expect(screen.getByText(/Pricing/)).toBeTruthy();
+        expect(screen.queryByText(/Deliverable Variants/)).toBeNull();
+    });
+
+    it("asks who is TEACHING, not who is selling", () => {
+        render(
+            <CreateStepRail
+                steps={["ownership", "details", "content"]}
+                current="ownership"
+                kind="course"
+            />,
+        );
+        expect(screen.getByText(/Who is teaching/)).toBeTruthy();
+    });
+
+    it("names the step a draft was left on with the rail's own word", () => {
+        // The resume step says "left on <label>", and it has to be the label
+        // they actually saw. Three surfaces, one name.
+        expect(stepLabel("course", "content")).toBe("Course content");
+    });
 });
