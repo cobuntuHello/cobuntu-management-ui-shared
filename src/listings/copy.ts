@@ -187,30 +187,35 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     overviewCommunityEarned: "Community earned",
     overviewSellerNet: "Seller keeps",
     overviewYourNet: "Your net",
-    /* Payouts & fees card (Overview). */
-    feesTitle: "Payouts & fees",
-    feesGrossRow: "Gross taken",
+    /*
+     * Payouts & fees card (Overview).
+     *
+     * Retired with the table-to-summary redesign, all of them things the new
+     * card either shows as a width or says in a sentence: feesTitle (the card
+     * now leads with "You keep", which names it better than a section heading
+     * did), feesGrossRow (a caption under the headline), feesStripeAbsorbed and
+     * feesCobuntuMemberSub (row sub-labels), feesPaidTo / feesNextPayout /
+     * feesNextPayoutHeld / feesAvailableNow (panel headings, now sentences).
+     */
     feesVat: "VAT",
     feesStripe: "Stripe fee",
-    feesStripeAbsorbed: "Absorbed by Cobuntu",
+    feesStripeCovered: "covered",
     feesCobuntu: "Cobuntu fee",
-    feesCobuntuMemberSub: "member fee",
     feesCommunityCommission: "Community commission",
     feesYouKeep: "You keep",
     feesCommunityNet: "Community net",
     feesPct: "{rate}%",
-    feesPaidTo: "Paid to",
+    feesFromGross: "from {amount} taken",
+    feesNothingTakenYet: "Nothing taken yet",
+    feesLandsIn: "Lands in {account}",
+    feesHeldUntil: "{amount} held until {date}",
+    feesReadyToPayOut: "{amount} ready to pay out",
     feesDestUser: "Your Stripe account",
     feesDestCommunity: "Community Stripe account",
     feesDestReady: "Ready",
     feesDestPayoutsOff: "Payouts disabled",
     feesDestNone: "No Stripe account connected yet",
-    feesNextPayout: "Next payout",
-    feesNextPayoutHeld: "in escrow until then",
     feesNextPayoutNone: "Nothing scheduled yet",
-    feesAvailableNow: "Available now",
-    /* feesMemberStripeNote retired: it restated `feesStripeAbsorbed`, which sits
-       on the Stripe row itself, two lines above where the note rendered. */
     overviewNetEarnings: "Net earnings",
     overviewGrossEarnings: "Gross earnings",
     overviewTotalViews: "Total views",
