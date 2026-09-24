@@ -620,7 +620,9 @@ describe("payouts & fees card", () => {
     it("shows a member split with Stripe absorbed and the full community commission", () => {
         renderIt(withFees());
         expect(screen.getByText("Payouts & fees")).toBeInTheDocument();
-        expect(screen.getByText("Absorbed by Cobuntu")).toBeInTheDocument();     // Stripe
+        // Rides on the Stripe row's own line now, parenthesised, rather than as
+        // a second line under it -- hence the regex.
+        expect(screen.getByText(/Absorbed by Cobuntu/)).toBeInTheDocument();     // Stripe
         expect(screen.getByText("−€2.10")).toBeInTheDocument();                  // Cobuntu member fee
         expect(screen.getByText("−€3.60")).toBeInTheDocument();                  // community commission
         expect(screen.getByText("8%")).toBeInTheDocument();                      // the community's rate
@@ -629,10 +631,20 @@ describe("payouts & fees card", () => {
         expect(screen.getAllByText("€39.30").length).toBeGreaterThanOrEqual(1);
     });
 
+    it("does not repeat the absorbed-Stripe explanation as a footnote", () => {
+        // The card was about a screen tall. The footnote said what the Stripe
+        // row's own "Absorbed by Cobuntu" already says, two lines above it.
+        renderIt(withFees());
+        expect(screen.queryByText(/does not reduce your net/)).toBeNull();
+        expect(screen.getByText(/Absorbed by Cobuntu/)).toBeInTheDocument();
+    });
+
     it("names the destination account with bank last4 and country", () => {
         renderIt(withFees());
         expect(screen.getByText(/Your Stripe account · Millennium ••4242 · PT/)).toBeInTheDocument();
-        expect(screen.getByText("29 Sept 2026")).toBeInTheDocument();            // next payout date
+        // Date and the escrow note share one line with the held amount beside
+        // them, so match the date within it rather than as a node of its own.
+        expect(screen.getByText(/29 Sept 2026/)).toBeInTheDocument();            // next payout date
     });
 
     it("shows a community split with real Stripe, platform rate and no broker", () => {

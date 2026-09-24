@@ -10,6 +10,18 @@ import type { OverviewMoney, FeeRates, StripeDestination, OwnershipModel } from 
  *
  * Renders nothing on a backend that predates the fields (no `breakdown` or no
  * `ownership`) — the tiles still stand on their own.
+ *
+ * Deliberately COMPACT. This is a reference table, not the headline: the tiles
+ * above already carry the numbers a seller opens the page for, and this card sat
+ * under them at roughly the height of a full screen. Three things paid for that
+ * height without earning it, and all three are gone:
+ *   - a rule under every fee row, which drew a table grid around what is really
+ *     a short list of deductions;
+ *   - "paid to" and "next payout" as two stacked filled panels, when each is one
+ *     short fact and they read fine side by side on one strip;
+ *   - a footnote repeating "Stripe is paid from Cobuntu's fee" directly beneath
+ *     the row already labelled "Absorbed by Cobuntu".
+ * Every number still shown, same order, same arithmetic.
  */
 
 type T = (key: string, vars?: Record<string, string | number>) => string;
@@ -42,13 +54,15 @@ function FeeRow({
             ? "text-zinc-400 font-medium"
             : "text-zinc-900";
     return (
-        <div className="flex items-baseline justify-between gap-3 border-b border-zinc-200/70 py-2.5 last:border-b-0">
-            <span className="text-[13.5px] text-zinc-700">
+        <div className="flex items-baseline justify-between gap-3 py-[3px]">
+            <span className="text-[13px] text-zinc-600">
                 {label}
+                {/* The rate and the "absorbed" note ride on the label line now.
+                    As a second line each row became two rows tall. */}
                 {pctLabel ? <span className="ml-1.5 text-[12px] text-zinc-400">{pctLabel}</span> : null}
-                {sub ? <span className="mt-0.5 block text-[11.5px] text-zinc-400">{sub}</span> : null}
+                {sub ? <span className="ml-1.5 text-[11.5px] text-zinc-400">({sub})</span> : null}
             </span>
-            <span className={`shrink-0 text-[13.5px] font-semibold tabular-nums ${amountClass}`}>{amount}</span>
+            <span className={`shrink-0 text-[13px] font-semibold tabular-nums ${amountClass}`}>{amount}</span>
         </div>
     );
 }
@@ -73,11 +87,11 @@ export function PayoutsAndFees({
         new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
 
     return (
-        <div className="rounded-xl border border-zinc-200/70 bg-white p-4">
+        <div className="rounded-xl border border-zinc-200/70 bg-white px-4 py-3">
             <p className="text-[11px] font-bold uppercase tracking-[.1em] text-zinc-400">{t("feesTitle")}</p>
 
             {/* The split, owner perspective. Reconciles to gross. */}
-            <div className="mt-2">
+            <div className="mt-1.5">
                 <FeeRow label={t("feesGrossRow")} amount={cash(money.gross)} tone="in" />
 
                 {b.vat > 0 && <FeeRow label={t("feesVat")} amount={`−${cash(b.vat)}`} />}
@@ -106,51 +120,48 @@ export function PayoutsAndFees({
                 )}
 
                 {/* The one the seller came for, set apart. */}
-                <div className="mt-1 flex items-baseline justify-between gap-3 border-t-2 border-zinc-200 pt-3">
-                    <span className="text-[14px] font-bold text-zinc-900">
+                <div className="mt-1.5 flex items-baseline justify-between gap-3 border-t border-zinc-200 pt-2">
+                    <span className="text-[13.5px] font-bold text-zinc-900">
                         {t(isMember ? "feesYouKeep" : "feesCommunityNet")}
                     </span>
-                    <span className="shrink-0 text-[17px] font-extrabold tabular-nums text-emerald-700">{cash(b.net)}</span>
+                    <span className="shrink-0 text-[16px] font-extrabold tabular-nums text-emerald-700">{cash(b.net)}</span>
                 </div>
             </div>
 
-            {isMember && (
-                <p className="mt-2.5 text-[11.5px] leading-relaxed text-zinc-400">{t("feesMemberStripeNote")}</p>
-            )}
-
-            {/* Where and when. */}
-            <div className="mt-4 space-y-2">
-                <div className="rounded-lg bg-zinc-50 px-3 py-2.5">
+            {/* Where and when, on one strip. Two short facts, each a label and a
+                value, so they sit as columns rather than as stacked panels. They
+                wrap to two lines on a narrow column. */}
+            <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 border-t border-zinc-200/70 pt-2.5">
+                <div className="min-w-0">
                     <p className="text-[10.5px] font-bold uppercase tracking-[.08em] text-zinc-400">{t("feesPaidTo")}</p>
                     {destination && destination.connected ? (
-                        <p className="mt-0.5 text-[13px] font-semibold text-zinc-900">
+                        <p className="text-[12.5px] font-semibold text-zinc-900">
                             {accountLine(destination, t)}
-                            <span className={`ml-2 text-[11.5px] font-medium ${destination.payoutsEnabled ? "text-emerald-700" : "text-amber-700"}`}>
+                            <span className={`ml-1.5 font-medium ${destination.payoutsEnabled ? "text-emerald-700" : "text-amber-700"}`}>
                                 {destination.payoutsEnabled ? t("feesDestReady") : t("feesDestPayoutsOff")}
                             </span>
                         </p>
                     ) : (
-                        <p className="mt-0.5 text-[13px] font-medium text-amber-700">{t("feesDestNone")}</p>
+                        <p className="text-[12.5px] font-medium text-amber-700">{t("feesDestNone")}</p>
                     )}
                 </div>
 
-                <div className="rounded-lg bg-zinc-50 px-3 py-2.5">
+                <div className="min-w-0">
                     <p className="text-[10.5px] font-bold uppercase tracking-[.08em] text-zinc-400">{t("feesNextPayout")}</p>
                     {money.held > 0 && money.nextPayoutAt ? (
-                        <p className="mt-0.5 flex items-baseline justify-between gap-3">
-                            <span className="text-[13px] font-semibold text-zinc-900">
-                                {day(money.nextPayoutAt)}
-                                <span className="ml-2 text-[11.5px] font-normal text-zinc-400">{t("feesNextPayoutHeld")}</span>
+                        <p className="text-[12.5px] font-semibold text-zinc-900">
+                            {cash(money.held)}
+                            <span className="ml-1.5 font-normal text-zinc-500">
+                                {day(money.nextPayoutAt)} ({t("feesNextPayoutHeld")})
                             </span>
-                            <span className="shrink-0 text-[14px] font-bold tabular-nums text-zinc-900">{cash(money.held)}</span>
                         </p>
                     ) : money.due > 0 ? (
-                        <p className="mt-0.5 flex items-baseline justify-between gap-3">
-                            <span className="text-[13px] font-semibold text-emerald-700">{t("feesAvailableNow")}</span>
-                            <span className="shrink-0 text-[14px] font-bold tabular-nums text-zinc-900">{cash(money.due)}</span>
+                        <p className="text-[12.5px] font-semibold text-zinc-900">
+                            {cash(money.due)}
+                            <span className="ml-1.5 font-medium text-emerald-700">{t("feesAvailableNow")}</span>
                         </p>
                     ) : (
-                        <p className="mt-0.5 text-[13px] text-zinc-400">{t("feesNextPayoutNone")}</p>
+                        <p className="text-[12.5px] text-zinc-400">{t("feesNextPayoutNone")}</p>
                     )}
                 </div>
             </div>

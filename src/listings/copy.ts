@@ -209,7 +209,8 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     feesNextPayoutHeld: "in escrow until then",
     feesNextPayoutNone: "Nothing scheduled yet",
     feesAvailableNow: "Available now",
-    feesMemberStripeNote: "Stripe is paid from Cobuntu's fee, so it does not reduce your net.",
+    /* feesMemberStripeNote retired: it restated `feesStripeAbsorbed`, which sits
+       on the Stripe row itself, two lines above where the note rendered. */
     overviewNetEarnings: "Net earnings",
     overviewGrossEarnings: "Gross earnings",
     overviewTotalViews: "Total views",
