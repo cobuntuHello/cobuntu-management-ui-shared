@@ -49,7 +49,21 @@
  * at the moment it should have read complete. It is the last step of the same
  * wizard; it just cannot be navigated away from backwards.
  */
-export type CreateStepId = "resume" | "ownership" | "type" | "details" | "commerce" | "listing" | "access" | "done";
+/*
+ * "content" is the course wizard's, and only the course wizard's.
+ *
+ * A course is a product that is PLAYED: sections, lessons, video, a free
+ * preview, and a learner's progress through them. None of that has anywhere to
+ * live in a product or an event, which is why the step is opt-in via
+ * `withContentStep` rather than something every flow has to exclude.
+ *
+ * It sits AFTER commerce because pricing is still part of describing what is
+ * being sold, and a lesson is the thing sold. Deciding the arrangement before
+ * knowing what is in the course would also put the only step that determines
+ * what the seller is PAID in the middle of the flow rather than at the end.
+ */
+export type CreateStepId =
+    | "resume" | "ownership" | "type" | "details" | "commerce" | "content" | "listing" | "access" | "done";
 
 export interface CreateStepsInput {
     /** Does this person have a real ownership choice? Leaders only. */
@@ -108,6 +122,16 @@ export interface CreateStepsInput {
      * this and never gets the step. Default false keeps events unchanged.
      */
     withCommerceStep?: boolean;
+    /**
+     * Add the syllabus step after commerce. COURSES ONLY.
+     *
+     * Opt-in for the same reason `withCommerceStep` is: the marketplace and
+     * event wizards share this resolver and have nothing to put in it, so a
+     * default-true step would have to be excluded by every existing caller,
+     * and the one that forgot would render an empty screen in the middle of
+     * its flow. Default false keeps both unchanged.
+     */
+    withContentStep?: boolean;
 }
 
 export function resolveCreateSteps({
@@ -118,6 +142,7 @@ export function resolveCreateSteps({
     hasDrafts = false,
     canChooseType = false,
     withCommerceStep = false,
+    withContentStep = false,
 }: CreateStepsInput): CreateStepId[] {
     const steps: CreateStepId[] = [];
     /*
@@ -167,6 +192,18 @@ export function resolveCreateSteps({
      * listing half on `details` and this commerce half here (see `page`).
      */
     if (withCommerceStep) steps.push("commerce");
+    /*
+     * The syllabus, for a course.
+     *
+     * Deliberately NOT merged into commerce, even though a course's lessons can
+     * carry downloadable attachments and the commerce step is where a product's
+     * deliverables live. They are different things: a commerce deliverable is
+     * per-VARIANT and comes with the purchase, governed by that variant's
+     * licence, while a lesson attachment belongs to one lesson and is reached by
+     * working through the course. One is what you BOUGHT, the other is what you
+     * are WATCHING, and a course has both.
+     */
+    if (withContentStep) steps.push("content");
     /*
      * The arrangement step, for anything sold personally.
      *
@@ -305,13 +342,30 @@ export function resumeStep(stored: string | null | undefined, available: CreateS
  * they keep the welcoming copy the page always had.
  */
 export function stepHeaderKeys(step: CreateStepId): { title: string; subtitle: string } {
-    const name = step === "resume" ? "Resume"
-        : step === "ownership" ? "Ownership"
-        : step === "type" ? "Type"
-        : step === "details" ? "Details"
-        : step === "commerce" ? "Commerce"
-        : step === "listing" ? "Listing"
-        : step === "done" ? "Done"
-        : "Access";
+    /*
+     * A lookup, not a chain of ternaries, and the change is load-bearing.
+     *
+     * This was a ternary ending in `: "Access"`, which meant every step the
+     * chain did not name rendered the ACCESS screen's heading over whatever was
+     * actually on screen. There is already a test pinning `type` against that,
+     * written after it happened. Adding `content` as one more ternary would have
+     * been the same trap set for the next step someone adds.
+     *
+     * `Record<CreateStepId, string>` cannot be partial, so a new step id now
+     * fails to compile until it is named here. The bug is not fixed, it is
+     * unavailable.
+     */
+    const NAMES: Record<CreateStepId, string> = {
+        resume: "Resume",
+        ownership: "Ownership",
+        type: "Type",
+        details: "Details",
+        commerce: "Commerce",
+        content: "Content",
+        listing: "Listing",
+        access: "Access",
+        done: "Done",
+    };
+    const name = NAMES[step];
     return { title: `step${name}Title`, subtitle: `step${name}Subtitle` };
 }

@@ -402,3 +402,91 @@ describe("the product-type step", () => {
         });
     });
 });
+
+/**
+ * The course wizard's syllabus step.
+ *
+ * `/learning/new` is a fork of the marketplace wizard with one extra step, and
+ * these pin the two things that would make the fork wrong in ways nothing else
+ * would notice: that the step lands in the right PLACE, and that it does not
+ * appear in the flows that have nothing to put in it.
+ */
+describe("the content step", () => {
+    const course = () => resolveCreateSteps({
+        canChooseOwnership: false,
+        ownership: "personal",
+        packageCount: 2,
+        withCommerceStep: true,
+        withContentStep: true,
+    });
+
+    it("sits after commerce", () => {
+        // Pricing is still part of describing what is being sold, and a lesson
+        // is the thing sold.
+        const steps = course();
+        expect(steps.indexOf("commerce")).toBeLessThan(steps.indexOf("content"));
+    });
+
+    it("sits before the arrangement, which stays last", () => {
+        /*
+         * The user's rule, and the reason the step order is not a matter of
+         * taste: the arrangement is the only step that decides what the seller
+         * is PAID, so it is the last thing answered before the create.
+         */
+        const steps = course();
+        expect(steps.indexOf("content")).toBeLessThan(steps.indexOf("listing"));
+        expect(steps[steps.length - 1]).toBe("listing");
+    });
+
+    it("is absent from a product flow, which has nothing to put in it", () => {
+        const product = resolveCreateSteps({
+            canChooseOwnership: false, ownership: "personal", packageCount: 2, withCommerceStep: true,
+        });
+        expect(product).not.toContain("content");
+    });
+
+    it("is absent from an event flow", () => {
+        const event = resolveCreateSteps({ canChooseOwnership: false, ownership: "personal", packageCount: 2 });
+        expect(event).not.toContain("content");
+    });
+
+    it("changes nothing else about the flow", () => {
+        // Adding a step must not reorder or drop the others.
+        const base = resolveCreateSteps({
+            canChooseOwnership: true, ownership: "community", withCommerceStep: true,
+        });
+        const withContent = resolveCreateSteps({
+            canChooseOwnership: true, ownership: "community", withCommerceStep: true, withContentStep: true,
+        });
+        expect(withContent.filter((s) => s !== "content")).toEqual(base);
+    });
+
+    it("is still before access on a community-owned course", () => {
+        const steps = resolveCreateSteps({
+            canChooseOwnership: true, ownership: "community", withCommerceStep: true, withContentStep: true,
+        });
+        expect(steps.indexOf("content")).toBeLessThan(steps.indexOf("access"));
+    });
+
+    it("becomes the final step when the community publishes one arrangement", () => {
+        /*
+         * A sole package is not a choice, so that step does not exist and the
+         * create moves onto content. Worth pinning: it is the case where the
+         * new step inherits the commit buttons.
+         */
+        const steps = resolveCreateSteps({
+            canChooseOwnership: false, ownership: "personal", packageCount: 1,
+            withCommerceStep: true, withContentStep: true,
+        });
+        expect(steps).not.toContain("listing");
+        expect(isFinalStep(steps, "content")).toBe(true);
+    });
+
+    it("has its own header copy rather than falling through to Access", () => {
+        // The reason stepHeaderKeys is a Record now: as a ternary chain, any
+        // step it did not name rendered the Access screen's title.
+        expect(stepHeaderKeys("content")).toEqual({
+            title: "stepContentTitle", subtitle: "stepContentSubtitle",
+        });
+    });
+});
