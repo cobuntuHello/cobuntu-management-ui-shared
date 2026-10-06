@@ -63,7 +63,7 @@
  * what the seller is PAID in the middle of the flow rather than at the end.
  */
 export type CreateStepId =
-    | "resume" | "ownership" | "type" | "details" | "commerce" | "content" | "listing" | "access" | "done";
+    | "resume" | "ownership" | "type" | "details" | "commerce" | "content" | "settings" | "listing" | "access" | "done";
 
 export interface CreateStepsInput {
     /** Does this person have a real ownership choice? Leaders only. */
@@ -132,6 +132,20 @@ export interface CreateStepsInput {
      * its flow. Default false keeps both unchanged.
      */
     withContentStep?: boolean;
+    /**
+     * Add the "Policies & access" step after content. SELLABLE FLOWS.
+     *
+     * The home for the nuanced, skippable configuration that was cluttering the
+     * commerce step and hiding the features next to it — requires-approval,
+     * repeat-purchase, and (later) the refund policy. Two users reported missing
+     * that attachments live inside a variant precisely because the commerce step
+     * carried too many unrelated toggles; this step is where those toggles move.
+     *
+     * Opt-in like the others so a flow with nothing to configure here never
+     * renders an empty screen. Default false keeps non-adopting callers
+     * unchanged.
+     */
+    withSettingsStep?: boolean;
 }
 
 export function resolveCreateSteps({
@@ -143,6 +157,7 @@ export function resolveCreateSteps({
     canChooseType = false,
     withCommerceStep = false,
     withContentStep = false,
+    withSettingsStep = false,
 }: CreateStepsInput): CreateStepId[] {
     const steps: CreateStepId[] = [];
     /*
@@ -204,6 +219,18 @@ export function resolveCreateSteps({
      * are WATCHING, and a course has both.
      */
     if (withContentStep) steps.push("content");
+    /*
+     * "Policies & access" — the nuanced, skippable configuration.
+     *
+     * AFTER content, not before: the syllabus is core to describing a course and
+     * belongs with commerce in the heart of the flow, while this step is the one
+     * most people skip. It sits just before the listing/access arrangement so the
+     * flow ends on the leftover, optional settings rather than opening a course
+     * on them. Holds requires-approval, repeat-purchase and (later) the refund
+     * policy — moved here so the commerce step is only variants, pricing and
+     * donations and its real features stop hiding among unrelated toggles.
+     */
+    if (withSettingsStep) steps.push("settings");
     /*
      * The arrangement step, for anything sold personally.
      *
@@ -362,6 +389,7 @@ export function stepHeaderKeys(step: CreateStepId): { title: string; subtitle: s
         details: "Details",
         commerce: "Commerce",
         content: "Content",
+        settings: "Settings",
         listing: "Listing",
         access: "Access",
         done: "Done",
