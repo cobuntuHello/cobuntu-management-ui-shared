@@ -490,3 +490,38 @@ describe("the content step", () => {
         });
     });
 });
+
+describe('the "Policies & access" settings step', () => {
+    it("is absent unless the flow opts in", () => {
+        // Default false, so existing non-adopting callers are unchanged.
+        const steps = resolveCreateSteps({
+            canChooseOwnership: false, ownership: "personal", withCommerceStep: true,
+        });
+        expect(steps).not.toContain("settings");
+    });
+
+    it("sits after commerce (product) and before the listing/access arrangement", () => {
+        const steps = resolveCreateSteps({
+            canChooseOwnership: false, ownership: "personal",
+            withCommerceStep: true, withSettingsStep: true,
+        });
+        expect(steps).toContain("settings");
+        expect(steps.indexOf("settings")).toBeGreaterThan(steps.indexOf("commerce"));
+        expect(steps.indexOf("settings")).toBeLessThan(steps.indexOf("listing"));
+    });
+
+    it("sits after the course syllabus, not between commerce and content", () => {
+        const steps = resolveCreateSteps({
+            canChooseOwnership: true, ownership: "community",
+            withCommerceStep: true, withContentStep: true, withSettingsStep: true,
+        });
+        expect(steps.indexOf("settings")).toBeGreaterThan(steps.indexOf("content"));
+        expect(steps.indexOf("settings")).toBeLessThan(steps.indexOf("access"));
+    });
+
+    it("has its own header copy, not Access's", () => {
+        expect(stepHeaderKeys("settings")).toEqual({
+            title: "stepSettingsTitle", subtitle: "stepSettingsSubtitle",
+        });
+    });
+});
