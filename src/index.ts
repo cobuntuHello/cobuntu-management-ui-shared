@@ -296,5 +296,9 @@ export type {
  */
 export {
   htmlToPlainText, StarRating, VerifiedBadge, ListingStateChip,
+  StorefrontCard, ListingReviewCard,
 } from "./cards";
-export type { StarRatingCopy, CardState } from "./cards";
+export type {
+  StarRatingCopy, CardState, StorefrontCardData, StorefrontCardProps,
+  ListingReviewCardProps, ListingReviewCardKind, ReviewStatusTone,
+} from "./cards";
