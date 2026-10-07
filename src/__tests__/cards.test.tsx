@@ -29,19 +29,19 @@ describe("StarRating (no i18n provider)", () => {
     expect(screen.getByText("4.7")).toBeInTheDocument();
     expect(screen.getByText("(12)")).toBeInTheDocument();
   });
-  it("an unrated listing says so instead of showing 0/5", () => {
-    render(<StarRating value={null} count={0} />);
-    expect(screen.getByText("No reviews yet")).toBeInTheDocument();
-    expect(screen.queryByText("0.0")).not.toBeInTheDocument();
+  it("an unrated listing shows 0/5 (0), not a sentence, with the aria saying unrated", () => {
+    const { container } = render(<StarRating value={null} count={0} />);
+    expect(container.textContent).toBe("0/5★(0)");
+    expect(container.querySelector("span[aria-label]")?.getAttribute("aria-label")).toBe("No reviews yet");
   });
   it("accepts injected copy (for the community-app's translations)", () => {
-    render(<StarRating value={5} count={3} copy={{ reviewCount: (c) => `${c} avis` }} />);
-    expect(screen.getByText("3 avis")).toBeInTheDocument();
+    render(<StarRating value={4.5} count={12} size="full" copy={{ reviewSuffixFull: (c) => `${c} avis` }} />);
+    expect(screen.getByText("12 avis")).toBeInTheDocument();
   });
-  it("uses a distinct full-size suffix (so detail pages read '12 reviews', not '(12)')", () => {
-    render(<StarRating value={4.5} count={12} size="full" />);
-    expect(screen.getByText("12 reviews")).toBeInTheDocument();
-    expect(screen.queryByText("(12)")).not.toBeInTheDocument();
+  it("the full size has a distinct suffix; compact is always '(n)'", () => {
+    const { container } = render(<StarRating value={4.5} count={12} size="full" />);
+    expect(container.textContent).toContain("12 reviews");
+    expect(container.textContent).not.toContain("(12)");
   });
 });
 
