@@ -89,7 +89,13 @@ export function ListingReviewCard({
       </div>
       <div className="h-px bg-zinc-100" />
       {reviewHref ? (
-        <a href={reviewHref} className={reviewClasses}>{reviewLabel}{chevron}</a>
+        /*
+         * The WHOLE card is the link (see the StorefrontCard href below), so this
+         * action is illustrative — a styled <span>, never a nested <a>/<button>
+         * (interactive content cannot nest inside a link). aria-hidden because the
+         * card's own aria-label already announces the action.
+         */
+        <span className={reviewClasses} aria-hidden="true">{reviewLabel}{chevron}</span>
       ) : (
         <button type="button" onClick={onReview} className={reviewClasses}>{reviewLabel}{chevron}</button>
       )}
@@ -123,6 +129,8 @@ export function ListingReviewCard({
   return (
     <StorefrontCard
       data={data}
+      href={reviewHref}
+      ariaLabel={reviewHref ? `${reviewLabel}: ${data.title}` : undefined}
       className={className}
       starCopy={starCopy}
       mediaTopLeft={statusPill}

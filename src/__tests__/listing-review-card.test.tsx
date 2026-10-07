@@ -56,10 +56,21 @@ describe("ListingReviewCard (Option A overlay)", () => {
     expect(onReview).toHaveBeenCalledOnce();
   });
 
-  it("renders a link when given an href", () => {
+  it("makes the WHOLE card the link when given an href (title is inside the <a>)", () => {
     render(<ListingReviewCard {...base} reviewHref="/community/learning/requests/abc" />);
-    const link = screen.getByText("Review request").closest("a");
-    expect(link).toHaveAttribute("href", "/community/learning/requests/abc");
+    const cardLink = screen.getByText(DATA.title).closest("a");
+    expect(cardLink).toHaveAttribute("href", "/community/learning/requests/abc");
+    // The footer action is illustrative, not its own link — it resolves to the SAME
+    // card link, i.e. there is no nested anchor.
+    expect(screen.getByText("Review request").closest("a")).toBe(cardLink);
+  });
+
+  it("renders a static card (no link) in button mode, firing onReview", async () => {
+    const onReview = vi.fn();
+    render(<ListingReviewCard {...base} onReview={onReview} />);
+    expect(screen.getByText(DATA.title).closest("a")).toBeNull(); // not a link
+    await userEvent.click(screen.getByText("Review request"));
+    expect(onReview).toHaveBeenCalledOnce();
   });
 
   it("hides the commission chip when there is none", () => {

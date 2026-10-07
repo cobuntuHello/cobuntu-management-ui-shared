@@ -35,6 +35,15 @@ export interface StorefrontCardData {
 
 export interface StorefrontCardProps {
   data: StorefrontCardData;
+  /**
+   * Makes the WHOLE card a link to this href (the card root becomes an <a>, with
+   * a hover lift). Any footer action is then illustrative — render it as plain
+   * markup, never a nested <a>/<button>, since interactive content can't nest in
+   * a link. Omit for a static card.
+   */
+  href?: string;
+  /** Accessible label for the whole-card link (e.g. "Review request: <title>"). */
+  ariaLabel?: string;
   /** Overlay slots on the image corners. */
   mediaTopLeft?: ReactNode;
   mediaTopRight?: ReactNode;
@@ -46,12 +55,16 @@ export interface StorefrontCardProps {
 }
 
 export function StorefrontCard({
-  data, mediaTopLeft, mediaTopRight, mediaBottomLeft, footer, starCopy, className,
+  data, href, ariaLabel, mediaTopLeft, mediaTopRight, mediaBottomLeft, footer, starCopy, className,
 }: StorefrontCardProps) {
-  return (
-    <article
-      className={`flex flex-col min-w-0 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-[0_1px_2px_rgba(24,24,27,0.04),0_10px_26px_-18px_rgba(24,24,27,0.22)] ${className ?? ""}`}
-    >
+  const base = `flex flex-col min-w-0 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-[0_1px_2px_rgba(24,24,27,0.04),0_10px_26px_-18px_rgba(24,24,27,0.22)] ${className ?? ""}`;
+  /* When the whole card is the link: a pointer, no underline, and a hover lift so
+     it reads as one big click target rather than a static tile. */
+  const interactive =
+    " cursor-pointer text-inherit no-underline transition-shadow duration-150 hover:shadow-[0_2px_4px_rgba(24,24,27,0.06),0_18px_38px_-18px_rgba(24,24,27,0.34)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2";
+
+  const inner = (
+    <>
       <div className="relative aspect-[16/10]">
         {data.imageUrl ? (
           <img src={data.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
@@ -110,6 +123,14 @@ export function StorefrontCard({
         )}
         {footer && <div className="mt-auto">{footer}</div>}
       </div>
-    </article>
+    </>
+  );
+
+  return href ? (
+    <a href={href} aria-label={ariaLabel} className={`${base}${interactive}`}>
+      {inner}
+    </a>
+  ) : (
+    <article className={base}>{inner}</article>
   );
 }
