@@ -1,27 +1,28 @@
 /**
  * Compact star-rating display for listing cards + detail pages.
  *
- * Ported from the community-app's StarRating, with next-intl removed: copy is an
- * optional prop with English defaults, so the admin renders it with no i18n and
- * the community-app passes its own translations. Behaviour is identical —
- * "4.7/5 ★ (12)", and an unrated listing holds the row and says so rather than
- * showing "0/5".
+ * A verbatim port of the community-app's current StarRating (the 2026-09-23
+ * behaviour), with next-intl removed: copy is an optional prop with English
+ * defaults, so the admin renders it with no i18n and the community-app threads
+ * its own translations. An UNRATED listing shows "0/5 ★ (0)" — the same shape as
+ * a real rating, never hidden and never a sentence — because reviews are empty
+ * across production and hiding would make the control read as broken. The "no
+ * reviews" string is the aria-label only.
  */
 
 export interface StarRatingCopy {
-  noReviews: string;
-  /** The compact suffix, e.g. "(12)". */
-  reviewCount: (count: number) => string;
-  /** The full-size suffix, e.g. "12 reviews" — distinct from compact. */
-  reviewSuffixFull: (count: number) => string;
+  /** aria-label when the listing has a rating. */
   ariaLabel: (rating: string, count: number) => string;
+  /** aria-label when unrated (there is no visible "no reviews" text). */
+  noReviewsAria: string;
+  /** The full-size suffix, e.g. "12 reviews". Compact is always "(n)". */
+  reviewSuffixFull: (count: number) => string;
 }
 
 const DEFAULT_COPY: StarRatingCopy = {
-  noReviews: "No reviews yet",
-  reviewCount: (c) => `(${c})`,
-  reviewSuffixFull: (c) => `${c} ${c === 1 ? "review" : "reviews"}`,
   ariaLabel: (rating, c) => `Rated ${rating} out of 5 from ${c} reviews`,
+  noReviewsAria: "No reviews yet",
+  reviewSuffixFull: (c) => `${c} ${c === 1 ? "review" : "reviews"}`,
 };
 
 interface Props {
@@ -36,27 +37,16 @@ export function StarRating({ value, count, size = "compact", className, copy }: 
   const c = { ...DEFAULT_COPY, ...copy };
   const numeric = typeof value === "number" ? value : parseFloat(value ?? "");
   const reviews = typeof count === "number" ? count : 0;
+  const hasRating = Number.isFinite(numeric) && reviews > 0;
 
-  if (!Number.isFinite(numeric) || reviews <= 0) {
-    return (
-      <span
-        className={`inline-flex items-baseline gap-1 ${className ?? ""}`}
-        style={{ color: "var(--mut, #6b7280)" }}
-      >
-        <span aria-hidden="true" style={{ opacity: 0.45, fontSize: size === "full" ? "15px" : "12px" }}>★</span>
-        <span className={size === "full" ? "text-sm" : "text-xs"}>{c.noReviews}</span>
-      </span>
-    );
-  }
-
-  const clamped = Math.max(0, Math.min(5, numeric));
-  const display = clamped.toFixed(1);
+  const clamped = hasRating ? Math.max(0, Math.min(5, numeric)) : 0;
+  const display = hasRating ? clamped.toFixed(1) : "0";
   const isFull = size === "full";
 
   return (
     <span
-      className={`inline-flex items-baseline gap-1 ${className ?? ""}`}
-      aria-label={c.ariaLabel(display, reviews)}
+      className={`inline-flex items-baseline gap-1 whitespace-nowrap ${className ?? ""}`}
+      aria-label={hasRating ? c.ariaLabel(display, reviews) : c.noReviewsAria}
     >
       <span className={isFull ? "text-sm font-semibold" : "text-xs font-semibold"}>
         {display}
@@ -64,7 +54,7 @@ export function StarRating({ value, count, size = "compact", className, copy }: 
       </span>
       <span aria-hidden="true" style={{ color: "#f59e0b", fontSize: isFull ? "15px" : "12px" }}>★</span>
       <span className={isFull ? "text-sm opacity-70" : "text-xs opacity-60"}>
-        {isFull ? c.reviewSuffixFull(reviews) : c.reviewCount(reviews)}
+        {isFull ? c.reviewSuffixFull(reviews) : `(${reviews})`}
       </span>
     </span>
   );
