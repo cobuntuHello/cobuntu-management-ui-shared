@@ -302,3 +302,13 @@ export type {
   StarRatingCopy, CardState, StorefrontCardData, StorefrontCardProps,
   ListingReviewCardProps, ListingReviewCardKind, ReviewStatusTone,
 } from "./cards";
+
+/*
+ * Shared listing filters — the category / sub-category / price / sort facets +
+ * search the storefront browses by, so the admin review queues filter the same
+ * way. Pure helpers ported from the community-app; the bar is next-intl-free.
+ */
+export { buildCategoryFacets, sortProducts, ListingFilterBar } from "./filters";
+export type {
+  CategoryOption, FacetOption, Facet, FilterValue, ListingFilterBarProps,
+} from "./filters";
