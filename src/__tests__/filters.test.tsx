@@ -34,28 +34,61 @@ describe("sortProducts", () => {
 });
 
 describe("ListingFilterBar (no i18n provider)", () => {
-  const facets: Facet[] = buildCategoryFacets(CATS, "", "Category");
+  const inlineFacets: Facet[] = buildCategoryFacets(CATS, "", "Category");
+  const PRICE: Facet = {
+    key: "price", title: "Price", single: true, neutral: "",
+    options: [{ value: "free", label: "Free" }, { value: "paid", label: "Paid" }],
+  };
 
-  it("renders category chips + an All reset, and selects on click", async () => {
+  it("renders the category chips inline (an All reset + each option), and selects on click", async () => {
     const onChange = vi.fn();
-    render(<ListingFilterBar facets={facets} value={{}} onChange={onChange} />);
+    render(<ListingFilterBar inlineFacets={inlineFacets} facets={[]} value={{}} onChange={onChange} />);
     expect(screen.getByText("All")).toBeInTheDocument();
+    expect(screen.getByText("Design")).toBeInTheDocument(); // inline, visible without opening a modal
     await userEvent.click(screen.getByText("Design"));
     expect(onChange).toHaveBeenCalledWith({ category: "c1" });
   });
 
-  it("clicking the active chip clears it", async () => {
+  it("clicking the active inline chip clears it", async () => {
     const onChange = vi.fn();
-    render(<ListingFilterBar facets={facets} value={{ category: "c1" }} onChange={onChange} />);
+    render(<ListingFilterBar inlineFacets={inlineFacets} facets={[]} value={{ category: "c1" }} onChange={onChange} />);
     await userEvent.click(screen.getByText("Design"));
     expect(onChange).toHaveBeenCalledWith({ category: "" });
   });
 
+  it("keeps secondary facets (Price/Sort) behind the Filters button, in a modal", async () => {
+    const onChange = vi.fn();
+    render(<ListingFilterBar inlineFacets={[]} facets={[PRICE]} value={{}} onChange={onChange} resultCount={7} />);
+    // Price options are NOT in the open until the modal is opened.
+    expect(screen.queryByText("Paid")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("Paid"));
+    expect(onChange).toHaveBeenCalledWith({ price: "paid" });
+    // The primary modal button reflects the live result count.
+    expect(screen.getByText("Show 7")).toBeInTheDocument();
+  });
+
+  it("badges the Filters button only for active MODAL facets, and Clear resets everything", async () => {
+    const onChange = vi.fn();
+    render(
+      <ListingFilterBar
+        inlineFacets={inlineFacets}
+        facets={[PRICE]}
+        value={{ category: "c1", price: "free" }}
+        onChange={onChange}
+      />,
+    );
+    expect(screen.getByText("1")).toBeInTheDocument(); // badge counts price only, not the inline category
+    await userEvent.click(screen.getByText("Clear"));
+    expect(onChange).toHaveBeenCalledWith({ category: "", price: "" });
+  });
+
   it("shows a search box only when onSearchChange is given", async () => {
     const onSearch = vi.fn();
-    const { rerender } = render(<ListingFilterBar facets={facets} value={{}} onChange={() => {}} />);
+    const { rerender } = render(<ListingFilterBar inlineFacets={inlineFacets} facets={[]} value={{}} onChange={() => {}} />);
     expect(screen.queryByPlaceholderText("Find")).not.toBeInTheDocument();
-    rerender(<ListingFilterBar facets={facets} value={{}} onChange={() => {}} search="" onSearchChange={onSearch} searchPlaceholder="Find" />);
+    rerender(<ListingFilterBar inlineFacets={inlineFacets} facets={[]} value={{}} onChange={() => {}} search="" onSearchChange={onSearch} searchPlaceholder="Find" />);
     await userEvent.type(screen.getByPlaceholderText("Find"), "x");
     expect(onSearch).toHaveBeenCalledWith("x");
   });

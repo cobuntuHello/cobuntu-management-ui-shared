@@ -50,7 +50,7 @@ export function StorefrontCard({
 }: StorefrontCardProps) {
   return (
     <article
-      className={`flex flex-col min-w-0 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-[0_1px_2px_rgba(24,24,27,0.04),0_10px_26px_-18px_rgba(24,24,27,0.22)] dark:border-zinc-800 dark:bg-zinc-900 ${className ?? ""}`}
+      className={`flex flex-col min-w-0 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-[0_1px_2px_rgba(24,24,27,0.04),0_10px_26px_-18px_rgba(24,24,27,0.22)] ${className ?? ""}`}
     >
       <div className="relative aspect-[16/10]">
         {data.imageUrl ? (
@@ -65,23 +65,44 @@ export function StorefrontCard({
 
       <div className="flex flex-1 flex-col gap-2 px-3.5 py-3.5">
         {data.taxonomy && (
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
             {data.taxonomy}
           </div>
         )}
-        <h3 className="m-0 text-[15px] font-semibold leading-tight tracking-[-0.01em] text-zinc-900 dark:text-zinc-100">
+        <h3 className="m-0 text-[15px] font-semibold leading-tight tracking-[-0.01em] text-zinc-900">
           {data.title}
         </h3>
         {(data.priceLabel || data.meta) && (
           <div className="flex items-center gap-2">
             {data.priceLabel && (
+              /*
+               * Price plate mirrors the community-app storefront ProductCard
+               * exactly: a FREE price is a neutral GREY plate (not green — green
+               * is the event card's own treatment there), a paid price is a
+               * brand-tinted plate falling back to neutral ink when no brand var
+               * is set (the admin review queue runs un-branded). Keeping these
+               * byte-for-byte the storefront's means a reviewer sees the price
+               * exactly as a member will.
+               */
               <span
-                className={`text-[15px] font-bold tabular-nums ${data.priceFree ? "text-[13px] font-semibold text-emerald-600 dark:text-emerald-400" : "text-zinc-900 dark:text-zinc-100"}`}
+                className={`shrink-0 whitespace-nowrap rounded-lg tabular-nums ${
+                  data.priceFree
+                    ? "px-1.5 py-0.5 text-[12.5px] font-semibold"
+                    : "px-2 py-0.5 text-[14px] font-bold"
+                }`}
+                style={
+                  data.priceFree
+                    ? { background: "rgba(128,128,128,0.10)", color: "var(--mut, #6b7280)" }
+                    : {
+                        background: "color-mix(in srgb, var(--brand-color, #18181b) 12%, transparent)",
+                        color: "var(--text-color, #18181b)",
+                      }
+                }
               >
                 {data.priceLabel}
               </span>
             )}
-            {data.meta && <span className="text-[12px] text-zinc-400 dark:text-zinc-500">{data.meta}</span>}
+            {data.meta && <span className="text-[12px] text-zinc-400">{data.meta}</span>}
           </div>
         )}
         {data.rating && (

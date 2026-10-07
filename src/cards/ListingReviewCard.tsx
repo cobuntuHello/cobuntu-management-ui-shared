@@ -14,12 +14,12 @@ import type { StarRatingCopy } from "./StarRating";
 export type ReviewStatusTone = "pending" | "approved" | "countered" | "paused" | "dismissed" | "ended";
 
 const TONE: Record<ReviewStatusTone, string> = {
-  pending: "text-amber-700 bg-amber-50/90 dark:text-amber-300 dark:bg-amber-950/70",
-  approved: "text-emerald-700 bg-emerald-50/90 dark:text-emerald-300 dark:bg-emerald-950/70",
-  countered: "text-indigo-700 bg-indigo-50/90 dark:text-indigo-300 dark:bg-indigo-950/70",
-  paused: "text-sky-700 bg-sky-50/90 dark:text-sky-300 dark:bg-sky-950/70",
-  dismissed: "text-zinc-500 bg-zinc-100/90 dark:text-zinc-400 dark:bg-zinc-800/80",
-  ended: "text-zinc-500 bg-zinc-100/90 dark:text-zinc-400 dark:bg-zinc-800/80",
+  pending: "text-amber-700 bg-amber-50/90",
+  approved: "text-emerald-700 bg-emerald-50/90",
+  countered: "text-indigo-700 bg-indigo-50/90",
+  paused: "text-sky-700 bg-sky-50/90",
+  dismissed: "text-zinc-500 bg-zinc-100/90",
+  ended: "text-zinc-500 bg-zinc-100/90",
 };
 
 export interface ListingReviewCardKind {
@@ -64,8 +64,8 @@ export function ListingReviewCard({
   const reviewClasses =
     "inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] px-3 py-2 text-[13px] font-semibold transition-colors " +
     (reviewGhost
-      ? "border border-zinc-200 text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
-      : "bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white");
+      ? "border border-zinc-200 text-zinc-800 hover:bg-zinc-50"
+      : "bg-zinc-900 text-white hover:bg-zinc-800");
 
   const chevron = (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -75,19 +75,19 @@ export function ListingReviewCard({
 
   const footer = (
     <div className="flex flex-col gap-2.5">
-      <div className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-zinc-500 dark:text-zinc-400">
+      <div className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-zinc-500">
         {requester.avatarUrl ? (
           <img src={requester.avatarUrl} alt="" className="h-5 w-5 shrink-0 rounded-full object-cover" />
         ) : (
-          <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-[9.5px] font-bold text-white dark:bg-zinc-100 dark:text-zinc-900">
+          <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-[9.5px] font-bold text-white">
             {initial(requester.name)}
           </span>
         )}
-        <span className="truncate font-semibold text-zinc-800 dark:text-zinc-200">{requester.name}</span>
-        <span className="shrink-0 text-zinc-300 dark:text-zinc-600">·</span>
-        <span className="shrink-0 whitespace-nowrap text-zinc-400 dark:text-zinc-500">{requestedAtLabel}</span>
+        <span className="truncate font-semibold text-zinc-800">{requester.name}</span>
+        <span className="shrink-0 text-zinc-300">·</span>
+        <span className="shrink-0 whitespace-nowrap text-zinc-400">{requestedAtLabel}</span>
       </div>
-      <div className="h-px bg-zinc-100 dark:bg-zinc-800" />
+      <div className="h-px bg-zinc-100" />
       {reviewHref ? (
         <a href={reviewHref} className={reviewClasses}>{reviewLabel}{chevron}</a>
       ) : (
@@ -104,7 +104,7 @@ export function ListingReviewCard({
   );
 
   const commissionChip = commission ? (
-    <span className="rounded-full bg-white/85 px-2.5 py-1 text-[11px] font-semibold text-zinc-900 backdrop-blur-sm dark:bg-zinc-900/80 dark:text-zinc-100">
+    <span className="rounded-full bg-white/85 px-2.5 py-1 text-[11px] font-semibold text-zinc-900 backdrop-blur-sm">
       {commission}
     </span>
   ) : undefined;
