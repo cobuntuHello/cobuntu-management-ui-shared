@@ -38,6 +38,11 @@ describe("StarRating (no i18n provider)", () => {
     render(<StarRating value={5} count={3} copy={{ reviewCount: (c) => `${c} avis` }} />);
     expect(screen.getByText("3 avis")).toBeInTheDocument();
   });
+  it("uses a distinct full-size suffix (so detail pages read '12 reviews', not '(12)')", () => {
+    render(<StarRating value={4.5} count={12} size="full" />);
+    expect(screen.getByText("12 reviews")).toBeInTheDocument();
+    expect(screen.queryByText("(12)")).not.toBeInTheDocument();
+  });
 });
 
 describe("ListingStateChip (no i18n provider)", () => {
