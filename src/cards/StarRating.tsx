@@ -10,14 +10,17 @@
 
 export interface StarRatingCopy {
   noReviews: string;
-  /** e.g. "(12)" compact, or "12 reviews" full. */
+  /** The compact suffix, e.g. "(12)". */
   reviewCount: (count: number) => string;
+  /** The full-size suffix, e.g. "12 reviews" — distinct from compact. */
+  reviewSuffixFull: (count: number) => string;
   ariaLabel: (rating: string, count: number) => string;
 }
 
 const DEFAULT_COPY: StarRatingCopy = {
   noReviews: "No reviews yet",
   reviewCount: (c) => `(${c})`,
+  reviewSuffixFull: (c) => `${c} ${c === 1 ? "review" : "reviews"}`,
   ariaLabel: (rating, c) => `Rated ${rating} out of 5 from ${c} reviews`,
 };
 
@@ -60,7 +63,9 @@ export function StarRating({ value, count, size = "compact", className, copy }: 
         <span className="opacity-50">/5</span>
       </span>
       <span aria-hidden="true" style={{ color: "#f59e0b", fontSize: isFull ? "15px" : "12px" }}>★</span>
-      <span className={isFull ? "text-sm opacity-70" : "text-xs opacity-60"}>{c.reviewCount(reviews)}</span>
+      <span className={isFull ? "text-sm opacity-70" : "text-xs opacity-60"}>
+        {isFull ? c.reviewSuffixFull(reviews) : c.reviewCount(reviews)}
+      </span>
     </span>
   );
 }
