@@ -66,6 +66,7 @@ export function Topics({
     topics,
     viewer,
     otherPartyName,
+    currentUser,
     busy,
     onOpen,
     onComment,
@@ -76,6 +77,8 @@ export function Topics({
     viewer: Viewer;
     /** Who the viewer is talking TO — the community's name, or the seller's. */
     otherPartyName: string;
+    /** The signed-in user, so the composer shows THEIR photo (not a bare letter). */
+    currentUser?: { name?: string | null; avatarUrl?: string | null };
     busy?: boolean;
     onOpen: (subject: string, body: string) => void | Promise<void>;
     onComment: (topicId: string, body: string) => void | Promise<void>;
@@ -97,6 +100,7 @@ export function Topics({
             <Composer
                 viewer={viewer}
                 otherPartyName={otherPartyName}
+                currentUser={currentUser}
                 busy={busy}
                 onPost={onOpen}
                 t={t}
@@ -178,6 +182,7 @@ export function Topics({
 function Composer({
     viewer,
     otherPartyName,
+    currentUser,
     busy,
     onPost,
     t,
@@ -185,6 +190,7 @@ function Composer({
 }: {
     viewer: Viewer;
     otherPartyName: string;
+    currentUser?: { name?: string | null; avatarUrl?: string | null };
     busy?: boolean;
     onPost: (subject: string, body: string) => void | Promise<void>;
     t: T;
@@ -217,7 +223,13 @@ function Composer({
     return (
         <Card className="p-3.5">
             <div className="flex gap-3">
-                <Who side={sideOf(viewer)} label={viewer === "leader" ? otherPartyName : undefined} />
+                {/* The composer is the signed-in user writing: show their photo,
+                    falling back to their own initial (not a bare "S"). */}
+                <Who
+                    side={sideOf(viewer)}
+                    imageUrl={currentUser?.avatarUrl ?? undefined}
+                    label={currentUser?.name ?? (viewer === "leader" ? otherPartyName : undefined)}
+                />
                 {!expanded ? (
                     <button
                         type="button"

@@ -75,7 +75,13 @@ export function Pill({
  * two parties, neither of whom may write to the other's side. Shape does that
  * work at 28px where colour alone would not.
  */
-export function Who({ side, label }: { side: "seller" | "community"; label?: string }) {
+export function Who({ side, label, imageUrl }: { side: "seller" | "community"; label?: string; imageUrl?: string | null }) {
+    const shape = side === "community" ? "rounded-[9px]" : "rounded-full";
+    // A real photo when we have one (the composer passes the current user's),
+    // in the same shape the letter would have taken so the side still reads.
+    if (imageUrl) {
+        return <img src={imageUrl} alt="" className={`size-7 shrink-0 object-cover ${shape} ring-1 ring-[var(--line)]`} />;
+    }
     return side === "community" ? (
         <span className="grid size-7 shrink-0 place-items-center rounded-[9px] bg-[var(--ink)] text-[9.5px] font-bold tracking-tight text-white">
             {(label ?? "CO").slice(0, 3).toUpperCase()}

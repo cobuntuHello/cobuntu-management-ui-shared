@@ -162,10 +162,16 @@ export interface ManagedListingDetailProps {
    * host that already passes the name keeps working either way.
    */
   appendItemCrumb?: boolean;
+  /**
+   * The signed-in user, so the topics composer shows their real photo instead
+   * of a bare initial. Each app passes its own session user (community-app from
+   * its auth context, admin from /me). Optional — falls back to the initial.
+   */
+  currentUser?: { name?: string | null; avatarUrl?: string | null };
 }
 
 export function ManagedListingDetail({
-  kind, listingId, backHref, itemName, breadcrumbs, appendCommunityCrumb, appendItemCrumb,
+  kind, listingId, backHref, itemName, breadcrumbs, appendCommunityCrumb, appendItemCrumb, currentUser,
   apiBaseUrl = "", authHeaders, t: translate, viewer = "owner", brand,
 }: ManagedListingDetailProps & ListingDetailConfig) {
   const t = translate ?? defaultTranslate;
@@ -219,7 +225,6 @@ export function ManagedListingDetail({
    * rarely, and empty on the common listing that was accepted as asked. It had
    * been a full card holding one grey sentence in the middle of the page.
    */
-  const [tab, setTab] = useState<"terms" | "history">("terms");
   /*
    * The OTHER deductions, from the endpoint that publishes them.
    *
@@ -717,42 +722,13 @@ export function ManagedListingDetail({
         * only thing here that grows.
         */}
       {/*
-        * The tab strip, in the manage pages' shape.
-        *
-        * Terms leads because it is what the page is for: the rate, the
-        * agreement, and the points either side raised -- the live conversation
-        * you act on. History is the record of formal offers, which most
-        * listings never have, and it kept a full card in the middle of the page
-        * to say so.
+        * No tab strip: the cut, the negotiation history and the topics all live
+        * on the one page now, top to bottom — the history thread sits under the
+        * cut, with the topics conversation below it (topics under the thread, as
+        * the section was always meant to read). History was never a task, so a
+        * tab for it only hid a record one scroll would have shown.
         */}
-      {/*
-        * The strip scrolls rather than wraps on a narrow screen: a wrapped tab
-        * row changes height as you switch tabs, which moves the content under
-        * your thumb.
-        */}
-      <div className="mb-5 -mx-4 flex gap-1 overflow-x-auto border-b border-[var(--line)] px-4 sm:mx-0 sm:px-0">
-        {([
-          ["terms", t("tabTerms")],
-          ["history", proposals.length > 0 ? t("tabHistoryCount", { count: proposals.length }) : t("tabHistory")],
-        ] as const).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key as "terms" | "history")}
-            aria-current={tab === key ? "page" : undefined}
-            className={`-mb-px cursor-pointer border-b-2 px-3.5 py-2.5 text-[13.5px] font-medium transition-colors ${
-              tab === key
-                ? "border-[var(--ink)] text-[var(--ink)]"
-                : "border-transparent text-[var(--ink-3)] hover:text-[var(--ink-2)]"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
       <div>
-        {tab === "terms" && (
         <>
         <div>
       {/*
@@ -873,7 +849,6 @@ export function ManagedListingDetail({
           </div>
         )}
         </>
-        )}
 
         <div className="min-w-0">
 
@@ -885,7 +860,6 @@ export function ManagedListingDetail({
         * where it had been a full card holding one grey sentence in the middle
         * of the page.
         */}
-      {tab === "history" && (
       <div className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100 overflow-hidden mb-6">
         <div className="px-6 py-4 border-b border-zinc-100">
           <h2 className="text-[14px] font-semibold text-zinc-900">{t("threadTitle")}</h2>
@@ -935,10 +909,7 @@ export function ManagedListingDetail({
           * changed by asking again rather than by editing history.
           */}
       </div>
-      )}
 
-      {tab === "terms" && (
-      <>
       {/*
         * ── Topics, under the rate thread ──────────────────────────────────
         *
@@ -961,6 +932,7 @@ export function ManagedListingDetail({
           topics={topics}
           viewer={viewer}
           otherPartyName={viewer === "owner" ? (community?.name || t("community")) : (listing.requestedBy?.name || t("someone"))}
+          currentUser={currentUser}
           busy={busy}
           onOpen={openTopic}
           onComment={commentOnTopic}
@@ -968,8 +940,6 @@ export function ManagedListingDetail({
           t={t}
         />
       </div>
-      </>
-      )}
 
         </div>
       </div>
