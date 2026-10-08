@@ -82,4 +82,32 @@ describe("ListingReviewCard (Option A overlay)", () => {
     render(<ListingReviewCard {...base} kind={{ label: "Course · 4 lessons", icon: "course" }} onReview={() => {}} />);
     expect(screen.getByText("Course · 4 lessons")).toBeInTheDocument();
   });
+
+  it("event variant shows the date above the title (not a taxonomy) and a green price", () => {
+    const { container } = render(
+      <ListingReviewCard
+        {...base}
+        variant="event"
+        data={{ ...DATA, taxonomy: "Design · UX", dateLabel: "Oct 17 · 7:00 PM", priceLabel: "Free", priceFree: true }}
+        onReview={() => {}}
+      />,
+    );
+    // The date leads the card; the taxonomy is not shown in the event layout.
+    expect(screen.getByText("Oct 17 · 7:00 PM")).toBeInTheDocument();
+    expect(screen.queryByText("Design · UX")).not.toBeInTheDocument();
+    // 4:3 image frame (event), not the product 16:10.
+    expect(container.querySelector(".aspect-\\[4\\/3\\]")).not.toBeNull();
+    // Price is green (event treatment), free or paid alike.
+    const price = screen.getByText("Free");
+    expect(price.className).toMatch(/text-green-600/);
+  });
+
+  it("product variant keeps the taxonomy and 16:10 frame", () => {
+    const { container } = render(
+      <ListingReviewCard {...base} data={{ ...DATA, taxonomy: "Design · UX", dateLabel: "ignored" }} onReview={() => {}} />,
+    );
+    expect(screen.getByText("Design · UX")).toBeInTheDocument();
+    expect(screen.queryByText("ignored")).not.toBeInTheDocument();
+    expect(container.querySelector(".aspect-\\[16\\/10\\]")).not.toBeNull();
+  });
 });
