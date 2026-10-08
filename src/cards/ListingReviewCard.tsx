@@ -43,6 +43,9 @@ export interface ListingReviewCardProps {
   reviewLabel?: string;
   /** Muted (ghost) action, for resolved rows where there is nothing to decide. */
   reviewGhost?: boolean;
+  /** Card body layout — "event" uses the EventCard look (4:3, date-above-title,
+      green price). Defaults to "product". */
+  variant?: "product" | "event";
   starCopy?: Partial<StarRatingCopy>;
   className?: string;
 }
@@ -59,7 +62,7 @@ const KIND_ICON = {
 
 export function ListingReviewCard({
   data, kind, status, commission, requester, requestedAtLabel,
-  reviewHref, onReview, reviewLabel = "Review request", reviewGhost, starCopy, className,
+  reviewHref, onReview, reviewLabel = "Review request", reviewGhost, variant = "product", starCopy, className,
 }: ListingReviewCardProps) {
   const reviewClasses =
     "inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] px-3 py-2 text-[13px] font-semibold transition-colors " +
@@ -129,6 +132,7 @@ export function ListingReviewCard({
   return (
     <StorefrontCard
       data={data}
+      variant={variant}
       href={reviewHref}
       ariaLabel={reviewHref ? `${reviewLabel}: ${data.title}` : undefined}
       className={className}
