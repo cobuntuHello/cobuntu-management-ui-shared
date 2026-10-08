@@ -808,6 +808,15 @@ export function ManagedListingDetail({
           {listing.createdAt && <Meta label={t("requested")} value={formatDate(listing.createdAt)} />}
           {listing.rejectionReason && <Meta label={t("communityNote")} value={listing.rejectionReason} />}
         </dl>
+        {/*
+          * A free event still asks for a cut, which reads as a contradiction
+          * until you know the cut is for LATER: a rate set now applies to any
+          * paid tickets added to this event down the line. Said here, next to
+          * the rate, so nobody has to guess why a price of zero has a commission.
+          */}
+        {heroIsFree && (
+          <p className="mt-2 px-1 text-[12px] leading-relaxed text-[var(--ink-3)]">{t("cutFreeNote")}</p>
+        )}
       </div>
 
         </div>
@@ -1052,15 +1061,24 @@ export function ManagedListingDetail({
         <div className="flex flex-wrap gap-2">
           {reviewActions.map((action) => {
             if (action === "approve") {
+              /*
+               * The button names the number it commits to. "Approve & publish"
+               * said nothing about the cut being agreed, so the leader confirmed
+               * a rate that lived only in the spine above; "Approve at 10%" puts
+               * the decision in the control that makes it. Falls back to the
+               * plain label when no rate is set yet (a free event, or terms not
+               * agreed) -- there is no number to name.
+               */
+              const approveLabel = rate != null ? t("approveAtRate", { rate }) : t("approve");
               return (
                 <button key={action} type="button" onClick={() => setPending({
                     to: "ACTIVE",
                     title: t("confirmApproveTitle"),
                     body: t("confirmApproveBody", { community: community?.name || t("community") }),
-                    confirm: t("approve"),
+                    confirm: approveLabel,
                   })} disabled={busy}
                   className="px-4 py-2.5 text-[13px] font-medium text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 cursor-pointer disabled:opacity-40">
-                  {t("approve")}
+                  {approveLabel}
                 </button>
               );
             }

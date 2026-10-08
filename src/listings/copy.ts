@@ -36,6 +36,10 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     waitingLeaderTitle: "Your turn",
     waitingLeaderBody: "This request is waiting on you. Agree the terms below, or propose different ones.",
     approve: "Approve & publish",
+    /* The approve button names the agreed cut when there is one. */
+    approveAtRate: "Approve at {rate}%",
+    /* Shown by the cut spine on a free event: the rate is for later. */
+    cutFreeNote: "This event is free today. The cut applies to any paid tickets added later.",
     decline: "Decline",
     revoke: "Take it down",
     listings: "Listings",
