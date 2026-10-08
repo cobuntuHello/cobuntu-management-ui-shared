@@ -56,10 +56,12 @@ describe("the spine", () => {
 
     it("says nothing is agreed rather than showing a confident zero", () => {
         // "0%" is a rate somebody chose. Null is a question nobody has answered,
-        // and the two must not look alike on a screen about money.
+        // and the two must not look alike on a screen about money. The unagreed
+        // case now reads as a muted sentence rather than a 42px em dash, which
+        // looked like a broken value rather than an unmade decision.
         render(<DealSpine rate={null} communityName="PBN" />);
-        expect(screen.getByText("—")).toBeInTheDocument();
-        expect(screen.getByText(/Nothing agreed yet/)).toBeInTheDocument();
+        expect(screen.queryByText("—")).not.toBeInTheDocument();
+        expect(screen.getByText(/No cut agreed yet/)).toBeInTheDocument();
     });
 
     it("offers no counter once the deal is locked", () => {
@@ -165,14 +167,14 @@ describe("a rate of zero", () => {
     });
 
     /*
-     * An unagreed rate is a THIRD thing: not zero, not a split. It already said
-     * "Nothing agreed yet" and must keep saying that rather than falling into
-     * the zero copy.
+     * An unagreed rate is a THIRD thing: not zero, not a split. It says "No cut
+     * agreed yet" and must keep saying that rather than falling into the zero
+     * copy or drawing a split of a rate that does not exist.
      */
     it("keeps null distinct from zero", () => {
         render(<DealSpine rate={null} communityName="PBN" platformShare={10} />);
-        expect(screen.getByText("—")).toBeInTheDocument();
-        expect(screen.getByText(/Nothing agreed yet/)).toBeInTheDocument();
+        expect(screen.queryByText("—")).not.toBeInTheDocument();
+        expect(screen.getByText(/No cut agreed yet/)).toBeInTheDocument();
         expect(screen.queryByText(/Nothing to split/)).not.toBeInTheDocument();
     });
 });

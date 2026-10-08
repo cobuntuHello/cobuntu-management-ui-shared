@@ -412,6 +412,38 @@ export function ManagedListingDetail({
     listing.products?.name ?? listing.product?.name
     ?? listing.events?.name ?? listing.event?.name
     ?? itemName ?? null;
+
+  /*
+   * The hero leads with the ITEM under review, not the community. A leader is
+   * already inside one community and a member sees it close the breadcrumb, so
+   * the headline is spent on the thing being judged and the facts that decide
+   * it: when it runs, what it costs, and who asked. Everything here is
+   * best-effort -- a field the payload does not carry simply does not render,
+   * never a wrong value. The event read carries a full event DTO (`event`); the
+   * product read nests `products`.
+   */
+  const heroItem: any =
+    kind === "event" ? (listing.event ?? listing.events ?? null) : (listing.products ?? listing.product ?? null);
+  const heroImage: string | null =
+    (kind === "event"
+      ? heroItem?.bannerUrl ?? heroItem?.coverImage ?? heroItem?.imageUrl
+      : heroItem?.imageUrl ?? heroItem?.coverImage ?? heroItem?.image) ?? null;
+  /* Date for events only; a product has no single date to lead with. */
+  const heroDate: string | null =
+    kind === "event" && heroItem?.startDate ? formatDate(heroItem.startDate) : null;
+  /*
+   * Price for events only. The event DTO publishes `price` already in major
+   * units (null means a free event); a product's raw price is in cents, a
+   * different unit this hero would have to special-case to show honestly, so it
+   * is left off the product variant rather than risk a wrong number.
+   */
+  const heroIsFree = kind === "event" && !!heroItem && !(heroItem.price != null && Number(heroItem.price) > 0);
+  const heroPrice: string | null =
+    kind === "event" && heroItem
+      ? (heroIsFree ? t("free") : formatMoney(Number(heroItem.price), heroItem.currency))
+      : null;
+  const requesterName: string | null = listing.requestedBy?.name ?? null;
+
   const closed = isClosedState(state);
   const waiting = isAwaitingReview(state);
   /*
@@ -648,17 +680,38 @@ export function ManagedListingDetail({
         ))}
       </div>
 
-      <div className="flex items-center gap-3 mb-6">
-        {community?.iconUrl ? (
-          <img src={community.iconUrl} alt="" className="w-11 h-11 rounded-xl object-cover shrink-0" />
+      {/*
+        * The item under review leads the page.
+        *
+        * This used to headline the COMMUNITY -- its icon and name in 18px, the
+        * item relegated to a grey subtitle -- which told a leader the one thing
+        * they already knew (which community they are in) and buried the thing
+        * they opened the page to judge. The community is the breadcrumb above
+        * now; the headline is the event or product, with the facts that decide
+        * the call beside it: when it runs, what it costs, and who asked.
+        */}
+      <div className="flex items-start gap-3.5 mb-6">
+        {heroImage ? (
+          <img src={heroImage} alt="" className="w-20 h-[60px] sm:w-24 sm:h-[72px] rounded-xl object-cover shrink-0 bg-zinc-100" />
         ) : (
-          <div className="w-11 h-11 rounded-xl bg-zinc-100 flex items-center justify-center text-[15px] font-semibold text-zinc-500 shrink-0">
-            {community?.name?.[0]?.toUpperCase() || "?"}
+          <div className="w-20 h-[60px] sm:w-24 sm:h-[72px] rounded-xl bg-zinc-100 flex items-center justify-center text-[18px] font-semibold text-zinc-400 shrink-0">
+            {(listedItemName || community?.name || "?").trim()[0]?.toUpperCase() || "?"}
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-semibold text-zinc-900 truncate">{community?.name || t("community")}</h1>
-          {itemName && <p className="text-[13px] text-zinc-500 truncate">{itemName}</p>}
+          {heroDate && (
+            <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-zinc-400">{heroDate}</p>
+          )}
+          <h1 className="text-lg sm:text-xl font-semibold text-zinc-900 leading-tight break-words">
+            {listedItemName || community?.name || t("community")}
+          </h1>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-zinc-500">
+            {heroPrice && (
+              <span className={`font-medium ${heroIsFree ? "text-emerald-700" : "text-zinc-700"}`}>{heroPrice}</span>
+            )}
+            {requesterName && <span>{t("requestedByWho", { who: requesterName })}</span>}
+            {listing.createdAt && <span className="text-zinc-400">· {formatDate(listing.createdAt)}</span>}
+          </div>
         </div>
         {state && (
           <span className={`shrink-0 px-2.5 py-1 rounded-md text-[12px] font-medium ${STATE_TONE[state]}`}>
@@ -853,12 +906,45 @@ export function ManagedListingDetail({
         <div className="min-w-0">
 
       {/*
-        * HISTORY: every rate either side formally put forward.
+        * ── Topics come first, History second ──────────────────────────────
         *
-        * Its own tab because it is a record, not a task. Read once, argued over
-        * rarely, and empty on the common listing that was accepted as asked --
-        * where it had been a full card holding one grey sentence in the middle
-        * of the page.
+        * Topics are the live conversation -- the part of the review someone acts
+        * on, raises, and works through. History is the change log: every rate
+        * either side formally put forward, read once and argued over rarely, and
+        * empty on the common listing that was accepted as asked. So the thing
+        * with the work in it leads, and the record sits beneath it.
+        *
+        * Two feeds rather than one. A proposal and a topic close differently --
+        * one is accepted by the other side, the other only when BOTH agree --
+        * and interleaving them would put two different meanings of "done" in one
+        * column.
+        */}
+      <div className="mb-6">
+        <div className="mb-3 px-1">
+          <h2 className="text-[14px] font-semibold text-[var(--ink)]">{t("topicsTitle")}</h2>
+          <p className="mt-0.5 text-[12px] text-[var(--ink-3)]">{t("topicsSubtitle")}</p>
+        </div>
+        <Topics
+          topics={topics}
+          viewer={viewer}
+          otherPartyName={viewer === "owner" ? (community?.name || t("community")) : (listing.requestedBy?.name || t("someone"))}
+          currentUser={currentUser}
+          busy={busy}
+          onOpen={openTopic}
+          onComment={commentOnTopic}
+          onToggleDone={toggleTopicDone}
+          t={t}
+        />
+      </div>
+
+      {/*
+        * HISTORY: the change log, under the conversation.
+        *
+        * A record, not a task. Read once, argued over rarely, and empty on the
+        * common listing that was accepted as asked -- where it had been a full
+        * card holding one grey sentence in the middle of the page. The counter
+        * form that writes new entries into it is opened from the cut spine above,
+        * next to the money, not from here.
         */}
       <div className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100 overflow-hidden mb-6">
         <div className="px-6 py-4 border-b border-zinc-100">
@@ -896,49 +982,6 @@ export function ManagedListingDetail({
             {waiting ? t("threadEmptyWaiting") : t("threadEmpty")}
           </p>
         )}
-
-        {/*
-          * Countering lives INSIDE the thread, at the end of it.
-          *
-          * It is the next entry in a conversation, not a separate settings
-          * panel — and putting it here means the offer someone is replying to
-          * is still on screen while they choose.
-          *
-          * Only while the listing is open to it: there is nothing to negotiate
-          * on a cancelled or revoked one, and an accepted arrangement is
-          * changed by asking again rather than by editing history.
-          */}
-      </div>
-
-      {/*
-        * ── Topics, under the rate thread ──────────────────────────────────
-        *
-        * Two feeds rather than one, and the order is the argument: the rate is
-        * a single number with an Accept, so it stays a compact list at the top;
-        * everything else is a conversation and gets the room a conversation
-        * needs.
-        *
-        * Merging them was considered and rejected. A proposal and a topic close
-        * differently — one is accepted by the other side, the other only when
-        * BOTH agree — and interleaving them would put two different meanings of
-        * "done" in one column.
-        */}
-      <div className="mb-6">
-        <div className="mb-3 px-1">
-          <h2 className="text-[14px] font-semibold text-[var(--ink)]">{t("topicsTitle")}</h2>
-          <p className="mt-0.5 text-[12px] text-[var(--ink-3)]">{t("topicsSubtitle")}</p>
-        </div>
-        <Topics
-          topics={topics}
-          viewer={viewer}
-          otherPartyName={viewer === "owner" ? (community?.name || t("community")) : (listing.requestedBy?.name || t("someone"))}
-          currentUser={currentUser}
-          busy={busy}
-          onOpen={openTopic}
-          onComment={commentOnTopic}
-          onToggleDone={toggleTopicDone}
-          t={t}
-        />
       </div>
 
         </div>
@@ -1189,6 +1232,22 @@ function formatDate(iso: string): string {
   return Number.isNaN(d.getTime())
     ? ""
     : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+/**
+ * The hero price, for an event whose DTO carries a MAJOR-unit `price`.
+ *
+ * Only the event read is passed here; a product's price is in cents and is left
+ * off the hero rather than shown in the wrong unit. Falls back to a plain
+ * "CUR amount" string if the runtime cannot format the currency, so a bad or
+ * missing currency code never throws the whole page.
+ */
+function formatMoney(amount: number, currency?: string | null): string {
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: currency || "EUR" }).format(amount);
+  } catch {
+    return `${currency || "EUR"} ${amount}`;
+  }
 }
 
 

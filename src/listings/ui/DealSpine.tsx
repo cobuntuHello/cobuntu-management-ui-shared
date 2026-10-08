@@ -147,19 +147,32 @@ export function DealSpine({
                 <p className="text-[11px] font-bold uppercase tracking-[.13em] text-[var(--ink-3)]">
                     {label("spineHeading", `${communityName}'s cut`)}
                 </p>
-                <p
-                    className="mt-1 text-[34px] font-bold leading-none tracking-tighter sm:text-[42px]"
-                    style={{ fontVariantNumeric: "tabular-nums" }}
-                >
-                    {rate == null ? "\u2014" : `${shown}%`}
-                </p>
-                <p className="mt-1.5 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
-                    {rate == null
-                        ? label("spineNotAgreed", "Nothing agreed yet")
-                        : rate === 0
-                            ? label("spineZero", "No commission on this listing. Nothing to split.")
-                            : label("spineSub", "of every sale, split as shown")}
-                </p>
+                {/*
+                  * No rate yet is a PROMPT, not a number. The old render put a
+                  * 42px em dash where the percentage goes, which read as a
+                  * broken value rather than an unmade decision -- so the null
+                  * case drops to a muted sentence at body weight and the big
+                  * numeral is reserved for a rate that actually exists.
+                  */}
+                {rate == null ? (
+                    <p className="mt-2 text-[16px] font-semibold leading-snug text-[var(--ink-2)]">
+                        {label("spineNotAgreed", "No cut agreed yet")}
+                    </p>
+                ) : (
+                    <>
+                        <p
+                            className="mt-1 text-[34px] font-bold leading-none tracking-tighter sm:text-[42px]"
+                            style={{ fontVariantNumeric: "tabular-nums" }}
+                        >
+                            {`${shown}%`}
+                        </p>
+                        <p className="mt-1.5 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
+                            {rate === 0
+                                ? label("spineZero", "No commission on this listing. Nothing to split.")
+                                : label("spineSub", "of every sale, split as shown")}
+                        </p>
+                    </>
+                )}
             </div>
 
             {rate !== null && (
