@@ -109,7 +109,7 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
      * conversations, not form fields.
      */
     cancel: "Cancel",
-    topicsTitle: "Points raised",
+    topicsTitle: "Topics raised",
     topicsSubtitle: "Anything about this listing that is not the rate. Each one closes when you both agree it is done.",
     topicsComposerPlaceholder: "Raise something with {other}...",
     topicsSubjectPlaceholder: "What is this about?",
