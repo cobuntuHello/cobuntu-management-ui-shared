@@ -432,15 +432,27 @@ export function ManagedListingDetail({
   const heroDate: string | null =
     kind === "event" && heroItem?.startDate ? formatDate(heroItem.startDate) : null;
   /*
-   * Price for events only. The event DTO publishes `price` already in major
-   * units (null means a free event); a product's raw price is in cents, a
-   * different unit this hero would have to special-case to show honestly, so it
-   * is left off the product variant rather than risk a wrong number.
+   * Free or paid comes from the server's `isPaid` flag, NOT `event.price`.
+   *
+   * The detail read's `event.price` is derived from transformEvent's
+   * publish-gated tiers: for a non-host viewer (every leader reviewing a
+   * request) a draft tier is hidden, so a PAID event comes back with
+   * `price: null` and the hero read "Free" on a €5 event -- the 2026-06-03 PBN
+   * "Free" incident, resurfaced by this page. `isPaid` is computed off the
+   * products and survives that gate, and `listingPrice` ({ amount, currency },
+   * major units) is the matching amount. Until the backend that adds
+   * listingPrice is live it is absent, so a paid event shows no amount rather
+   * than a wrong "Free"; once it lands, the price appears.
    */
-  const heroIsFree = kind === "event" && !!heroItem && !(heroItem.price != null && Number(heroItem.price) > 0);
+  const heroIsFree = kind === "event" && listing.isPaid === false;
+  const heroListingPrice = kind === "event" ? (listing.listingPrice ?? null) : null;
   const heroPrice: string | null =
-    kind === "event" && heroItem
-      ? (heroIsFree ? t("free") : formatMoney(Number(heroItem.price), heroItem.currency))
+    kind === "event"
+      ? (heroIsFree
+          ? t("free")
+          : (heroListingPrice && Number(heroListingPrice.amount) > 0
+              ? formatMoney(Number(heroListingPrice.amount), heroListingPrice.currency)
+              : null))
       : null;
   const requesterName: string | null = listing.requestedBy?.name ?? null;
 
