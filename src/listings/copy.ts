@@ -95,6 +95,9 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     offerTitle: "Set the commission",
     offerSubtitle: "Offer {seller} one of these. They confirm it, then you can publish.",
     offerPick: "Offer {rate}%",
+    /* The floor that checkout already charges when nothing is agreed. */
+    offerFloorNote: "Until you set terms, {community} already takes {rate}% on every sale — {name}, the floor of {seller}'s tier. Offer a package to lock it in or change it.",
+    offerDefaultBadge: "Applies now by default",
     counterOpen: "Propose different terms",
     counterTitle: "Propose different terms",
     counterSubtitle: "Pick the arrangement you would rather have. This replaces your last offer.",
