@@ -762,7 +762,13 @@ export function ManagedListingDetail({
             {listing.createdAt && <span className="text-zinc-400">· {formatDate(listing.createdAt)}</span>}
           </div>
         </div>
-        {state && (
+        {/*
+          * No status chip while under review: the "Your turn / In review"
+          * banner right below already says it, and two labels for one state in
+          * the same eyeful is clutter. Other states (paused, closed) have no
+          * banner, so the chip stays there to carry them.
+          */}
+        {state && !waiting && (
           <span className={`shrink-0 px-2.5 py-1 rounded-md text-[12px] font-medium ${STATE_TONE[state]}`}>
             {t(STATE_LABEL_KEY[state])}
           </span>
@@ -1144,7 +1150,12 @@ export function ManagedListingDetail({
       */}
       {reviewActions.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {reviewActions.map((action) => {
+          {/*
+            * Approve is the primary act and sits RIGHT-MOST, where the eye and
+            * the thumb finish; decline is a muted secondary to its left, never a
+            * red box -- declining is ordinary review work, not a danger.
+            */}
+          {[...reviewActions].sort((a, b) => (a === "approve" ? 1 : b === "approve" ? -1 : 0)).map((action) => {
             if (action === "approve") {
               /*
                * The button names the number it commits to. "Approve & publish"
@@ -1162,7 +1173,7 @@ export function ManagedListingDetail({
                     body: t("confirmApproveBody", { community: community?.name || t("community") }),
                     confirm: approveLabel,
                   })} disabled={busy}
-                  className="px-4 py-2.5 text-[13px] font-medium text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 cursor-pointer disabled:opacity-40">
+                  className="rounded-lg bg-[var(--commit)] px-4 py-2.5 text-[13px] font-semibold text-white hover:opacity-90 cursor-pointer disabled:opacity-40">
                   {approveLabel}
                 </button>
               );
@@ -1175,7 +1186,7 @@ export function ManagedListingDetail({
                   confirm: t("revoke"),
                   danger: true,
                 })} disabled={busy}
-                className="px-3 py-2.5 text-[13px] font-semibold text-[var(--bad)] rounded-lg hover:bg-[var(--sunk)] cursor-pointer disabled:opacity-40">
+                className="rounded-lg bg-[var(--sunk)] px-4 py-2.5 text-[13px] font-semibold text-[var(--ink-2)] hover:bg-[var(--line)] cursor-pointer disabled:opacity-40">
                 {action === "decline" ? t("decline") : t("revoke")}
               </button>
             );
