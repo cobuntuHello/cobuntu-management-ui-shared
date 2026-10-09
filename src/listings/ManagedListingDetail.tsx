@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { Clock } from "lucide-react";
 import { defaultTranslate } from "./copy";
 import { DealSpine } from "./ui/DealSpine";
+import { OfferedPackages } from "./ui/OfferedPackages";
 import { NextAction } from "./ui/NextAction";
 import { Topics, type Topic } from "./ui/Topics";
 import { listingTokenStyle, LISTING_MOTION } from "./ui/tokens";
@@ -352,6 +353,35 @@ export function ManagedListingDetail({
     return () => { cancelled = true; };
   }, [base, listingId, listing?.packageId]);
 
+  /*
+   * The leader's packages, loaded up front — not lazily behind the counter form.
+   *
+   * A member's request arrives with no cut agreed, and the leader has to pick a
+   * published package before it can go live. Those options are the point of the
+   * review, so for a leader looking at a still-open request they load with the
+   * page and render inline (OfferedPackages below), rather than appearing only
+   * after someone finds "Propose different terms". Scoped to exactly that case
+   * so it adds no request to any other visit. Above the early return, like every
+   * other hook here.
+   */
+  useEffect(() => {
+    if (viewer !== "leader" || !listing) return;
+    const st = normalizeListingState(listing.status);
+    const r = toRate(listing.commissionRate ?? listing.ticketListing?.commissionRate);
+    if (!isAwaitingReview(st) || r != null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${base}/${encodeURIComponent(listingId)}/packages`, authed);
+        if (!res.ok) return;
+        const body = await res.json().catch(() => null);
+        const list = Array.isArray(body?.packages) ? body.packages : [];
+        if (!cancelled) setOffered(list);
+      } catch { /* no inline options rather than a broken page */ }
+    })();
+    return () => { cancelled = true; };
+  }, [base, listingId, viewer, listing]);
+
   async function move(to: ListingState) {
     setBusy(true);
     try {
@@ -467,6 +497,13 @@ export function ManagedListingDetail({
    * is on.
    */
   const canCounter = state === "PENDING" || state === "ACTIVE";
+  /*
+   * Show the leader the packages to choose from, inline, when the request is
+   * still open and no cut is agreed. This is the one case where the options ARE
+   * the task; it also replaces the spine's generic "Propose different terms"
+   * button, which would be a second, vaguer door to the same choice.
+   */
+  const showInlinePackages = viewer === "leader" && waiting && rate == null && offered.length > 0;
 
   async function openCompose(): Promise<{ id: string; name: string; description: string | null; rate: number }[]> {
     setComposing(true);
@@ -811,7 +848,9 @@ export function ManagedListingDetail({
           sellerFee={fees ? { rate: fees.memberSellerRate, fixed: fees.memberSellerFixed } : null}
           communityName={community?.name || t("community")}
           locked={state === "ACTIVE"}
-          onCounter={canCounter ? (r) => void counterToRate(r) : undefined}
+          /* The inline package list is the leader's door to the terms when the
+             request is still open, so the spine's generic button stands down. */
+          onCounter={canCounter && !showInlinePackages ? (r) => void counterToRate(r) : undefined}
           counterLabel={t("counterOpen")}
           t={t}
         />
@@ -830,6 +869,30 @@ export function ManagedListingDetail({
           <p className="mt-2 px-1 text-[12px] leading-relaxed text-[var(--ink-3)]">{t("cutFreeNote")}</p>
         )}
       </div>
+
+      {/*
+        * The leader's package options, on the page.
+        *
+        * Only when the leader is looking at a request with no cut agreed yet:
+        * this is the choice that unblocks the listing, so it is shown, not
+        * hidden behind a button. Offering one files a proposal the member
+        * accepts; the backend will not publish a paid listing on terms nobody
+        * agreed to.
+        */}
+      {showInlinePackages && (
+        <div className="mb-6">
+          <OfferedPackages
+            packages={offered}
+            platformShare={fees ? Math.round(fees.platformRate * 100) : undefined}
+            sellerFee={fees ? { rate: fees.memberSellerRate, fixed: fees.memberSellerFixed } : null}
+            communityName={community?.name || t("community")}
+            sellerName={listing.requestedBy?.name || t("someone")}
+            busy={posting || busy}
+            onChoose={(pkgId) => void postProposal(pkgId)}
+            t={t}
+          />
+        </div>
+      )}
 
         </div>
 

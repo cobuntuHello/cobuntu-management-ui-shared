@@ -2,6 +2,36 @@ import { useState } from "react";
 import { Card } from "./primitives";
 
 /**
+ * One sale, divided into the three shares that leave it.
+ *
+ * `rate` is the community's cut of the sale; Cobuntu takes `platformShare`
+ * percent OF that cut (a fraction of a fraction, so it stays small as the rate
+ * moves). On top of that Cobuntu charges the seller a fee on their OWN share,
+ * which is why the seller does not simply keep "everything the community did
+ * not take" -- a 0% listing is not "seller 100%". Stripe's processing comes out
+ * of Cobuntu's fee, so it is named, not drawn as a fourth share that would
+ * double-count.
+ *
+ * Shared so the spine and the leader's package options split a sale the exact
+ * same way; one of them doing it differently is a number that lies.
+ */
+export function saleSplit(
+    rate: number,
+    platformShare: number,
+    sellerFee: { rate: number; fixed: number; currency?: string } | null,
+): { sellerOfSale: number; communityOfSale: number; platformOfSale: number } {
+    const cobuntuOfCommission = (rate * platformShare) / 100;
+    const communityOfSale = rate - cobuntuOfCommission;
+    const sellerShare = 100 - rate;
+    const cobuntuOfSeller = sellerFee ? sellerShare * sellerFee.rate : 0;
+    return {
+        sellerOfSale: sellerShare - cobuntuOfSeller,
+        communityOfSale,
+        platformOfSale: cobuntuOfCommission + cobuntuOfSeller,
+    };
+}
+
+/**
  * The commission, drawn as the thing it is: a cut of every sale, split.
  *
  * ── Why the bar is the card's edge ──────────────────────────────────────────
@@ -83,28 +113,7 @@ export function DealSpine({
     const say = (k: string, vars: Record<string, unknown>, fallback: string) =>
         (t ? t(k, vars) : fallback);
 
-    /*
-     * One sale, divided. `rate` is the community's cut of the sale; Cobuntu
-     * takes `platformShare` percent OF that cut, so its slice is a fraction of
-     * a fraction and stays small on purpose -- drawing it against the sale is
-     * the only way that stays true as the rate moves.
-     */
-    const cobuntuOfCommission = (shown * platformShare) / 100;
-    const communityOfSale = shown - cobuntuOfCommission;
-    /*
-     * WHAT THE SELLER ACTUALLY KEEPS, which is not "everything the community
-     * did not take".
-     *
-     * Cobuntu charges the seller a fee on their OWN share on top of its slice
-     * of the commission, so a 0% listing was drawing "Seller 100%" -- a
-     * confident, wrong number on the most common listing there is. That fee is
-     * all-in: Stripe's processing comes out of it, which is why Stripe is named
-     * below rather than drawn as a fourth band that would double-count.
-     */
-    const sellerShare = 100 - shown;
-    const cobuntuOfSeller = sellerFee ? sellerShare * sellerFee.rate : 0;
-    const platformOfSale = cobuntuOfCommission + cobuntuOfSeller;
-    const sellerOfSale = sellerShare - cobuntuOfSeller;
+    const { sellerOfSale, communityOfSale, platformOfSale } = saleSplit(shown, platformShare, sellerFee);
 
     /*
      * The rows, in the order the money leaves the sale. Zero shares are dropped
