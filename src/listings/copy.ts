@@ -91,6 +91,10 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     askAgain: "Ask a community to carry it",
     notFound: "This listing is not available.",
     backToListings: "Back to listings",
+    /* The leader's inline package options on a request with no cut agreed. */
+    offerTitle: "Set the commission",
+    offerSubtitle: "Offer {seller} one of these. They confirm it, then you can publish.",
+    offerPick: "Offer {rate}%",
     counterOpen: "Propose different terms",
     counterTitle: "Propose different terms",
     counterSubtitle: "Pick the arrangement you would rather have. This replaces your last offer.",
