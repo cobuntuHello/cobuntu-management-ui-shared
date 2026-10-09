@@ -751,7 +751,7 @@ export function ManagedListingDetail({
           {heroDate && (
             <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-zinc-400">{heroDate}</p>
           )}
-          <h1 className="text-lg sm:text-xl font-semibold text-zinc-900 leading-tight break-words">
+          <h1 className="text-[26px] sm:text-[30px] font-semibold text-[var(--ink)] leading-[1.05] tracking-[-0.015em] break-words" style={{ fontFamily: "var(--display)" }}>
             {listedItemName || community?.name || t("community")}
           </h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-zinc-500">
@@ -842,18 +842,27 @@ export function ManagedListingDetail({
         * the deal, they are not the deal.
         */}
       <div className="mb-6">
+        {/*
+          * The cut card is HIDDEN when the inline packages are shown.
+          *
+          * On a request with nothing agreed, the spine said "No cut agreed yet"
+          * in its own card directly above the packages that set it -- an empty
+          * box asking the question its neighbour answers. So when the leader is
+          * choosing, the packages are the cut; the spine returns once a rate is
+          * agreed and there is a real split to draw.
+          */}
+        {!showInlinePackages && (
         <DealSpine
           rate={rate}
           platformShare={fees ? Math.round(fees.platformRate * 100) : undefined}
           sellerFee={fees ? { rate: fees.memberSellerRate, fixed: fees.memberSellerFixed } : null}
           communityName={community?.name || t("community")}
           locked={state === "ACTIVE"}
-          /* The inline package list is the leader's door to the terms when the
-             request is still open, so the spine's generic button stands down. */
-          onCounter={canCounter && !showInlinePackages ? (r) => void counterToRate(r) : undefined}
+          onCounter={canCounter ? (r) => void counterToRate(r) : undefined}
           counterLabel={t("counterOpen")}
           t={t}
         />
+        )}
         <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 px-1">
           <Meta label={t("package")} value={packageName ?? (listing.packageId ? t("packageUnnamed") : t("packageNone"))} />
           {listing.createdAt && <Meta label={t("requested")} value={formatDate(listing.createdAt)} />}
@@ -1005,7 +1014,7 @@ export function ManagedListingDetail({
         */}
       <div className="mb-6">
         <div className="mb-3 px-1">
-          <h2 className="text-[14px] font-semibold text-[var(--ink)]">{t("topicsTitle")}</h2>
+          <h2 className="text-[17px] font-semibold text-[var(--ink)] tracking-[-0.01em]" style={{ fontFamily: "var(--display)" }}>{t("topicsTitle")}</h2>
           <p className="mt-0.5 text-[12px] text-[var(--ink-3)]">{t("topicsSubtitle")}</p>
         </div>
         <Topics
@@ -1030,27 +1039,27 @@ export function ManagedListingDetail({
         * form that writes new entries into it is opened from the cut spine above,
         * next to the money, not from here.
         */}
-      <div className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100 overflow-hidden mb-6">
-        <div className="px-6 py-4 border-b border-zinc-100">
-          <h2 className="text-[14px] font-semibold text-zinc-900">{t("threadTitle")}</h2>
-          <p className="text-[12px] text-zinc-500 mt-0.5">{t("threadSubtitle")}</p>
+      <div className="mb-6">
+        <div className="mb-3 px-1">
+          <h2 className="text-[17px] font-semibold text-[var(--ink)] tracking-[-0.01em]" style={{ fontFamily: "var(--display)" }}>{t("threadTitle")}</h2>
+          <p className="mt-0.5 text-[12px] text-[var(--ink-3)]">{t("threadSubtitle")}</p>
         </div>
         {proposals.length > 0 ? (
-          <ul>
+          <ul className="overflow-hidden rounded-xl border border-[var(--line)]">
             {proposals.map((p) => {
               const who = p.proposedBy?.name || p.proposedByUser?.name || t("someone");
               const pRate = toRate(p.commissionRate);
               return (
-                <li key={p.id} className="px-6 py-4 border-b border-zinc-100 last:border-none">
+                <li key={p.id} className="border-b border-[var(--line-soft)] px-4 py-3.5 last:border-none">
                   <div className="flex items-baseline justify-between gap-3">
-                    <p className="text-[13px] font-medium text-zinc-900">
+                    <p className="text-[13px] font-medium text-[var(--ink)]">
                       {p.package?.name
                         ? t("proposedPackage", { who, name: p.package.name, rate: pRate ?? 0 })
                         : t("proposedRate", { who, rate: pRate ?? 0 })}
                     </p>
-                    {p.createdAt && <span className="shrink-0 text-[11px] text-zinc-400">{formatDate(p.createdAt)}</span>}
+                    {p.createdAt && <span className="shrink-0 text-[11px] text-[var(--ink-3)]">{formatDate(p.createdAt)}</span>}
                   </div>
-                  {p.message && <p className="text-[13px] text-zinc-600 mt-1 whitespace-pre-wrap">{p.message}</p>}
+                  {p.message && <p className="mt-1 whitespace-pre-wrap text-[13px] text-[var(--ink-2)]">{p.message}</p>}
                 </li>
               );
             })}
@@ -1060,9 +1069,10 @@ export function ManagedListingDetail({
             An empty thread means two different things and the difference is the
             whole point of the page while in review. "Nothing proposed yet" on a
             listing awaiting an answer reads as if the request never left; what
-            is true is that it landed and nobody has replied.
+            is true is that it landed and nobody has replied. A quiet line, not a
+            boxed empty state -- the common listing was accepted as asked.
           */
-          <p className="px-6 py-8 text-center text-[13px] text-zinc-400">
+          <p className="px-1 text-[13px] text-[var(--ink-3)]">
             {waiting ? t("threadEmptyWaiting") : t("threadEmpty")}
           </p>
         )}
@@ -1165,7 +1175,7 @@ export function ManagedListingDetail({
                   confirm: t("revoke"),
                   danger: true,
                 })} disabled={busy}
-                className="px-4 py-2.5 text-[13px] font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 cursor-pointer disabled:opacity-40">
+                className="px-3 py-2.5 text-[13px] font-semibold text-[var(--bad)] rounded-lg hover:bg-[var(--sunk)] cursor-pointer disabled:opacity-40">
                 {action === "decline" ? t("decline") : t("revoke")}
               </button>
             );
@@ -1204,7 +1214,7 @@ export function ManagedListingDetail({
             }
             return (
               <button key={action} type="button" onClick={() => setConfirmWithdraw(true)} disabled={busy}
-                className="px-4 py-2.5 text-[13px] font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 cursor-pointer disabled:opacity-40">
+                className="px-3 py-2.5 text-[13px] font-semibold text-[var(--bad)] rounded-lg hover:bg-[var(--sunk)] cursor-pointer disabled:opacity-40">
                 {/* In review there is no shelf yet, so what is withdrawn is the ASK. */}
                 {waiting ? t("withdrawRequest") : t("withdraw")}
               </button>

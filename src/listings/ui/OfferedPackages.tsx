@@ -54,9 +54,9 @@ export function OfferedPackages({
     return (
         <Card className="overflow-hidden text-[var(--ink)]">
             <div className="border-b border-[var(--line-soft)] p-4 sm:p-5">
-                <p className="text-[11px] font-bold uppercase tracking-[.13em] text-[var(--ink-3)]">
+                <h3 className="text-[17px] font-semibold tracking-[-0.01em] text-[var(--ink)]" style={{ fontFamily: "var(--display)" }}>
                     {label("offerTitle", "Set the commission")}
-                </p>
+                </h3>
                 <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
                     {say("offerSubtitle", { seller: sellerName },
                          `Offer ${sellerName} one of these. They confirm it, then you can publish.`)}
@@ -66,31 +66,46 @@ export function OfferedPackages({
                 {packages.map((pkg) => {
                     const rate = Number(pkg.rate);
                     const s = saleSplit(rate, platformShare, sellerFee);
+                    const seg = [
+                        { pct: s.sellerOfSale, color: "var(--b-keep)", name: label("spineKeySeller", "You keep") },
+                        { pct: s.communityOfSale, color: "var(--b-comm)", name: communityName },
+                        { pct: s.platformOfSale, color: "var(--b-cob)", name: platformName },
+                    ].filter((x) => x.pct > 0);
                     return (
-                        <li key={pkg.id} className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-[var(--line-soft)] p-4 last:border-none sm:p-5">
-                            <div className="min-w-0 flex-1">
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-[14px] font-semibold text-[var(--ink)]">{pkg.name}</span>
-                                    <span className="text-[13px] font-semibold tabular-nums text-[var(--ink-2)]">{rate}%</span>
+                        <li key={pkg.id} className="grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-3 border-b border-[var(--line-soft)] p-4 transition-colors last:border-none hover:bg-[var(--sunk)] sm:px-5">
+                            <div className="min-w-0">
+                                <div className="flex items-baseline gap-2.5">
+                                    <span className="text-[15px] font-semibold text-[var(--ink)]">{pkg.name}</span>
+                                    <span className="text-[19px] font-semibold leading-none text-[var(--ink)]" style={{ fontFamily: "var(--display)" }}>{rate}%</span>
                                 </div>
                                 {pkg.description && (
-                                    <p className="mt-0.5 text-[12px] leading-relaxed text-[var(--ink-3)]">{pkg.description}</p>
+                                    <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--ink-2)]">{pkg.description}</p>
                                 )}
-                                {/* The same split the spine draws, in one line. */}
-                                <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--ink-3)]">
-                                    <span className="text-[var(--ink-2)]">{label("spineKeySeller", "You keep")} {round(s.sellerOfSale)}%</span>
-                                    {s.communityOfSale > 0 && <> · {communityName} {round(s.communityOfSale)}%</>}
-                                    {s.platformOfSale > 0 && <> · {platformName} {round(s.platformOfSale)}%</>}
-                                </p>
                             </div>
                             <button
                                 type="button"
                                 disabled={busy}
                                 onClick={() => onChoose(pkg.id)}
-                                className="shrink-0 cursor-pointer rounded-lg bg-[var(--commit)] px-4 py-2 text-[13px] font-semibold text-white hover:opacity-90 disabled:opacity-40"
+                                className="row-span-2 shrink-0 cursor-pointer self-center rounded-lg bg-[var(--commit)] px-4 py-2 text-[13px] font-semibold text-white hover:opacity-90 disabled:opacity-40"
                             >
                                 {say("offerPick", { rate }, `Offer ${rate}%`)}
                             </button>
+                            {/* The split, as the slim bar the spine uses + a legend. */}
+                            <div className="col-start-1 mt-1">
+                                <div className="flex h-1.5 max-w-[420px] gap-[2px] overflow-hidden rounded-full">
+                                    {seg.map((x, i) => (
+                                        <span key={i} className="h-full first:rounded-l-full last:rounded-r-full" style={{ width: `${x.pct}%`, background: x.color, minWidth: "4px" }} />
+                                    ))}
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-[var(--ink-2)]">
+                                    {seg.map((x, i) => (
+                                        <span key={i} className="inline-flex items-center gap-1.5">
+                                            <span className="h-[7px] w-[7px] flex-none rounded-[2px]" style={{ background: x.color }} />
+                                            {x.name} <b className="font-semibold tabular-nums text-[var(--ink)]">{round(x.pct)}%</b>
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
                         </li>
                     );
                 })}

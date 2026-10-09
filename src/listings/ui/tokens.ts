@@ -34,6 +34,18 @@ export const LISTING_TOKENS: Record<string, string> = {
     /** The one action colour. Anything that commits wears it. */
     "--commit": "#191714",
 
+    /*
+     * The DISPLAY face, for the event name, the section heads and the money.
+     *
+     * A serif on those three things is what stops the page reading as generated:
+     * the body stays the host app's own font (the community's brand font in the
+     * member view), and only the headline layer switches, which is a deliberate
+     * pairing rather than an override of anyone's branding. Fraunces is loaded by
+     * the panel itself (see LISTING_MOTION) so both apps get the same face with
+     * no font wiring; Georgia carries it until the webfont arrives.
+     */
+    "--display": "'Fraunces', Georgia, 'Times New Roman', serif",
+
     /* The split, in the order the waterfall spends it. */
     "--b-tax": "#ded8cf",
     "--b-comm": "#e0a94e",
@@ -76,6 +88,7 @@ export function listingTokenStyle(extra?: Record<string, string>): Record<string
  * next one, and this page animates things that appear under the cursor.
  */
 export const LISTING_MOTION = `
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap');
 @keyframes cbt-counter-in {
   from { opacity: 0; transform: translateY(2px); }
   to   { opacity: 1; transform: none; }
