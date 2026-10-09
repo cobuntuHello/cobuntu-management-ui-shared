@@ -170,8 +170,8 @@ export function DealSpine({
                 ) : (
                     <>
                         <p
-                            className="mt-1 text-[34px] font-bold leading-none tracking-tighter sm:text-[42px]"
-                            style={{ fontVariantNumeric: "tabular-nums" }}
+                            className="mt-1 text-[36px] font-semibold leading-none tracking-[-0.02em] sm:text-[44px]"
+                            style={{ fontVariantNumeric: "tabular-nums", fontFamily: "var(--display)" }}
                         >
                             {`${shown}%`}
                         </p>

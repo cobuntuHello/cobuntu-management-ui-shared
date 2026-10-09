@@ -82,7 +82,7 @@ export function NextAction({
               * treatment -- the eye went to a status that needed nothing from
               * anyone. The dot carries the colour; the panel does not.
               */
-            <div className="mb-5 flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--card)] p-3.5">
+            <div className="mb-5 flex items-start gap-3 border-l-[3px] border-[var(--good)] py-1 pl-4">
                 <Mark className="bg-emerald-600" />
                 <div className="min-w-0 flex-1">
                 <p className="text-[14px] font-semibold text-[var(--ink)]">
@@ -116,13 +116,17 @@ export function NextAction({
     const waitingOn: "owner" | "leader" = lastProposalFrom === "leader" ? "owner" : "leader";
     const mine = waitingOn === viewer;
 
+    /*
+     * A LEFT ACCENT, not a pastel box.
+     *
+     * The filled cream banner was the loudest thing on a calm page and read as
+     * generated. The turn is a status, not an alert, so it drops to a thin rule
+     * in the warn colour with no fill -- present, not shouting.
+     */
     return (
         <div
-            className="mb-5 flex items-start gap-3 rounded-xl border p-3.5 transition-colors duration-300"
-            style={{
-                borderColor: mine ? "color-mix(in srgb, var(--warn) 30%, transparent)" : "var(--line)",
-                background: mine ? "var(--warn-w)" : "var(--card)",
-            }}
+            className="mb-5 flex items-start gap-3 border-l-[3px] py-1 pl-4 transition-colors duration-300"
+            style={{ borderColor: mine ? "var(--warn)" : "var(--line)" }}
         >
             {/*
               * Explicit colour, not inherited.

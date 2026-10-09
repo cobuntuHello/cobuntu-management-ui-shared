@@ -31,7 +31,10 @@ describe("OfferedPackages", () => {
         render(<OfferedPackages packages={pkgs} communityName="PBN" sellerName="Drew" sellerFee={fee} platformShare={10} onChoose={() => {}} />);
         const s = saleSplit(8, 10, fee); // the Self-run row
         const keep = Math.round(s.sellerOfSale * 10) / 10;
-        expect(screen.getByText(new RegExp(`You keep ${keep}%`))).toBeInTheDocument();
+        // The split renders as a labelled bar legend: the "You keep" label and
+        // its percentage are separate elements, so assert the value directly.
+        expect(screen.getAllByText("You keep").length).toBe(pkgs.length);
+        expect(screen.getByText(`${keep}%`)).toBeInTheDocument();
     });
 
     it("offers a package by id, so the member can accept it", () => {
