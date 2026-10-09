@@ -51,6 +51,21 @@ export function OfferedPackages({
     if (packages.length === 0) return null;
     const platformName = communityName.trim().toLowerCase() === "cobuntu" ? "Platform" : "Cobuntu";
 
+    /*
+     * THE EFFECTIVE FLOOR, made visible.
+     *
+     * When nobody picked a package, the checkout does NOT charge nothing -- it
+     * resolves the commission per sale as the LOWEST rate the seller's tier is
+     * offered (commissionResolver.resolveMemberCommissionRate -> Math.min). So
+     * "no cut agreed" quietly bills that floor on every sale. A leader who sees
+     * only "nothing agreed" never knows a rate is already in force, and the
+     * community silently takes its cheapest arrangement. Naming the floor here
+     * is the difference between a leader approving a known 8% and one approving
+     * a blank.
+     */
+    const floorRate = Math.min(...packages.map((p) => Number(p.rate)));
+    const floorPkg = packages.find((p) => Number(p.rate) === floorRate) ?? null;
+
     return (
         <Card className="overflow-hidden text-[var(--ink)]">
             <div className="border-b border-[var(--line-soft)] p-4 sm:p-5">
@@ -61,6 +76,13 @@ export function OfferedPackages({
                     {say("offerSubtitle", { seller: sellerName },
                          `Offer ${sellerName} one of these. They confirm it, then you can publish.`)}
                 </p>
+                {floorPkg && (
+                    <p className="mt-2.5 rounded-lg bg-[var(--sunk)] px-3 py-2 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
+                        {say("offerFloorNote",
+                             { community: communityName, rate: floorRate, name: floorPkg.name, seller: sellerName },
+                             `Until you set terms, ${communityName} already takes ${floorRate}% on every sale — ${floorPkg.name}, the floor of ${sellerName}'s tier. Offer a package to lock it in or change it.`)}
+                    </p>
+                )}
             </div>
             <ul>
                 {packages.map((pkg) => {
@@ -74,9 +96,14 @@ export function OfferedPackages({
                     return (
                         <li key={pkg.id} className="grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-3 border-b border-[var(--line-soft)] p-4 transition-colors last:border-none hover:bg-[var(--sunk)] sm:px-5">
                             <div className="min-w-0">
-                                <div className="flex items-baseline gap-2.5">
+                                <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
                                     <span className="text-[15px] font-semibold text-[var(--ink)]">{pkg.name}</span>
                                     <span className="text-[19px] font-semibold leading-none text-[var(--ink)]" style={{ fontFamily: "var(--display)" }}>{rate}%</span>
+                                    {floorPkg && pkg.id === floorPkg.id && (
+                                        <span className="rounded-full bg-[var(--warn-w)] px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[.06em] text-[var(--warn)]">
+                                            {label("offerDefaultBadge", "Applies now by default")}
+                                        </span>
+                                    )}
                                 </div>
                                 {pkg.description && (
                                     <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--ink-2)]">{pkg.description}</p>

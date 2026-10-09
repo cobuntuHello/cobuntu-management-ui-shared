@@ -44,6 +44,16 @@ describe("OfferedPackages", () => {
         expect(onChoose).toHaveBeenCalledWith("co");
     });
 
+    it("names the effective floor that checkout already charges, on the cheapest package", () => {
+        // The checkout bills Math.min(tier rates) when nothing is agreed, so the
+        // page must say so: the 8% Self-run is the floor and must be flagged.
+        render(<OfferedPackages packages={pkgs} communityName="PBN" sellerName="Drew" onChoose={() => {}} />);
+        expect(screen.getByText(/already takes 8% on every sale/)).toBeInTheDocument();
+        // The badge marks the floor package only (one badge, on Self-run's row).
+        const badges = screen.getAllByText("Applies now by default");
+        expect(badges.length).toBe(1);
+    });
+
     it("renders nothing when the community publishes no packages", () => {
         const { container } = render(<OfferedPackages packages={[]} communityName="PBN" sellerName="Drew" onChoose={() => {}} />);
         expect(container).toBeEmptyDOMElement();
