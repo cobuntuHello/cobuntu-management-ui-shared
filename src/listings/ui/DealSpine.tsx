@@ -67,6 +67,10 @@ export function DealSpine({
     communityName,
     platformShare = 10,
     sellerFee = null,
+    stripeRate,
+    stripeFixed,
+    samplePrice,
+    sampleCurrency,
     locked = false,
     onCounter,
     counterLabel = "Suggest a different cut",
@@ -92,6 +96,23 @@ export function DealSpine({
         fixed: number;
         currency?: string;
     } | null;
+    /**
+     * Stripe's card-processing estimate, from the same /api/config/fees. Given,
+     * the euro breakdown pulls Stripe out as its OWN line instead of leaving it
+     * folded inside Cobuntu's fee -- the transparency the member asked for. Rate
+     * is a fraction (0.015); fixed is the smallest unit (25 = EUR 0.25).
+     */
+    stripeRate?: number;
+    stripeFixed?: number;
+    /**
+     * A concrete ticket price (MAJOR units) to work a real example against.
+     * Percentages cannot add up once Stripe and the seller fee both carry a flat
+     * per-sale charge, so the full four-way split (host / community / Cobuntu /
+     * Stripe) is shown in euros on this price, where every cent sums exactly.
+     * Absent, the card falls back to the old percentage-only split.
+     */
+    samplePrice?: number;
+    sampleCurrency?: string;
     /** Agreed and live: there is nothing left to move. */
     locked?: boolean;
     onCounter?: (rate: number) => void;
@@ -114,6 +135,35 @@ export function DealSpine({
         (t ? t(k, vars) : fallback);
 
     const { sellerOfSale, communityOfSale, platformOfSale } = saleSplit(shown, platformShare, sellerFee);
+
+    /*
+     * The commission, split into what the community KEEPS and Cobuntu's share
+     * OF it. This is the "8% vs 7.6%" the member flagged: the headline is the
+     * rate charged (8%), the community nets that minus Cobuntu's platformShare%
+     * OF the commission (5% of it = 0.4 points, NOT 5 points — which would be
+     * the 3% nobody actually pays).
+     */
+    const cobuntuOfCommission = (shown * platformShare) / 100;
+    const communityNetCommission = shown - cobuntuOfCommission;
+    const naiveWrong = Math.max(0, round(shown - platformShare));
+    const platformLabel = communityName.trim().toLowerCase() === "cobuntu" ? "Platform" : "Cobuntu";
+    /* The real euros, four ways, Stripe its own line — only with a price to work. */
+    const euro = (rate !== null && rate > 0 && samplePrice && samplePrice > 0)
+        ? euroSplit(
+              samplePrice, shown, platformShare, sellerFee,
+              stripeRate != null ? { rate: stripeRate, fixed: stripeFixed ?? 0 } : null,
+          )
+        : null;
+    const cur = sampleCurrency || sellerFee?.currency || "EUR";
+    const eur = (major: number) => money(Math.round(major * 100), cur);
+    const euroRows = euro
+        ? [
+              { key: "host", amt: euro.hostKeeps, color: "var(--b-keep)", name: label("spineHostKeeps", "Host keeps") },
+              { key: "comm", amt: euro.communityNet, color: "var(--b-comm)", name: say("spineNetCommission", { community: communityName }, `${communityName} (net commission)`) },
+              { key: "cob", amt: euro.cobuntuNet, color: "var(--b-cob)", name: say("spineCobuntuShare", { platform: platformLabel }, `${platformLabel} (platform fee)`) },
+              { key: "stripe", amt: euro.stripeAmt, color: "var(--b-stripe)", name: label("spineStripeRow", "Stripe (card processing)") },
+          ].filter((r) => r.amt > 0.0001)
+        : [];
 
     /*
      * The rows, in the order the money leaves the sale. Zero shares are dropped
@@ -184,73 +234,112 @@ export function DealSpine({
                 )}
             </div>
 
-            {rate !== null && (
+            {rate !== null && rate > 0 && (
                 <div className="border-t border-[var(--line-soft)] bg-[var(--sunk)] p-4 sm:p-5">
+                    {/*
+                      * ── PART A: where the COMMISSION goes (percent) ──────────
+                      *
+                      * The member's "8% but it says 7.6%" lands here. The 8% is
+                      * the rate CHARGED; the community nets that minus Cobuntu's
+                      * share OF the commission (platformShare% of it). No flat
+                      * fee lives in the commission, so percentages add up and
+                      * this stays in %.
+                      */}
                     <p className="text-[11px] font-bold uppercase tracking-[.13em] text-[var(--ink-3)]">
-                        {label("spineSplitHeading", "Every sale, split")}
+                        {say("spineCommissionSplit", { rate: shown }, `Where the ${shown}% commission goes`)}
+                    </p>
+                    <dl className="mt-3 space-y-2" data-testid="spine-commission-split">
+                        <div className="flex items-baseline gap-2.5">
+                            <span aria-hidden="true" className="mt-[1px] h-2.5 w-2.5 flex-none rounded-[3px]" style={{ background: "var(--b-comm)" }} />
+                            <dt className="min-w-0 flex-1 truncate text-[13px] text-[var(--ink-2)]">{say("spineCommunityKeeps", { community: communityName }, `${communityName} keeps`)}</dt>
+                            <dd className="text-[13px] font-semibold text-[var(--ink)]" style={{ fontVariantNumeric: "tabular-nums" }}>{round(communityNetCommission)}%</dd>
+                        </div>
+                        <div className="flex items-baseline gap-2.5">
+                            <span aria-hidden="true" className="mt-[2px] h-2.5 w-2.5 flex-none rounded-[3px]" style={{ background: "var(--b-cob)" }} />
+                            <dt className="min-w-0 flex-1 text-[13px] text-[var(--ink-2)]">
+                                {say("spinePlatformFee", { platform: platformLabel }, `${platformLabel}'s platform fee`)}
+                                <span className="block text-[11.5px] text-[var(--ink-3)]">{say("spinePlatformFeeSub", { p: round(platformShare) }, `${round(platformShare)}% of the commission`)}</span>
+                            </dt>
+                            <dd className="text-[13px] font-semibold text-[var(--ink)]" style={{ fontVariantNumeric: "tabular-nums" }}>{round(cobuntuOfCommission)}%</dd>
+                        </div>
+                        <div className="flex items-baseline gap-2.5 border-t border-[var(--line-soft)] pt-2">
+                            <span aria-hidden="true" className="mt-[1px] h-2.5 w-2.5 flex-none" />
+                            <dt className="min-w-0 flex-1 text-[13px] font-semibold text-[var(--ink)]">{label("spineCommissionCharged", "Commission charged")}</dt>
+                            <dd className="text-[13px] font-semibold text-[var(--ink)]" style={{ fontVariantNumeric: "tabular-nums" }}>{round(shown)}%</dd>
+                        </div>
+                    </dl>
+                    <p className="mt-3 rounded-lg bg-[var(--warn-w)] px-3 py-2 text-[12px] leading-relaxed text-[var(--ink)]">
+                        {say(
+                            "spineCommissionClarify",
+                            { p: round(platformShare), rate: shown, community: communityName, net: round(communityNetCommission), naive: naiveWrong },
+                            `${platformLabel} takes ${round(platformShare)}% of the commission, not ${round(platformShare)} points off it. A ${shown}% commission leaves ${communityName} ${round(communityNetCommission)}% of the sale, not ${naiveWrong}%.`,
+                        )}
                     </p>
 
                     {/*
-                      * The bar is a SUMMARY of the rows beneath it, so it uses
-                      * their colours and nothing else. Segments are separated by
-                      * the ground rather than by a border, which would add a
-                      * hairline of a colour that means nothing.
+                      * ── PART B: every euro on a real ticket, Stripe its OWN ──
+                      * line, not folded into Cobuntu's fee. Shown in euros so the
+                      * flat per-sale charges (Cobuntu's and Stripe's) sum exactly;
+                      * falls back to the percent split when no price is given.
                       */}
-                    <div
-                        className="mt-3 flex h-3 w-full gap-[2px] overflow-hidden rounded-full"
-                        role="img"
-                        aria-label={say(
-                            "spineBarAria",
-                            { pct: round(sellerOfSale) },
-                            `You keep ${round(sellerOfSale)}% of each sale`,
-                        )}
-                    >
-                        {rows.map((r) => (
-                            <span
-                                key={r.key}
-                                className="h-full first:rounded-l-full last:rounded-r-full transition-[width] duration-500"
-                                style={{ width: `${r.pct}%`, background: r.color, minWidth: "6px" }}
-                            />
-                        ))}
-                    </div>
-
-                    {/*
-                      * A LIST, not a legend. A legend explains a picture; these
-                      * rows are the numbers themselves, right-aligned and
-                      * tabular so the column can be read down without the eye
-                      * hunting for the decimal.
-                      */}
-                    <dl className="mt-3.5 space-y-1.5">
-                        {rows.map((r) => (
-                            <div key={r.key} className="flex items-baseline gap-2.5">
-                                <span
-                                    aria-hidden="true"
-                                    className="mt-[1px] h-2.5 w-2.5 flex-none rounded-[3px]"
-                                    style={{ background: r.color }}
-                                />
-                                <dt className="min-w-0 flex-1 truncate text-[13px] text-[var(--ink-2)]">{r.name}</dt>
-                                <dd
-                                    className="text-[13px] font-semibold text-[var(--ink)]"
-                                    style={{ fontVariantNumeric: "tabular-nums" }}
-                                >
-                                    {round(r.pct)}%
-                                </dd>
+                    {euro ? (
+                        <div className="mt-4 border-t border-[var(--line-soft)] pt-4">
+                            <p className="text-[11px] font-bold uppercase tracking-[.13em] text-[var(--ink-3)]">
+                                {say("spineEuroHeading", { price: eur(samplePrice as number) }, `On a ${eur(samplePrice as number)} ticket, where every euro goes`)}
+                            </p>
+                            <div className="mt-3 flex h-3 w-full gap-[2px] overflow-hidden rounded-full">
+                                {euroRows.map((r) => (
+                                    <span key={r.key} className="h-full first:rounded-l-full last:rounded-r-full" style={{ width: `${(r.amt / (samplePrice as number)) * 100}%`, background: r.color, minWidth: "6px" }} />
+                                ))}
                             </div>
-                        ))}
-                    </dl>
-
-                    {sellerFee && (
-                        <p className="mt-3 border-t border-[var(--line-soft)] pt-3 text-[11.5px] leading-relaxed text-[var(--ink-3)]">
-                            {say(
-                                "spineFixedFee",
-                                { amount: money(sellerFee.fixed, sellerFee.currency) },
-                                `Plus ${money(sellerFee.fixed, sellerFee.currency)} per sale to Cobuntu. Stripe's processing comes out of Cobuntu's fee, so it is not charged separately.`,
+                            <dl className="mt-3.5 space-y-1.5" data-testid="spine-euro-split">
+                                {euroRows.map((r) => (
+                                    <div key={r.key} className="flex items-baseline gap-2.5">
+                                        <span aria-hidden="true" className="mt-[1px] h-2.5 w-2.5 flex-none rounded-[3px]" style={{ background: r.color }} />
+                                        <dt className="min-w-0 flex-1 truncate text-[13px] text-[var(--ink-2)]">{r.name}</dt>
+                                        <dd className="text-[13px] font-semibold text-[var(--ink)]" style={{ fontVariantNumeric: "tabular-nums" }}>{eur(r.amt)}</dd>
+                                    </div>
+                                ))}
+                                <div className="flex items-baseline gap-2.5 border-t border-[var(--line-soft)] pt-2">
+                                    <span aria-hidden="true" className="mt-[1px] h-2.5 w-2.5 flex-none" />
+                                    <dt className="min-w-0 flex-1 text-[13px] font-semibold text-[var(--ink)]">{label("spineTicket", "Ticket")}</dt>
+                                    <dd className="text-[13px] font-semibold text-[var(--ink)]" style={{ fontVariantNumeric: "tabular-nums" }}>{eur(samplePrice as number)}</dd>
+                                </div>
+                            </dl>
+                            <p className="mt-3 text-[11.5px] leading-relaxed text-[var(--ink-3)]">
+                                {label("spineStripeFootnote", "Stripe is an estimate for European cards; a non-EU card costs a little more and settlement corrects it.")}
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="mt-4 border-t border-[var(--line-soft)] pt-4">
+                            <p className="text-[11px] font-bold uppercase tracking-[.13em] text-[var(--ink-3)]">
+                                {label("spineSplitHeading", "Every sale, split")}
+                            </p>
+                            <div className="mt-3 flex h-3 w-full gap-[2px] overflow-hidden rounded-full" role="img"
+                                aria-label={say("spineBarAria", { pct: round(sellerOfSale) }, `You keep ${round(sellerOfSale)}% of each sale`)}>
+                                {rows.map((r) => (
+                                    <span key={r.key} className="h-full first:rounded-l-full last:rounded-r-full transition-[width] duration-500" style={{ width: `${r.pct}%`, background: r.color, minWidth: "6px" }} />
+                                ))}
+                            </div>
+                            <dl className="mt-3.5 space-y-1.5" data-testid="spine-party-split">
+                                {rows.map((r) => (
+                                    <div key={r.key} className="flex items-baseline gap-2.5">
+                                        <span aria-hidden="true" className="mt-[1px] h-2.5 w-2.5 flex-none rounded-[3px]" style={{ background: r.color }} />
+                                        <dt className="min-w-0 flex-1 truncate text-[13px] text-[var(--ink-2)]">{r.name}</dt>
+                                        <dd className="text-[13px] font-semibold text-[var(--ink)]" style={{ fontVariantNumeric: "tabular-nums" }}>{round(r.pct)}%</dd>
+                                    </div>
+                                ))}
+                            </dl>
+                            {sellerFee && (
+                                <p className="mt-3 border-t border-[var(--line-soft)] pt-3 text-[11.5px] leading-relaxed text-[var(--ink-3)]">
+                                    {say("spineFixedFee", { amount: money(sellerFee.fixed, sellerFee.currency) },
+                                        `Plus ${money(sellerFee.fixed, sellerFee.currency)} per sale to Cobuntu. Stripe's processing comes out of Cobuntu's fee, so it is not charged separately.`)}
+                                </p>
                             )}
-                        </p>
+                        </div>
                     )}
                 </div>
             )}
-
             {!locked && onCounter && (
                 <div className="border-t border-[var(--line-soft)] p-4 sm:p-5">
                     {countering ? (
@@ -303,6 +392,40 @@ function money(amount: number, currency = "EUR"): string {
 /** One percent, rounded for display without pretending to precision it lacks. */
 function round(n: number): number {
     return Math.round(n * 10) / 10;
+}
+
+/**
+ * One real sale, split four ways in MAJOR units — and Stripe pulled out of
+ * Cobuntu's fee into its own line.
+ *
+ * Why euros, not percent: both Cobuntu's seller fee and Stripe carry a flat
+ * per-sale charge, and flat charges do not add up as percentages across sale
+ * sizes. On a concrete price every cent sums to the ticket.
+ *
+ *   commission        = price × rate
+ *   community keeps    = commission − Cobuntu's platformShare OF it
+ *   host's share       = price − commission
+ *   Cobuntu's all-in seller fee comes off the host's share; STRIPE comes out of
+ *   that fee, so Cobuntu's own line is its take on both sides MINUS what Stripe
+ *   actually costs. Clamped at zero: a tiny sale where Stripe exceeds the fee is
+ *   a real loss to Cobuntu, not a negative row.
+ */
+function euroSplit(
+    price: number,
+    rate: number,
+    platformShare: number,
+    sellerFee: { rate: number; fixed: number; currency?: string } | null,
+    stripe: { rate: number; fixed: number } | null,
+): { hostKeeps: number; communityNet: number; cobuntuNet: number; stripeAmt: number } {
+    const commission = price * (rate / 100);
+    const cobuntuOfCommission = commission * (platformShare / 100);
+    const communityNet = commission - cobuntuOfCommission;
+    const hostShare = price - commission;
+    const sellerFeeAmt = sellerFee ? hostShare * sellerFee.rate + sellerFee.fixed / 100 : 0;
+    const hostKeeps = hostShare - sellerFeeAmt;
+    const stripeAmt = stripe ? price * stripe.rate + stripe.fixed / 100 : 0;
+    const cobuntuNet = Math.max(0, cobuntuOfCommission + sellerFeeAmt - stripeAmt);
+    return { hostKeeps, communityNet, cobuntuNet, stripeAmt };
 }
 
 function Key({ className, text }: { className: string; text: string }) {

@@ -52,6 +52,8 @@ export const LISTING_TOKENS: Record<string, string> = {
     "--b-cob": "#7f9fc9",
     "--b-card": "#b6aea4",
     "--b-keep": "#4e9c78",
+    /** Stripe's own band, pulled out of Cobuntu's — a distinct cool blue. */
+    "--b-stripe": "#6f7bbd",
 
     "--good": "#3d7d5f",
     "--good-w": "#e9f2ed",

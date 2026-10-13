@@ -235,7 +235,7 @@ export function ManagedListingDetail({
    * while it loads and if it fails -- the bar then shows only what was agreed,
    * which is less than the whole truth and better than an invented one.
    */
-  const [fees, setFees] = useState<{ platformRate: number; memberSellerRate: number; memberSellerFixed: number } | null>(null);
+  const [fees, setFees] = useState<{ platformRate: number; memberSellerRate: number; memberSellerFixed: number; stripeRate?: number; stripeFixed?: number } | null>(null);
   /*
    * Countering, from the SELLER's side.
    *
@@ -862,6 +862,12 @@ export function ManagedListingDetail({
           rate={rate}
           platformShare={fees ? Math.round(fees.platformRate * 100) : undefined}
           sellerFee={fees ? { rate: fees.memberSellerRate, fixed: fees.memberSellerFixed } : null}
+          stripeRate={fees?.stripeRate}
+          stripeFixed={fees?.stripeFixed}
+          /* A concrete ticket to work the euro split against — the event's own
+             (cheapest) price, so the four-way breakdown with Stripe adds up. */
+          samplePrice={heroListingPrice && Number(heroListingPrice.amount) > 0 ? Number(heroListingPrice.amount) : undefined}
+          sampleCurrency={heroListingPrice?.currency}
           communityName={community?.name || t("community")}
           locked={state === "ACTIVE"}
           onCounter={canCounter ? (r) => void counterToRate(r) : undefined}
