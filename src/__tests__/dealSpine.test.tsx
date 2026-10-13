@@ -151,13 +151,14 @@ describe("a rate of zero", () => {
      * platform key -- neither took anything, and a key for a nil share is the
      * chart-of-nothing the first version drew.
      */
-    it("draws one full band and names nobody who took nothing", () => {
+    it("says there is nothing to split at zero commission", () => {
+        // A 0% listing has no commission to break down, so the split section is
+        // replaced by the plain "nothing to split" line — no party rows at all.
         render(<DealSpine rate={0} communityName="Cobuntu" platformShare={10} />);
         expect(screen.getByText("0%")).toBeInTheDocument();
-        expect(share("You keep")).toBe("100%");
-        // A party named for taking nothing is the chart-of-nothing in list form.
-        expect(screen.queryByText("Platform")).not.toBeInTheDocument();
         expect(screen.getByText(/Nothing to split/)).toBeInTheDocument();
+        expect(screen.queryByText("You keep")).toBeNull();
+        expect(screen.queryByText("Host keeps")).toBeNull();
     });
 
     it("names the other two the moment there is a commission", () => {
@@ -188,8 +189,11 @@ describe("a rate of zero", () => {
  * had a colour key that contradicted the palette every other surface uses.
  */
 describe("the split's colours", () => {
+    // Scoped to the party-split list specifically: with no sample price the
+    // commission breakdown (its own dl, its own swatches) renders ABOVE this
+    // one, and a bare `dl span[aria-hidden]` selector would catch both.
     const swatches = (c: HTMLElement) =>
-        Array.from(c.querySelectorAll("dl span[aria-hidden]"))
+        Array.from(c.querySelectorAll('[data-testid="spine-party-split"] span[aria-hidden]'))
             .map((el) => (el as HTMLElement).style.background);
 
     it("gives each party its own token, in the waterfall's order", () => {
@@ -202,7 +206,84 @@ describe("the split's colours", () => {
     });
 
     it("drops the parties that took nothing", () => {
+        // Rate 0 has no commission at all, so the party-split list (and the
+        // commission-split section above it) are both replaced by the plain
+        // "nothing to split" line — no swatches anywhere.
         const { container } = render(<DealSpine rate={0} communityName="PBN" platformShare={10} />);
-        expect(swatches(container)).toEqual(["var(--b-keep)"]);
+        expect(swatches(container)).toEqual([]);
+    });
+});
+
+/**
+ * ── Where the commission goes (the "8% vs 7.6%" fix) ────────────────────────
+ *
+ * PBN's real numbers: an 8% commission, Cobuntu's platform fee at 5% OF that
+ * commission. The headline stays 8% (the rate CHARGED); this section is what
+ * answers the member's "why does it say 7.6% when I agreed 8%" — PBN nets
+ * 7.6% because Cobuntu takes 5% of the 8%, not 5 points off it (which would be
+ * the 3% a member might otherwise, wrongly, expect).
+ */
+describe("the commission split", () => {
+    it("shows what the community nets after Cobuntu's share of the commission", () => {
+        render(<DealSpine rate={8} communityName="PBN" platformShare={5} />);
+        expect(share("PBN keeps")).toBe("7.6%");
+        // This dt also carries a sub-line ("5% of the commission"), so an
+        // exact-text match on the dt itself would miss it — match the row by
+        // its leading label instead.
+        const feeDt = screen.getByText((_, el) => el?.tagName === "DT" && !!el.textContent?.startsWith("Cobuntu's platform fee"));
+        expect(feeDt.parentElement?.querySelector("dd")?.textContent).toBe("0.4%");
+        expect(screen.getByText("5% of the commission")).toBeInTheDocument();
+        expect(share("Commission charged")).toBe("8%");
+    });
+
+    it("spells out that the fee is a share OF the commission, not points off it", () => {
+        render(<DealSpine rate={8} communityName="PBN" platformShare={5} />);
+        // The actual net (7.6%) and the wrong subtraction a member might assume
+        // (8 - 5 = 3%) both have to be named, or the clarification clarifies
+        // nothing.
+        expect(screen.getByText(/5% of the commission, not 5 points off it/)).toBeInTheDocument();
+        expect(screen.getByText(/leaves PBN 7\.6% of the sale, not 3%/)).toBeInTheDocument();
+    });
+});
+
+/**
+ * ── Every euro, with Stripe pulled out of Cobuntu's fee ─────────────────────
+ *
+ * Percentages cannot add up once Cobuntu's seller fee and Stripe both carry a
+ * flat per-sale charge, so a real ticket price renders the four-way split in
+ * euros instead: host / community / Cobuntu / Stripe, Stripe on its own line.
+ */
+describe("the euro breakdown", () => {
+    const sellerFee = { rate: 0.04, fixed: 30 };
+    const stripe = { stripeRate: 0.015, stripeFixed: 25 };
+
+    it("splits a real ticket four ways, Stripe separate from Cobuntu", () => {
+        render(
+            <DealSpine
+                rate={8}
+                communityName="PBN"
+                platformShare={5}
+                sellerFee={sellerFee}
+                samplePrice={5}
+                sampleCurrency="EUR"
+                {...stripe}
+            />,
+        );
+        expect(screen.getByText(/On a €5\.00 ticket/)).toBeInTheDocument();
+        expect(share("Host keeps")).toMatch(/€4\.12/);
+        expect(share("PBN (net commission)")).toMatch(/€0\.38/);
+        // Named after COBUNTU here (the fee is Cobuntu's), not PBN.
+        expect(share("Cobuntu (platform fee)")).toMatch(/€0\.18/);
+        expect(share("Stripe (card processing)")).toMatch(/€0\.33/);
+        // The ticket row is the real price, not a resum of the (independently
+        // rounded) rows above it — those can be a cent off the total, which is
+        // an honest rounding artifact, not a bug.
+        expect(share("Ticket")).toMatch(/€5\.00/);
+    });
+
+    it("falls back to the percent-only split when no price is given", () => {
+        render(<DealSpine rate={8} communityName="PBN" platformShare={5} sellerFee={sellerFee} {...stripe} />);
+        expect(screen.queryByText(/On a .* ticket/)).toBeNull();
+        expect(screen.getByText("Every sale, split")).toBeInTheDocument();
     });
 });
