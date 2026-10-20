@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { ActionModalShell } from "../../ui/ActionModalShell";
 import { Card } from "./primitives";
 import { saleSplit, euroSplit, money, allocateCents } from "./DealSpine";
 import { CobuntuMark, StripeMark, SaleMark } from "./marks";
@@ -70,6 +71,9 @@ import { CobuntuMark, StripeMark, SaleMark } from "./marks";
  * and the row has to name the seller. `viewer` decides; the seller's name was
  * already a prop here for the subtitle.
  */
+/** One published package a leader can offer. */
+export type Package = { id: string; name: string; description: string | null; rate: number };
+
 export function OfferedPackages({
     kind = "event",
     packages,
@@ -90,7 +94,7 @@ export function OfferedPackages({
 }: {
     /** What is being sold, for the mark on the ticket row. */
     kind?: "product" | "event";
-    packages: { id: string; name: string; description: string | null; rate: number }[];
+    packages: Package[];
     /** Cobuntu's cut OF the commission, as a percent. Per community. */
     platformShare?: number;
     /** Cobuntu's all-in fee on the seller's own share. `rate` is a fraction. */
@@ -117,6 +121,13 @@ export function OfferedPackages({
     onChoose: (packageId: string) => void;
     t?: (key: string, vars?: Record<string, unknown>) => string;
 }) {
+    /*
+     * Hooks before the early return, or a community with no packages unmounts
+     * them and React throws on the next render that has some.
+     */
+    const [open, setOpen] = useState(false);
+    const [picked, setPicked] = useState<Package | null>(null);
+
     const label = (k: string, fallback: string) => (t ? t(k) : fallback);
     const say = (k: string, vars: Record<string, unknown>, fallback: string) => (t ? t(k, vars) : fallback);
     if (packages.length === 0) return null;
@@ -145,289 +156,366 @@ export function OfferedPackages({
     const floorPkg = packages.find((p) => Number(p.rate) === floorRate) ?? null;
 
     return (
-        <Card className="overflow-hidden text-[var(--ink)]">
-            <div className="px-4 pb-1 pt-5 sm:px-5">
-                <h3 className="text-[17px] font-semibold tracking-[-0.01em] text-[var(--ink)]">
-                    {label("offerTitle", "Set the commission")}
-                </h3>
-                <p className="mt-1 text-[13.5px] leading-relaxed text-[var(--ink-2)]">
-                    {say("offerSubtitle", { seller: sellerName },
-                         `Offer ${sellerName} one of these. They confirm it, then you can publish.`)}
-                </p>
-                {floorPkg && (
-                    <p className="mt-3 rounded-xl bg-[var(--sunk)] px-3.5 py-2.5 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
-                        {say("offerFloorNote",
-                             { community: communityName, rate: floorRate, name: floorPkg.name, seller: sellerName },
-                             `Until you set terms, ${communityName} already takes ${floorRate}% on every sale — ${floorPkg.name}, the floor of ${sellerName}'s tier. Offer a package to lock it in or change it.`)}
-                    </p>
-                )}
-            </div>
-            <ul>
-                {packages.map((pkg) => {
-                    const rate = Number(pkg.rate);
-                    const isFloor = !!floorPkg && pkg.id === floorPkg.id;
-                    const e = canWorkEuros
-                        ? euroSplit(
-                              samplePrice!, rate, platformShare, sellerFee,
-                              stripeRate != null ? { rate: stripeRate, fixed: stripeFixed ?? 0 } : null,
-                          )
-                        : null;
-                    /*
-                     * What each party ENDS UP WITH, in cents that sum exactly to
-                     * the deductions. The gross-commission scaffolding that used to
-                     * live here went with the basis column: the rate a party
-                     * charges and the amount it receives are different numbers, and
-                     * only the second one belongs in the money column.
-                     */
-                    const destination = e
-                        ? allocateCents(samplePrice! - e.hostKeeps, [e.communityNet, e.cobuntuNet, e.stripeAmt])
-                        : [0, 0, 0];
-                    /*
-                     * The seller's line is the ticket MINUS the rows above it, not
-                     * a fifth rounded figure. Rounded on its own it can land a cent
-                     * away from what the printed rows actually subtract to, and the
-                     * bottom line of a receipt is the one number that has to be
-                     * arithmetic the reader can repeat.
-                     */
-                    /*
-                     * Each row's share of the ticket, derived from the cents the
-                     * money column actually prints.
-                     *
-                     * This is the number that caused the original complaint -- a
-                     * package headlined 8% whose row read 7.6% -- so it matters
-                     * that the two are different QUESTIONS, not a disagreement.
-                     * 8% is what the community charges; 7.6% is what reaches them
-                     * once Cobuntu's share of that commission comes out. The
-                     * sentence under the total says so.
-                     *
-                     * Computed from the allocated cents rather than from the rates,
-                     * so a row's percentage can never contradict the amount beside
-                     * it, and the four of them sum to 100 the way the euros sum to
-                     * the ticket. Deriving it from the rate instead is exactly how
-                     * "8%" ended up next to EUR 0.38.
-                     */
-                    const shareOf = (c: number) =>
-                        samplePrice ? `${round((c / Math.round(samplePrice * 100)) * 100)}%` : undefined;
-                    const sellerCents = e
-                        ? Math.round(samplePrice! * 100) - destination.reduce((a, b) => a + b, 0)
-                        : 0;
+        <>
+            {/*
+              * THE BANNER. The three packages, their meters and their receipts
+              * used to sit open on the review page: most of a screen of numbers
+              * for a decision that is one click, sitting above a negotiation
+              * thread nobody could reach without scrolling past all of it.
+              *
+              * The page now carries the one thing a leader must not miss -- that
+              * a rate is ALREADY in force until they set one -- and the choosing
+              * happens in a modal. Nothing about the packages themselves changed:
+              * they are the same blocks, in a different place.
+              */}
+            <Card className="overflow-hidden text-[var(--ink)]">
+                <button
+                    type="button"
+                    onClick={() => { setPicked(null); setOpen(true); }}
+                    className="flex w-full cursor-pointer items-start gap-4 px-4 py-5 text-left transition-colors hover:bg-[var(--sunk)] sm:px-5"
+                >
+                    <span className="min-w-0 flex-1">
+                        <span className="block text-[17px] font-semibold tracking-[-0.01em] text-[var(--ink)]">
+                            {label("offerTitle", "Set the commission")}
+                        </span>
+                        <span className="mt-1 block text-[13.5px] leading-relaxed text-[var(--ink-2)]">
+                            {say("offerSubtitle", { seller: sellerName },
+                                 `Offer ${sellerName} one of these. They confirm it, then you can publish.`)}
+                        </span>
+                        {floorPkg && (
+                            <span className="mt-3 block rounded-xl bg-[var(--sunk)] px-3.5 py-2.5 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
+                                {say("offerFloorNote",
+                                     { community: communityName, rate: floorRate, name: floorPkg.name, seller: sellerName },
+                                     `Until you set terms, ${communityName} already takes ${floorRate}% on every sale, ${floorPkg.name}, the floor of ${sellerName}'s tier. Offer a package to lock it in or change it.`)}
+                            </span>
+                        )}
+                    </span>
+                    <span className="mt-0.5 inline-flex h-11 shrink-0 items-center rounded-lg bg-[var(--commit)] px-5 text-[13.5px] font-semibold text-white">
+                        {label("offerOpen", "Choose a package")}
+                    </span>
+                </button>
+            </Card>
 
-                    const s = saleSplit(rate, platformShare, sellerFee);
-                    /*
-                     * ONE BAND PER ROW of the receipt beneath it, in the same
-                     * colours as those rows' marks -- seller, community, platform,
-                     * Stripe. A bar whose segments do not match the rows under it
-                     * is decoration, and it has drifted out of step twice while
-                     * this card was being reworked, so it is worth saying: if a
-                     * row is added or merged here, this list changes with it.
-                     */
-                    const bands = e
-                        ? [
-                              { pct: (e.hostKeeps / samplePrice!) * 100, color: "var(--b-keep)" },
-                              { pct: (e.communityNet / samplePrice!) * 100, color: "var(--b-comm)" },
-                              { pct: (e.cobuntuNet / samplePrice!) * 100, color: "var(--b-cob)" },
-                              { pct: (e.stripeAmt / samplePrice!) * 100, color: "var(--b-stripe)" },
-                          ].filter((b) => b.pct > 0.01)
-                        : [
-                              { pct: s.sellerOfSale, color: "var(--b-keep)" },
-                              { pct: s.communityOfSale, color: "var(--b-comm)" },
-                              { pct: s.platformOfSale, color: "var(--b-cob)" },
-                          ].filter((b) => b.pct > 0);
-
-                    return (
-                        <li
-                            key={pkg.id}
-                            /*
-                             * An inset grouped block, the way a phone groups a
-                             * section: its own rounded surface with space around
-                             * it, rather than a row cut out of a ruled table.
-                             * Hairlines between list items is the web idiom that
-                             * made this read as a document.
-                             */
-                            /*
-                             * A SECTION, not a card. This was a rounded bordered
-                             * box holding another rounded tinted box -- a card
-                             * inside a card inside the panel's card, three nested
-                             * surfaces to say one thing. The panel is the card;
-                             * packages are separated by a rule and by space, which
-                             * is enough to tell three of them apart.
-                             */
-                            className="grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-4 border-t border-[var(--line)] px-4 py-6 first:border-t-0 sm:px-6"
-                        >
-                            <div className="min-w-0">
-                                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                                    <span className="text-[15.5px] font-semibold tracking-[-0.01em] text-[var(--ink)]">
-                                        {pkg.name}
-                                    </span>
-                                    {/*
-                                     * The rate in the body face with tabular figures, not a
-                                     * contrasting display serif. This is a number to compare
-                                     * down a column of three, not a banner.
-                                     */}
-                                    <span className="text-[24px] font-semibold leading-none tabular-nums tracking-[-0.02em] text-[var(--ink)]">
-                                        {rate}
-                                        <span className="text-[15px] font-medium text-[var(--ink-3)]">%</span>
-                                    </span>
-                                    {isFloor && (
-                                        /* A quiet marker of fact, not an alert. */
-                                        /* A filled chip, which is how a phone marks
-                                           state -- but in the muted surface, not an
-                                           alert colour. It is a fact, not a warning. */
-                                        <span className="rounded-full bg-[var(--sunk)] px-2.5 py-1 text-[11px] font-medium text-[var(--ink-2)]">
-                                            {label("offerDefaultBadge", "Applies now by default")}
-                                        </span>
-                                    )}
-                                </div>
-                                {pkg.description && (
-                                    <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--ink-2)]">
-                                        {pkg.description}
-                                    </p>
-                                )}
-                            </div>
-
+            <ActionModalShell
+                isOpen={open}
+                onClose={() => setOpen(false)}
+                title={label("offerTitle", "Set the commission")}
+                subtitle={picked
+                    ? label("offerModalReview", "What each sale pays out.")
+                    : say("offerSubtitle", { seller: sellerName },
+                          `Offer ${sellerName} one of these. They confirm it, then you can publish.`)}
+                footer={
+                    picked ? (
+                        <div className="flex w-full items-center justify-between gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setPicked(null)}
+                                className="h-11 cursor-pointer rounded-lg bg-[var(--sunk)] px-4 text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--line)]"
+                            >
+                                {label("offerBack", "Back")}
+                            </button>
                             <button
                                 type="button"
                                 disabled={busy}
-                                onClick={() => onChoose(pkg.id)}
-                                /* 44px tall: a thumb target, not a text link with a
-                                   background. rounded-lg, not a pill: every other
-                                   button in this panel (approve, decline, counter,
-                                   the header pair) is rounded-lg, and one control
-                                   wearing a different shape reads as a different
-                                   kind of thing. */
-                                className="h-11 shrink-0 cursor-pointer rounded-lg bg-[var(--commit)] px-5 text-[13.5px] font-semibold tabular-nums text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+                                onClick={() => { onChoose(picked.id); setOpen(false); }}
+                                className="h-11 cursor-pointer rounded-lg bg-[var(--commit)] px-5 text-[13.5px] font-semibold tabular-nums text-white transition-opacity hover:opacity-90 disabled:opacity-40"
                             >
-                                {say("offerPick", { rate }, `Offer ${rate}%`)}
+                                {say("offerPick", { rate: Number(picked.rate) }, `Offer ${Number(picked.rate)}%`)}
                             </button>
+                        </div>
+                    ) : (
+                        /* Nothing to commit to yet, so the footer says what to do
+                           rather than offering a dead primary button. */
+                        <p className="text-[12.5px] text-[var(--ink-3)]">
+                            {label("offerModalHint", "Pick one to see what it pays out.")}
+                        </p>
+                    )
+                }
+            >
+                {picked === null ? (
+                    <ul>
+                        {packages.map((pkg) => {
+                            const rate = Number(pkg.rate);
+                            const isFloor = !!floorPkg && pkg.id === floorPkg.id;
+                            return (
+                                <li key={pkg.id} className="border-t border-[var(--line)] first:border-t-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPicked(pkg)}
+                                        className="flex w-full cursor-pointer items-center gap-3 py-5 text-left transition-colors hover:bg-[var(--sunk)]"
+                                    >
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                                                <span className="text-[15.5px] font-semibold tracking-[-0.01em] text-[var(--ink)]">
+                                                    {pkg.name}
+                                                </span>
+                                                {/*
+                                                 * The rate in the body face with tabular figures, not a
+                                                 * contrasting display serif. This is a number to compare
+                                                 * down a column of three, not a banner.
+                                                 */}
+                                                <span className="text-[24px] font-semibold leading-none tabular-nums tracking-[-0.02em] text-[var(--ink)]">
+                                                    {rate}
+                                                    <span className="text-[15px] font-medium text-[var(--ink-3)]">%</span>
+                                                </span>
+                                                {isFloor && (
+                                                    /* A quiet marker of fact, not an alert. */
+                                                    /* A filled chip, which is how a phone marks
+                                                       state -- but in the muted surface, not an
+                                                       alert colour. It is a fact, not a warning. */
+                                                    <span className="rounded-full bg-[var(--sunk)] px-2.5 py-1 text-[11px] font-medium text-[var(--ink-2)]">
+                                                        {label("offerDefaultBadge", "Applies now by default")}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {pkg.description && (
+                                                <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--ink-2)]">
+                                                    {pkg.description}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <svg className="ml-auto shrink-0 text-[var(--ink-3)]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                            <polyline points="9 18 15 12 9 6" />
+                                        </svg>
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                ) : (
+                    (() => {
+                        const pkg = picked;
+                        const rate = Number(pkg.rate);
+                        const isFloor = !!floorPkg && pkg.id === floorPkg.id;
+                        const e = canWorkEuros
+                            ? euroSplit(
+                                  samplePrice!, rate, platformShare, sellerFee,
+                                  stripeRate != null ? { rate: stripeRate, fixed: stripeFixed ?? 0 } : null,
+                              )
+                            : null;
+                        /*
+                         * What each party ENDS UP WITH, in cents that sum exactly to
+                         * the deductions. The gross-commission scaffolding that used to
+                         * live here went with the basis column: the rate a party
+                         * charges and the amount it receives are different numbers, and
+                         * only the second one belongs in the money column.
+                         */
+                        const destination = e
+                            ? allocateCents(samplePrice! - e.hostKeeps, [e.communityNet, e.cobuntuNet, e.stripeAmt])
+                            : [0, 0, 0];
+                        /*
+                         * The seller's line is the ticket MINUS the rows above it, not
+                         * a fifth rounded figure. Rounded on its own it can land a cent
+                         * away from what the printed rows actually subtract to, and the
+                         * bottom line of a receipt is the one number that has to be
+                         * arithmetic the reader can repeat.
+                         */
+                        /*
+                         * Each row's share of the ticket, derived from the cents the
+                         * money column actually prints.
+                         *
+                         * This is the number that caused the original complaint -- a
+                         * package headlined 8% whose row read 7.6% -- so it matters
+                         * that the two are different QUESTIONS, not a disagreement.
+                         * 8% is what the community charges; 7.6% is what reaches them
+                         * once Cobuntu's share of that commission comes out. The
+                         * sentence under the total says so.
+                         *
+                         * Computed from the allocated cents rather than from the rates,
+                         * so a row's percentage can never contradict the amount beside
+                         * it, and the four of them sum to 100 the way the euros sum to
+                         * the ticket. Deriving it from the rate instead is exactly how
+                         * "8%" ended up next to EUR 0.38.
+                         */
+                        const shareOf = (c: number) =>
+                            samplePrice ? `${round((c / Math.round(samplePrice * 100)) * 100)}%` : undefined;
+                        const sellerCents = e
+                            ? Math.round(samplePrice! * 100) - destination.reduce((a, b) => a + b, 0)
+                            : 0;
 
-                            <div className="col-span-2 min-w-0">
-                                {/* One segmented measure, square ends, hairline gaps. */}
-                                <div className="flex h-[6px] w-full gap-[2px] overflow-hidden rounded-full">
-                                    {bands.map((b, i) => (
-                                        <span
-                                            key={i}
-                                            className="h-full first:rounded-l-full last:rounded-r-full"
-                                            style={{ width: `${b.pct}%`, background: b.color, minWidth: "6px" }}
-                                        />
-                                    ))}
-                                </div>
-
-                                {e ? (
-                                    /*
-                                     * The receipt, on the card's own surface.
-                                     *
-                                     * It used to sit in a tinted box of its own,
-                                     * which is what made three nested surfaces and
-                                     * put a beige slab in the middle of a white
-                                     * panel. Rules and space do the same work
-                                     * without a second background.
-                                     */
-                                    <dl className="mt-4 text-[13.5px]">
-                                        <Line
-                                            icon={<SaleMark kind={kind} />}
-                                            name={label("offerTicketTotal", "Ticket price")}
-                                            amount={money(Math.round(samplePrice! * 100), cur)}
-                                            muted
-                                        />
+                        const s = saleSplit(rate, platformShare, sellerFee);
+                        /*
+                         * ONE BAND PER ROW of the receipt beneath it, in the same
+                         * colours as those rows' marks -- seller, community, platform,
+                         * Stripe. A bar whose segments do not match the rows under it
+                         * is decoration, and it has drifted out of step twice while
+                         * this card was being reworked, so it is worth saying: if a
+                         * row is added or merged here, this list changes with it.
+                         */
+                        const bands = e
+                            ? [
+                                  { pct: (e.hostKeeps / samplePrice!) * 100, color: "var(--b-keep)" },
+                                  { pct: (e.communityNet / samplePrice!) * 100, color: "var(--b-comm)" },
+                                  { pct: (e.cobuntuNet / samplePrice!) * 100, color: "var(--b-cob)" },
+                                  { pct: (e.stripeAmt / samplePrice!) * 100, color: "var(--b-stripe)" },
+                              ].filter((b) => b.pct > 0.01)
+                            : [
+                                  { pct: s.sellerOfSale, color: "var(--b-keep)" },
+                                  { pct: s.communityOfSale, color: "var(--b-comm)" },
+                                  { pct: s.platformOfSale, color: "var(--b-cob)" },
+                              ].filter((b) => b.pct > 0);
+                        return (
+                            <div className="py-2">
+                                <div className="min-w-0">
+                                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                                        <span className="text-[15.5px] font-semibold tracking-[-0.01em] text-[var(--ink)]">
+                                            {pkg.name}
+                                        </span>
                                         {/*
-                                          * Three parties, each as its own line, and
-                                          * each showing what it RECEIVES. Stripe is
-                                          * separate from the platform fee even though
-                                          * it is paid out of it -- a leader reading
-                                          * "card processing" wants to see the card
-                                          * processing, not be told it is folded into
-                                          * someone else's number. The note under the
-                                          * total carries the one relationship that
-                                          * makes these three add up.
-                                          */}
-                                        <Line
-                                            icon={<ImageMark src={communityIconUrl} name={communityName} />}
-                                            name={communityName}
-                                            share={shareOf(destination[0])}
-                                            amount={money(destination[0], cur)}
-                                            deduct
-                                        />
-                                        <Line
-                                            icon={<CobuntuMark />}
-                                            name={platformName}
-                                            share={shareOf(destination[1])}
-                                            amount={money(destination[1], cur)}
-                                            deduct
-                                        />
-                                        {destination[2] > 0 && (
+                                         * The rate in the body face with tabular figures, not a
+                                         * contrasting display serif. This is a number to compare
+                                         * down a column of three, not a banner.
+                                         */}
+                                        <span className="text-[24px] font-semibold leading-none tabular-nums tracking-[-0.02em] text-[var(--ink)]">
+                                            {rate}
+                                            <span className="text-[15px] font-medium text-[var(--ink-3)]">%</span>
+                                        </span>
+                                        {isFloor && (
+                                            /* A quiet marker of fact, not an alert. */
+                                            /* A filled chip, which is how a phone marks
+                                               state -- but in the muted surface, not an
+                                               alert colour. It is a fact, not a warning. */
+                                            <span className="rounded-full bg-[var(--sunk)] px-2.5 py-1 text-[11px] font-medium text-[var(--ink-2)]">
+                                                {label("offerDefaultBadge", "Applies now by default")}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {pkg.description && (
+                                        <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--ink-2)]">
+                                            {pkg.description}
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="col-span-2 min-w-0">
+                                    {/* One segmented measure, square ends, hairline gaps. */}
+                                    <div className="flex h-[6px] w-full gap-[2px] overflow-hidden rounded-full">
+                                        {bands.map((b, i) => (
+                                            <span
+                                                key={i}
+                                                className="h-full first:rounded-l-full last:rounded-r-full"
+                                                style={{ width: `${b.pct}%`, background: b.color, minWidth: "6px" }}
+                                            />
+                                        ))}
+                                    </div>
+
+                                    {e ? (
+                                        /*
+                                         * The receipt, on the card's own surface.
+                                         *
+                                         * It used to sit in a tinted box of its own,
+                                         * which is what made three nested surfaces and
+                                         * put a beige slab in the middle of a white
+                                         * panel. Rules and space do the same work
+                                         * without a second background.
+                                         */
+                                        <dl className="mt-4 text-[13.5px]">
                                             <Line
-                                                icon={<StripeMark />}
-                                                name={label("spineStripeRow", "Stripe (card processing)")}
-                                                share={shareOf(destination[2])}
-                                                amount={money(destination[2], cur)}
+                                                icon={<SaleMark kind={kind} />}
+                                                name={label("offerTicketTotal", "Ticket price")}
+                                                amount={money(Math.round(samplePrice! * 100), cur)}
+                                                muted
+                                            />
+                                            {/*
+                                              * Three parties, each as its own line, and
+                                              * each showing what it RECEIVES. Stripe is
+                                              * separate from the platform fee even though
+                                              * it is paid out of it -- a leader reading
+                                              * "card processing" wants to see the card
+                                              * processing, not be told it is folded into
+                                              * someone else's number. The note under the
+                                              * total carries the one relationship that
+                                              * makes these three add up.
+                                              */}
+                                            <Line
+                                                icon={<ImageMark src={communityIconUrl} name={communityName} />}
+                                                name={communityName}
+                                                share={shareOf(destination[0])}
+                                                amount={money(destination[0], cur)}
                                                 deduct
                                             />
-                                        )}
-                                        <div className="mt-1 flex items-center justify-between gap-4 border-t-2 border-[var(--ink)]/15 pt-3">
-                                            <dt className="flex min-w-0 items-center gap-2.5 text-[14px] font-semibold text-[var(--ink)]">
-                                                <PersonMark src={sellerImageUrl} name={sellerName} />
-                                                <span className="min-w-0">{sellerRowName}</span>
-                                            </dt>
-                                            <div className="flex shrink-0 items-baseline gap-3">
-                                                <span className="w-[52px] text-right text-[12.5px] font-medium tabular-nums text-[var(--ink-3)]">
-                                                    {shareOf(sellerCents)}
-                                                </span>
-                                                <dd className="w-[76px] text-right text-[17px] font-semibold tabular-nums tracking-[-0.01em] text-[var(--ink)]">
-                                                    {money(sellerCents, cur)}
-                                                </dd>
+                                            <Line
+                                                icon={<CobuntuMark />}
+                                                name={platformName}
+                                                share={shareOf(destination[1])}
+                                                amount={money(destination[1], cur)}
+                                                deduct
+                                            />
+                                            {destination[2] > 0 && (
+                                                <Line
+                                                    icon={<StripeMark />}
+                                                    name={label("spineStripeRow", "Stripe (card processing)")}
+                                                    share={shareOf(destination[2])}
+                                                    amount={money(destination[2], cur)}
+                                                    deduct
+                                                />
+                                            )}
+                                            <div className="mt-1 flex items-center justify-between gap-4 border-t-2 border-[var(--ink)]/15 pt-3">
+                                                <dt className="flex min-w-0 items-center gap-2.5 text-[14px] font-semibold text-[var(--ink)]">
+                                                    <PersonMark src={sellerImageUrl} name={sellerName} />
+                                                    <span className="min-w-0">{sellerRowName}</span>
+                                                </dt>
+                                                <div className="flex shrink-0 items-baseline gap-3">
+                                                    <span className="w-[52px] text-right text-[12.5px] font-medium tabular-nums text-[var(--ink-3)]">
+                                                        {shareOf(sellerCents)}
+                                                    </span>
+                                                    <dd className="w-[76px] text-right text-[17px] font-semibold tabular-nums tracking-[-0.01em] text-[var(--ink)]">
+                                                        {money(sellerCents, cur)}
+                                                    </dd>
+                                                </div>
                                             </div>
+                                            {/*
+                                              * The rates, once, under the figures they
+                                              * explain -- rather than a basis column that
+                                              * never matched the amount beside it, which is
+                                              * what made "8%" sit next to EUR 0.38 and
+                                              * start this whole question.
+                                              */}
+                                            <p className="mt-3 text-[12px] leading-relaxed text-[var(--ink-3)]">
+                                                {say("offerBasisNote", {
+                                                    community: communityName,
+                                                    rate,
+                                                    share: platformShare,
+                                                    platform: platformName,
+                                                    seller: sellerName,
+                                                    fee: sellerFee
+                                                        ? `${round(sellerFee.rate * 100)}% + ${money(sellerFee.fixed, cur)}`
+                                                        : "",
+                                                },
+                                                `${communityName} charges ${rate}%. ${platformName} takes ${platformShare}% of that, plus ${sellerFee ? `${round(sellerFee.rate * 100)}% + ${money(sellerFee.fixed, cur)}` : "its fee"} of ${sellerName}'s share, and pays Stripe out of it.`)}
+                                            </p>
+                                        </dl>
+                                    ) : (
+                                        /* No price to work against: percentages, flat fees absent. */
+                                        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-[var(--ink-2)]">
+                                            {[
+                                                { pct: s.sellerOfSale, color: "var(--b-keep)", name: sellerRowName },
+                                                { pct: s.communityOfSale, color: "var(--b-comm)", name: communityName },
+                                                { pct: s.platformOfSale, color: "var(--b-cob)", name: platformName },
+                                            ]
+                                                .filter((x) => x.pct > 0)
+                                                .map((x, i) => (
+                                                    <span key={i} className="inline-flex items-center gap-1.5">
+                                                        <span
+                                                            className="mt-[5px] h-[6px] w-[6px] flex-none"
+                                                            style={{ background: x.color }}
+                                                        />
+                                                        {x.name}{" "}
+                                                        <b className="font-semibold tabular-nums text-[var(--ink)]">
+                                                            {round(x.pct)}%
+                                                        </b>
+                                                    </span>
+                                                ))}
                                         </div>
-                                        {/*
-                                          * The rates, once, under the figures they
-                                          * explain -- rather than a basis column that
-                                          * never matched the amount beside it, which is
-                                          * what made "8%" sit next to EUR 0.38 and
-                                          * start this whole question.
-                                          */}
-                                        <p className="mt-3 text-[12px] leading-relaxed text-[var(--ink-3)]">
-                                            {say("offerBasisNote", {
-                                                community: communityName,
-                                                rate,
-                                                share: platformShare,
-                                                platform: platformName,
-                                                seller: sellerName,
-                                                fee: sellerFee
-                                                    ? `${round(sellerFee.rate * 100)}% + ${money(sellerFee.fixed, cur)}`
-                                                    : "",
-                                            },
-                                            `${communityName} charges ${rate}%. ${platformName} takes ${platformShare}% of that, plus ${sellerFee ? `${round(sellerFee.rate * 100)}% + ${money(sellerFee.fixed, cur)}` : "its fee"} of ${sellerName}'s share, and pays Stripe out of it.`)}
-                                        </p>
-                                    </dl>
-                                ) : (
-                                    /* No price to work against: percentages, flat fees absent. */
-                                    <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-[var(--ink-2)]">
-                                        {[
-                                            { pct: s.sellerOfSale, color: "var(--b-keep)", name: sellerRowName },
-                                            { pct: s.communityOfSale, color: "var(--b-comm)", name: communityName },
-                                            { pct: s.platformOfSale, color: "var(--b-cob)", name: platformName },
-                                        ]
-                                            .filter((x) => x.pct > 0)
-                                            .map((x, i) => (
-                                                <span key={i} className="inline-flex items-center gap-1.5">
-                                                    <span
-                                                        className="mt-[5px] h-[6px] w-[6px] flex-none"
-                                                        style={{ background: x.color }}
-                                                    />
-                                                    {x.name}{" "}
-                                                    <b className="font-semibold tabular-nums text-[var(--ink)]">
-                                                        {round(x.pct)}%
-                                                    </b>
-                                                </span>
-                                            ))}
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
-                        </li>
-                    );
-                })}
-            </ul>
-        </Card>
+                        );
+                    })()
+                )}
+            </ActionModalShell>
+        </>
     );
+
 }
 
 /**

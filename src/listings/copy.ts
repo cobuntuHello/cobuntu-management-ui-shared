@@ -111,8 +111,13 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     offerSubtitle: "Offer {seller} one of these. They confirm it, then you can publish.",
     offerPick: "Offer {rate}%",
     /* The floor that checkout already charges when nothing is agreed. */
-    offerFloorNote: "Until you set terms, {community} already takes {rate}% on every sale — {name}, the floor of {seller}'s tier. Offer a package to lock it in or change it.",
+    offerFloorNote: "Until you set terms, {community} already takes {rate}% on every sale, {name}, the floor of {seller}'s tier. Offer a package to lock it in or change it.",
     offerDefaultBadge: "Applies now by default",
+    /* The banner opens the picker; the picker's two steps have their own words. */
+    offerOpen: "Choose a package",
+    offerModalHint: "Pick one to see what it pays out.",
+    offerModalReview: "What each sale pays out.",
+    offerBack: "Back",
     /* Why Approve is disabled: the server refuses this, so the button says so. */
     approveNeedsTerms: "Agree the commission first. They have to accept a package before this can go live.",
     /*
