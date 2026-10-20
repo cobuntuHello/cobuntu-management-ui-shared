@@ -113,6 +113,17 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     /* The floor that checkout already charges when nothing is agreed. */
     offerFloorNote: "Until you set terms, {community} already takes {rate}% on every sale — {name}, the floor of {seller}'s tier. Offer a package to lock it in or change it.",
     offerDefaultBadge: "Applies now by default",
+    /*
+     * The settlement rows. These ship as the package's own English because the
+     * hosts mount this card with no message file -- a key missing here does not
+     * fall back to a literal, it RENDERS AS THE KEY, which is how
+     * "offerSellerKeeps" reached a live PBN request.
+     */
+    offerSellerKeeps: "{seller} keeps",
+    offerCommissionNote: "{rate}% is {gross}, less {platform}'s {share}% of it ({cut})",
+    offerTicketTotal: "Ticket price",
+    /* The split bar is role="img"; this is what a screen reader is given. */
+    spineBarAria: "You keep {pct}% of each sale",
     counterOpen: "Propose different terms",
     counterTitle: "Propose different terms",
     counterSubtitle: "Pick the arrangement you would rather have. This replaces your last offer.",
