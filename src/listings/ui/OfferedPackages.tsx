@@ -77,7 +77,9 @@ export function OfferedPackages({
     samplePrice,
     sampleCurrency,
     communityName,
+    communityIconUrl,
     sellerName,
+    sellerImageUrl,
     viewer = "seller",
     busy = false,
     onChoose,
@@ -99,7 +101,11 @@ export function OfferedPackages({
     samplePrice?: number;
     sampleCurrency?: string;
     communityName: string;
+    /** communities.iconUrl, when the community has one. */
+    communityIconUrl?: string | null;
     sellerName: string;
+    /** requestedBy.profileImage, when they have one. */
+    sellerImageUrl?: string | null;
     /** Who is reading. The leader does not "keep" the seller's share. */
     viewer?: "leader" | "seller";
     busy?: boolean;
@@ -161,19 +167,36 @@ export function OfferedPackages({
                               stripeRate != null ? { rate: stripeRate, fixed: stripeFixed ?? 0 } : null,
                           )
                         : null;
-                    /* Gross commission and the slice Cobuntu takes OF it, both named. */
-                    const grossCommission = e ? samplePrice! * (rate / 100) : 0;
-                    const cobuntuOfCommission = grossCommission - (e?.communityNet ?? 0);
                     /*
-                     * Cents that actually add up to the ticket. Rounding the four
-                     * rows independently makes them total a cent more than the
-                     * line below them says -- see allocateCents.
+                     * What each party ENDS UP WITH, in cents that sum exactly to
+                     * the deductions. The gross-commission scaffolding that used to
+                     * live here went with the basis column: the rate a party
+                     * charges and the amount it receives are different numbers, and
+                     * only the second one belongs in the money column.
                      */
-                    const cents = e
-                        ? allocateCents(samplePrice!, [e.hostKeeps, e.communityNet, e.cobuntuNet, e.stripeAmt])
-                        : [0, 0, 0, 0];
+                    const destination = e
+                        ? allocateCents(samplePrice! - e.hostKeeps, [e.communityNet, e.cobuntuNet, e.stripeAmt])
+                        : [0, 0, 0];
+                    /*
+                     * The seller's line is the ticket MINUS the rows above it, not
+                     * a fifth rounded figure. Rounded on its own it can land a cent
+                     * away from what the printed rows actually subtract to, and the
+                     * bottom line of a receipt is the one number that has to be
+                     * arithmetic the reader can repeat.
+                     */
+                    const sellerCents = e
+                        ? Math.round(samplePrice! * 100) - destination.reduce((a, b) => a + b, 0)
+                        : 0;
 
                     const s = saleSplit(rate, platformShare, sellerFee);
+                    /*
+                     * ONE BAND PER ROW of the receipt beneath it, in the same
+                     * colours as those rows' marks -- seller, community, platform,
+                     * Stripe. A bar whose segments do not match the rows under it
+                     * is decoration, and it has drifted out of step twice while
+                     * this card was being reworked, so it is worth saying: if a
+                     * row is added or merged here, this list changes with it.
+                     */
                     const bands = e
                         ? [
                               { pct: (e.hostKeeps / samplePrice!) * 100, color: "var(--b-keep)" },
@@ -197,7 +220,15 @@ export function OfferedPackages({
                              * Hairlines between list items is the web idiom that
                              * made this read as a document.
                              */
-                            className="mx-3 mb-3 grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-3.5 rounded-2xl border border-[var(--line-soft)] bg-[var(--card)] p-4 sm:mx-4 sm:p-5"
+                            /*
+                             * A SECTION, not a card. This was a rounded bordered
+                             * box holding another rounded tinted box -- a card
+                             * inside a card inside the panel's card, three nested
+                             * surfaces to say one thing. The panel is the card;
+                             * packages are separated by a rule and by space, which
+                             * is enough to tell three of them apart.
+                             */
+                            className="grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-4 border-t border-[var(--line)] px-4 py-6 first:border-t-0 sm:px-6"
                         >
                             <div className="min-w-0">
                                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -259,77 +290,80 @@ export function OfferedPackages({
 
                                 {e ? (
                                     /*
-                                     * The settlement, as a document: who, how much, right
-                                     * aligned on one column, ruled off and totalled. The
-                                     * total is the point -- it is what makes the four rows
-                                     * checkable rather than asserted.
+                                     * The receipt, on the card's own surface.
+                                     *
+                                     * It used to sit in a tinted box of its own,
+                                     * which is what made three nested surfaces and
+                                     * put a beige slab in the middle of a white
+                                     * panel. Rules and space do the same work
+                                     * without a second background.
                                      */
-                                    <dl className="mt-3.5 overflow-hidden rounded-xl bg-[var(--sunk)] px-3.5 py-1 text-[13.5px]">
-                                        {/*
-                                          * A RECEIPT: start at what the buyer pays,
-                                          * take each party out of it, and land on what
-                                          * the seller is left with. The same four
-                                          * numbers as before, but as money LEAVING a
-                                          * sale rather than four parallel shares of
-                                          * one -- which is the order a seller
-                                          * experiences it in, and the only order where
-                                          * the last line is the answer to the question.
-                                          */}
-                                        <Row
+                                    <dl className="mt-4 text-[13.5px]">
+                                        <Line
                                             name={label("offerTicketTotal", "Ticket price")}
                                             amount={money(Math.round(samplePrice! * 100), cur)}
+                                            muted
                                         />
-                                        <Row
-                                            swatch="var(--b-comm)"
+                                        {/*
+                                          * Three parties, each as its own line, and
+                                          * each showing what it RECEIVES. Stripe is
+                                          * separate from the platform fee even though
+                                          * it is paid out of it -- a leader reading
+                                          * "card processing" wants to see the card
+                                          * processing, not be told it is folded into
+                                          * someone else's number. The note under the
+                                          * total carries the one relationship that
+                                          * makes these three add up.
+                                          */}
+                                        <Line
+                                            mark={{ src: communityIconUrl, name: communityName, color: "var(--b-comm)" }}
                                             name={communityName}
-                                            amount={money(cents[1], cur)}
+                                            amount={money(destination[0], cur)}
                                             deduct
-                                            note={say(
-                                                "offerCommissionNote",
-                                                {
-                                                    rate,
-                                                    gross: money(Math.round(grossCommission * 100), cur),
-                                                    share: platformShare,
-                                                    cut: money(Math.round(cobuntuOfCommission * 100), cur),
-                                                    platform: platformName,
-                                                },
-                                                `${rate}% is ${money(Math.round(grossCommission * 100), cur)}, less ${platformName}'s ${platformShare}% of it (${money(Math.round(cobuntuOfCommission * 100), cur)})`,
-                                            )}
                                         />
-                                        <Row
-                                            swatch="var(--b-cob)"
+                                        <Line
+                                            mark={{ name: platformName, color: "var(--b-cob)" }}
                                             name={platformName}
-                                            amount={money(cents[2], cur)}
+                                            amount={money(destination[1], cur)}
                                             deduct
                                         />
-                                        {e.stripeAmt > 0 && (
-                                            <Row
-                                                swatch="var(--b-stripe)"
+                                        {destination[2] > 0 && (
+                                            <Line
+                                                mark={{ name: "Stripe", color: "var(--b-stripe)" }}
                                                 name={label("spineStripeRow", "Stripe (card processing)")}
-                                                amount={money(cents[3], cur)}
+                                                amount={money(destination[2], cur)}
                                                 deduct
                                             />
                                         )}
-                                        {/*
-                                          * The bottom line, ruled off the way a till
-                                          * receipt rules off its total: a DASHED rule,
-                                          * which is the one borrowed mark that says
-                                          * "receipt" without turning the card into a
-                                          * costume.
-                                          */}
-                                        <div className="flex items-center justify-between gap-3 border-t border-dashed border-[var(--ink-3)]/40 py-3">
-                                            <dt className="flex items-center gap-2.5 font-semibold text-[var(--ink)]">
-                                                <span
-                                                    className="h-[7px] w-[7px] flex-none rounded-full"
-                                                    style={{ background: "var(--b-keep)" }}
-                                                    aria-hidden="true"
-                                                />
-                                                {sellerRowName}
+                                        <div className="mt-1 flex items-center justify-between gap-4 border-t-2 border-[var(--ink)]/15 pt-3">
+                                            <dt className="flex min-w-0 items-center gap-2.5 text-[14px] font-semibold text-[var(--ink)]">
+                                                <Mark src={sellerImageUrl} name={sellerName} color="var(--b-keep)" />
+                                                <span className="min-w-0">{sellerRowName}</span>
                                             </dt>
-                                            <dd className="text-[15px] font-semibold tabular-nums text-[var(--ink)]">
-                                                {money(cents[0], cur)}
+                                            <dd className="shrink-0 text-[17px] font-semibold tabular-nums tracking-[-0.01em] text-[var(--ink)]">
+                                                {money(sellerCents, cur)}
                                             </dd>
                                         </div>
+                                        {/*
+                                          * The rates, once, under the figures they
+                                          * explain -- rather than a basis column that
+                                          * never matched the amount beside it, which is
+                                          * what made "8%" sit next to EUR 0.38 and
+                                          * start this whole question.
+                                          */}
+                                        <p className="mt-3 text-[12px] leading-relaxed text-[var(--ink-3)]">
+                                            {say("offerBasisNote", {
+                                                community: communityName,
+                                                rate,
+                                                share: platformShare,
+                                                platform: platformName,
+                                                seller: sellerName,
+                                                fee: sellerFee
+                                                    ? `${round(sellerFee.rate * 100)}% + ${money(sellerFee.fixed, cur)}`
+                                                    : "",
+                                            },
+                                            `${communityName} charges ${rate}%. ${platformName} takes ${platformShare}% of that, plus ${sellerFee ? `${round(sellerFee.rate * 100)}% + ${money(sellerFee.fixed, cur)}` : "its fee"} of ${sellerName}'s share, and pays Stripe out of it.`)}
+                                        </p>
                                     </dl>
                                 ) : (
                                     /* No price to work against: percentages, flat fees absent. */
@@ -364,68 +398,98 @@ export function OfferedPackages({
 }
 
 /**
- * One line of the receipt: who, a dot leader, and the amount in the money
- * column -- with a minus on anything coming OUT of the ticket.
+ * The small round mark beside a party's name.
  *
- * The leader dots are the receipt's own device and they earn their place here:
- * three packages are read down a column, and a ruled gap between a long
- * community name and a short amount is what stops the eye landing on the wrong
- * row. Drawn as a dotted border on a flexible spacer rather than repeated
- * characters, so it fills whatever space is left at any width and a screen
- * reader never reads it out.
- *
- * The note sits on its own line beneath the name. Run inline it wraps on a
- * narrow panel and drags the row's dot down with it, leaving a coloured mark
- * orphaned beside the second line -- caught in a render at 390px.
+ * A real image where one exists -- the community's `iconUrl`, the requester's
+ * `profileImage` -- and a monogram in that row's band colour where one does
+ * not. Cobuntu and Stripe deliberately get monograms rather than logos: the
+ * Cobuntu brand mark is a WORDMARK set in a font this package does not load,
+ * and Stripe's is a trademark that should be their own asset file and not
+ * something redrawn from memory. A wrong logo is worse than an honest letter.
+ * Swapping either in later is a src on this component and nothing else.
  */
-function Row({
-    swatch,
+function Mark({
+    src,
+    name,
+    color,
+}: {
+    src?: string | null;
+    name: string;
+    color: string;
+}) {
+    const initial = name.trim().replace(/^[^\p{L}\p{N}]+/u, "")[0]?.toUpperCase() || "?";
+    if (src) {
+        return (
+            <img
+                src={src}
+                alt=""
+                className="h-5 w-5 flex-none rounded-full bg-[var(--sunk)] object-cover"
+            />
+        );
+    }
+    return (
+        <span
+            aria-hidden="true"
+            className="flex h-5 w-5 flex-none items-center justify-center rounded-full text-[10px] font-semibold text-white"
+            style={{ background: color }}
+        >
+            {initial}
+        </span>
+    );
+}
+
+/**
+ * One line of the receipt: a mark, who it is, and the amount.
+ *
+ * The figures are right-aligned on a single money column and the rules carry
+ * the structure -- no tinted fill, and no basis column: the rate a party
+ * CHARGES and the amount it RECEIVES are different numbers, and putting them
+ * side by side is what made "8%" sit next to EUR 0.38 and read as a mistake.
+ * The rates are stated once, under the total.
+ */
+function Line({
+    mark,
     name,
     amount,
-    note,
     deduct = false,
+    muted = false,
 }: {
-    /** The band this row matches in the meter. The ticket row has none. */
-    swatch?: string;
+    /** Absent on the ticket line, which is nobody's money yet. */
+    mark?: { src?: string | null; name: string; color: string };
     name: string;
     amount: string;
-    note?: string;
     /** Money leaving the sale: shown as a subtraction. */
     deduct?: boolean;
+    /** The ticket line: a starting point, not a charge. */
+    muted?: boolean;
 }) {
     return (
-        <div className="py-2.5">
-            {/* items-start: when a long name wraps, the amount and the dot stay
-                on its FIRST line, the way a receipt puts the figure against the
-                line it belongs to. Centred, they drift into the gap between the
-                two lines and stop belonging to either. */}
-            <div className="flex items-start gap-2.5">
-                {/* The ticket row has no band in the meter and so no dot, but it
-                    keeps the indent or its name will not line up with the rows
-                    beneath it. */}
-                <span
-                    className={`mt-[7px] h-[7px] w-[7px] flex-none${swatch ? " rounded-full" : ""}`}
-                    style={swatch ? { background: swatch } : undefined}
-                    aria-hidden="true"
-                />
-                {/* min-w-0, NOT shrink-0: a long community name used to push the
-                    amount clean out of the card on a narrow panel -- the row read
-                    "PBN | Porto Business Network   -EUR 0.3" with the last digit
-                    gone, which on a money card is not a layout nit. It wraps now
-                    and the amount is never what gives way. No media query,
-                    because the card can be narrow at any viewport. */}
-                <dt className="min-w-0 text-[var(--ink)]">{name}</dt>
-                <span
-                    className="mt-[10px] min-w-[16px] flex-1 border-b border-dotted border-[var(--ink-3)]/45"
-                    aria-hidden="true"
-                />
-                <dd className="ml-auto shrink-0 tabular-nums text-[var(--ink)]">
-                    {deduct ? `\u2212${amount}` : amount}
-                </dd>
-            </div>
-            {note && (
-                <p className="mt-0.5 pl-[17px] text-[12px] leading-snug text-[var(--ink-3)]">{note}</p>
-            )}
+        <div
+            className={`flex items-center justify-between gap-3 py-2.5${
+                muted ? "" : " border-t border-[var(--line-soft)]"
+            }`}
+        >
+            <dt
+                className={`flex min-w-0 items-center gap-2.5 ${
+                    muted ? "text-[var(--ink-2)]" : "text-[var(--ink)]"
+                }`}
+            >
+                {mark ? (
+                    <Mark src={mark.src} name={mark.name} color={mark.color} />
+                ) : (
+                    /* Keeps the ticket line's name on the same left edge as the
+                       rows under it, which is what makes the column read. */
+                    <span className="h-5 w-5 flex-none" aria-hidden="true" />
+                )}
+                <span className="min-w-0">{name}</span>
+            </dt>
+            <dd
+                className={`shrink-0 tabular-nums ${
+                    muted ? "text-[var(--ink-2)]" : "text-[var(--ink)]"
+                }`}
+            >
+                {deduct ? `\u2212${amount}` : amount}
+            </dd>
         </div>
     );
 }

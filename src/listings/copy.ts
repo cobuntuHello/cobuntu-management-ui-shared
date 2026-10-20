@@ -124,6 +124,13 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     offerSellerKeeps: "{seller} keeps",
     offerCommissionNote: "{rate}% is {gross}, less {platform}'s {share}% of it ({cut})",
     offerTicketTotal: "Ticket price",
+    /* Short, because the rate lives in its own column beside them and the
+       line under the total names who ends up with what. "{community}
+       commission" ran to half the row on a community with a long name. */
+    /* The rates, stated once under the figures rather than in a column that
+       never matched the amount beside it. */
+    offerBasisNote: "{community} charges {rate}%. {platform} takes {share}% of that, plus {fee} of {seller}'s share, and pays Stripe out of it.",
+    offerWhereItGoes: "Of that, {community} keeps {communityAmount}, {platform} {platformAmount}, and {stripeAmount} is Stripe's card processing.",
     /* The split bar is role="img"; this is what a screen reader is given. */
     spineBarAria: "You keep {pct}% of each sale",
     counterOpen: "Propose different terms",
