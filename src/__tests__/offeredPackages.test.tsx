@@ -292,3 +292,43 @@ describe("the party marks", () => {
         expect(screen.getAllByText(`${MINUS}€0.62`).length).toBeGreaterThan(0);
     });
 });
+
+/**
+ * The share column.
+ *
+ * Each row shows its share OF THE TICKET, derived from the cents the money
+ * column prints -- not from the rate. That distinction is the whole history of
+ * this card: a package headlined 8% once showed a row reading 7.6% beside it,
+ * which looked like a contradiction and was really two different questions
+ * (what the community charges, and what reaches it after Cobuntu's cut of that
+ * commission). Deriving the percentage from the amount is what makes a row
+ * internally consistent; the sentence under the total explains the gap.
+ */
+describe("the share column", () => {
+    const price = { samplePrice: 25, sampleCurrency: "EUR" };
+
+    it("matches each row's own amount, and the four sum to 100%", () => {
+        const { container } = render(
+            <OfferedPackages {...base} packages={[PACKAGES[0]]} {...price} viewer="leader" />,
+        );
+        const text = container.textContent ?? "";
+        const shares = Array.from(text.matchAll(/(\d+(?:\.\d+)?)%/g)).map((m) => Number(m[1]));
+        // The headline rate (8%) and the rate stated in the note are also "%"
+        // matches, so pick out the row shares by the amounts they must equal.
+        const expected = [
+            (1.9 / 25) * 100,   // community, net of Cobuntu's share of the commission
+            (0.7 / 25) * 100,   // Cobuntu
+            (0.62 / 25) * 100,  // Stripe
+            (21.78 / 25) * 100, // the seller
+        ].map((n) => Math.round(n * 10) / 10);
+        for (const pct of expected) expect(shares).toContain(pct);
+        expect(expected.reduce((a, b) => a + b, 0)).toBeCloseTo(100, 1);
+    });
+
+    it("does not put a share on the ticket row, which IS the whole", () => {
+        render(<OfferedPackages {...base} packages={[PACKAGES[0]]} {...price} viewer="leader" />);
+        const ticket = screen.getByText("Ticket price").closest("div");
+        expect(ticket?.textContent).toContain("€25.00");
+        expect(ticket?.textContent).not.toMatch(/%/);
+    });
+});
