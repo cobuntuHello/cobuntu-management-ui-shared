@@ -43,6 +43,17 @@ export const LISTING_TOKENS: Record<string, string> = {
      * pairing rather than an override of anyone's branding. Fraunces is loaded by
      * the panel itself (see LISTING_MOTION) so both apps get the same face with
      * no font wiring; Georgia carries it until the webfont arrives.
+     *
+     * NOT UNIVERSAL, and the claim above is contested. Reviewed against a live
+     * PBN request: the warm-cream ground plus a Fraunces display face plus the
+     * amber/green split reads as GENERATED rather than as deliberate. That
+     * combination is a common generative signature, not a distinguishing one,
+     * so the serif is not by itself what stops the page looking machine-made.
+     *
+     * OfferedPackages therefore opts out: it sets its rate and its money in the
+     * BODY face with tabular figures, because a settlement is a document to be
+     * checked down a column, not a headline. Spend the serif where something is
+     * genuinely being announced.
      */
     "--display": "'Fraunces', Georgia, 'Times New Roman', serif",
 

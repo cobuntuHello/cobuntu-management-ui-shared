@@ -906,6 +906,17 @@ export function ManagedListingDetail({
             packages={offered}
             platformShare={fees ? Math.round(fees.platformRate * 100) : undefined}
             sellerFee={fees ? { rate: fees.memberSellerRate, fixed: fees.memberSellerFixed } : null}
+            stripeRate={fees?.stripeRate}
+            stripeFixed={fees?.stripeFixed}
+            /* The same concrete ticket the spine works against, so the two
+               cards can never quote different money for the same rate. Without
+               it the card falls back to percentages, which cannot carry the
+               flat per-sale fees. */
+            samplePrice={heroListingPrice && Number(heroListingPrice.amount) > 0 ? Number(heroListingPrice.amount) : undefined}
+            sampleCurrency={heroListingPrice?.currency}
+            /* Load-bearing: on admin the reader is the COMMUNITY, so the
+               seller's share is not "yours". */
+            viewer={viewer}
             communityName={community?.name || t("community")}
             sellerName={listing.requestedBy?.name || t("someone")}
             busy={posting || busy}
