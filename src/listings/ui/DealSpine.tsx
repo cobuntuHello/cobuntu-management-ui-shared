@@ -385,8 +385,37 @@ export function DealSpine({
 }
 
 /** The smallest unit, as money. Amounts here are cents, as everywhere. */
-function money(amount: number, currency = "EUR"): string {
+export function money(amount: number, currency = "EUR"): string {
     return new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(amount / 100);
+}
+
+/**
+ * Round a set of MAJOR-unit amounts to whole cents that still sum to the total.
+ *
+ * Rounding each row on its own does not add up, and on this card that is not a
+ * cosmetic problem: the whole reason the split is shown in money is that every
+ * cent sums to the ticket. On a EUR 25 sale at 8%, Cobuntu's 0.695 and Stripe's
+ * 0.625 both round UP, the four rows total 25.01, and the line underneath them
+ * says 25.00 -- a receipt that visibly disagrees with itself, which is worse
+ * than the percentages it replaced.
+ *
+ * Largest-remainder: floor everything, then hand the leftover cents out to the
+ * rows with the biggest discarded fraction, which keeps each row within a cent
+ * of its true value and the sum exact.
+ */
+export function allocateCents(totalMajor: number, partsMajor: number[]): number[] {
+    const total = Math.round(totalMajor * 100);
+    const exact = partsMajor.map((p) => p * 100);
+    const floors = exact.map((c) => Math.floor(c));
+    let left = total - floors.reduce((a, b) => a + b, 0);
+    const order = exact
+        .map((c, i) => ({ i, frac: c - Math.floor(c) }))
+        .sort((a, b) => b.frac - a.frac);
+    const out = [...floors];
+    /* Guard the pathological case (left can exceed the row count only if the
+       parts do not actually sum to the total, which would be a math bug). */
+    for (let k = 0; k < order.length && left > 0; k++, left--) out[order[k].i] += 1;
+    return out;
 }
 
 /** One percent, rounded for display without pretending to precision it lacks. */
@@ -410,7 +439,7 @@ function round(n: number): number {
  *   actually costs. Clamped at zero: a tiny sale where Stripe exceeds the fee is
  *   a real loss to Cobuntu, not a negative row.
  */
-function euroSplit(
+export function euroSplit(
     price: number,
     rate: number,
     platformShare: number,

@@ -1,5 +1,5 @@
 import { Card } from "./primitives";
-import { saleSplit } from "./DealSpine";
+import { saleSplit, euroSplit, money, allocateCents } from "./DealSpine";
 
 /**
  * The packages a leader can offer, laid out on the review page itself.
@@ -17,8 +17,8 @@ import { saleSplit } from "./DealSpine";
  * So when the cut is still open, the leader's options are the page: each
  * published package the member's tier can be offered, with the same split a sale
  * would get, and offering one is a single click. The split is computed with the
- * SAME function the spine uses, so the two can never quote different numbers for
- * the same rate.
+ * SAME functions the spine uses, so the two can never quote different numbers
+ * for the same rate.
  *
  * ── It proposes; it does not approve ────────────────────────────────────────
  *
@@ -26,22 +26,82 @@ import { saleSplit } from "./DealSpine";
  * the backend will not let a member's paid listing go live on a commission
  * nobody agreed to. So the button says "Offer", not "Apply", and the subtitle
  * says whose turn is next.
+ *
+ * ── Euros, not percentages, and why that is not a preference ────────────────
+ *
+ * This card used to draw a three-way PERCENTAGE bar, and a percentage split of
+ * this sale cannot be made to add up. Two of the four deductions carry a FLAT
+ * per-sale charge (Cobuntu's member-seller fee is 4% + EUR 0.30, Stripe's is
+ * 1.5% + EUR 0.25), and a flat charge has no percentage until you name a price.
+ * `saleSplit` silently drops the fixed components for exactly that reason, so
+ * the old bar was wrong by an amount that GREW as the ticket got cheaper -- on
+ * a EUR 3 sale the missing EUR 0.30 is a tenth of the whole thing.
+ *
+ * So with a real ticket price the card works the split in money, where every
+ * cent sums to the price. The percentage bar survives only as the fallback for
+ * when no price is known.
+ *
+ * ── Three things the old card said that were not true ───────────────────────
+ *
+ * 1. It showed the community's NET rate (7.6%) under a heading reading 8%,
+ *    with nothing to say the two were different things. The gross rate is what
+ *    the leader sets and the member agrees to; the net is what arrives after
+ *    Cobuntu's share OF it. Both are now named, and the deduction between them
+ *    is shown rather than silently applied.
+ *
+ * 2. It added two unrelated fees together and called the total "Cobuntu":
+ *    Cobuntu's cut of the COMMISSION, and Cobuntu's separate fee on the
+ *    SELLER'S OWN share. They have different payers and different bases, and
+ *    fusing them is why that number barely moved between an 8% package and a
+ *    22% one -- the halves move in opposite directions. They are separate rows.
+ *
+ * 3. Stripe did not appear at all. Cobuntu's member-seller fee is ALL-IN
+ *    (feeConstants.ts: "Stripe's processing comes out of it"), so card
+ *    processing was real money buried inside the Cobuntu row. It is its own
+ *    line now, carved OUT of Cobuntu's -- see euroSplit, which subtracts it, so
+ *    naming it cannot double-count it.
+ *
+ * ── Whose money is "yours" depends on who is reading ────────────────────────
+ *
+ * The legend said "You keep" on both sides of the same negotiation. On the
+ * admin app the reader is the COMMUNITY, so the seller's share is not theirs
+ * and the row has to name the seller. `viewer` decides; the seller's name was
+ * already a prop here for the subtitle.
  */
 export function OfferedPackages({
     packages,
     platformShare = 10,
     sellerFee = null,
+    stripeRate,
+    stripeFixed,
+    samplePrice,
+    sampleCurrency,
     communityName,
     sellerName,
+    viewer = "seller",
     busy = false,
     onChoose,
     t,
 }: {
     packages: { id: string; name: string; description: string | null; rate: number }[];
+    /** Cobuntu's cut OF the commission, as a percent. Per community. */
     platformShare?: number;
+    /** Cobuntu's all-in fee on the seller's own share. `rate` is a fraction. */
     sellerFee?: { rate: number; fixed: number; currency?: string } | null;
+    /** Stripe's estimate, from the same GET /api/config/fees. Fraction + minor units. */
+    stripeRate?: number;
+    stripeFixed?: number;
+    /**
+     * A real ticket price in MAJOR units. Given, the card works every package
+     * in money on this price. Absent, it falls back to the percentage bar,
+     * which cannot show the flat fees -- see the note above.
+     */
+    samplePrice?: number;
+    sampleCurrency?: string;
     communityName: string;
     sellerName: string;
+    /** Who is reading. The leader does not "keep" the seller's share. */
+    viewer?: "leader" | "seller";
     busy?: boolean;
     onChoose: (packageId: string) => void;
     t?: (key: string, vars?: Record<string, unknown>) => string;
@@ -51,33 +111,40 @@ export function OfferedPackages({
     if (packages.length === 0) return null;
     const platformName = communityName.trim().toLowerCase() === "cobuntu" ? "Platform" : "Cobuntu";
 
+    /* The seller's row, named for whoever is reading it. */
+    const sellerRowName = viewer === "leader"
+        ? say("offerSellerKeeps", { seller: sellerName }, `${sellerName} keeps`)
+        : label("spineKeySeller", "You keep");
+
+    const cur = sampleCurrency || sellerFee?.currency || "EUR";
+    const canWorkEuros = !!samplePrice && samplePrice > 0;
+
     /*
      * THE EFFECTIVE FLOOR, made visible.
      *
      * When nobody picked a package, the checkout does NOT charge nothing -- it
      * resolves the commission per sale as the LOWEST rate the seller's tier is
-     * offered (commissionResolver.resolveMemberCommissionRate -> Math.min). So
-     * "no cut agreed" quietly bills that floor on every sale. A leader who sees
-     * only "nothing agreed" never knows a rate is already in force, and the
-     * community silently takes its cheapest arrangement. Naming the floor here
-     * is the difference between a leader approving a known 8% and one approving
-     * a blank.
+     * offered. A review page that says "no cut agreed" quietly bills that floor
+     * on every sale. A leader who sees only "nothing agreed" never knows a rate
+     * is already in force, and the community silently takes its cheapest
+     * arrangement. Naming the floor here is the difference between a leader
+     * approving a known 8% and one approving a blank.
      */
     const floorRate = Math.min(...packages.map((p) => Number(p.rate)));
     const floorPkg = packages.find((p) => Number(p.rate) === floorRate) ?? null;
 
     return (
         <Card className="overflow-hidden text-[var(--ink)]">
-            <div className="border-b border-[var(--line-soft)] p-4 sm:p-5">
-                <h3 className="text-[17px] font-semibold tracking-[-0.01em] text-[var(--ink)]" style={{ fontFamily: "var(--display)" }}>
+            <div className="border-b border-[var(--line)] px-4 py-4 sm:px-6">
+                <h3 className="text-[15px] font-semibold tracking-[-0.005em] text-[var(--ink)]">
                     {label("offerTitle", "Set the commission")}
                 </h3>
-                <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
+                <p className="mt-1 text-[13px] leading-relaxed text-[var(--ink-2)]">
                     {say("offerSubtitle", { seller: sellerName },
                          `Offer ${sellerName} one of these. They confirm it, then you can publish.`)}
                 </p>
                 {floorPkg && (
-                    <p className="mt-2.5 rounded-lg bg-[var(--sunk)] px-3 py-2 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
+                    <p className="mt-3 border-l-2 border-[var(--b-comm)] pl-3 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
                         {say("offerFloorNote",
                              { community: communityName, rate: floorRate, name: floorPkg.name, seller: sellerName },
                              `Until you set terms, ${communityName} already takes ${floorRate}% on every sale — ${floorPkg.name}, the floor of ${sellerName}'s tier. Offer a package to lock it in or change it.`)}
@@ -87,57 +154,219 @@ export function OfferedPackages({
             <ul>
                 {packages.map((pkg) => {
                     const rate = Number(pkg.rate);
+                    const isFloor = !!floorPkg && pkg.id === floorPkg.id;
+                    const e = canWorkEuros
+                        ? euroSplit(
+                              samplePrice!, rate, platformShare, sellerFee,
+                              stripeRate != null ? { rate: stripeRate, fixed: stripeFixed ?? 0 } : null,
+                          )
+                        : null;
+                    /* Gross commission and the slice Cobuntu takes OF it, both named. */
+                    const grossCommission = e ? samplePrice! * (rate / 100) : 0;
+                    const cobuntuOfCommission = grossCommission - (e?.communityNet ?? 0);
+                    /*
+                     * Cents that actually add up to the ticket. Rounding the four
+                     * rows independently makes them total a cent more than the
+                     * line below them says -- see allocateCents.
+                     */
+                    const cents = e
+                        ? allocateCents(samplePrice!, [e.hostKeeps, e.communityNet, e.cobuntuNet, e.stripeAmt])
+                        : [0, 0, 0, 0];
+
                     const s = saleSplit(rate, platformShare, sellerFee);
-                    const seg = [
-                        { pct: s.sellerOfSale, color: "var(--b-keep)", name: label("spineKeySeller", "You keep") },
-                        { pct: s.communityOfSale, color: "var(--b-comm)", name: communityName },
-                        { pct: s.platformOfSale, color: "var(--b-cob)", name: platformName },
-                    ].filter((x) => x.pct > 0);
+                    const bands = e
+                        ? [
+                              { pct: (e.hostKeeps / samplePrice!) * 100, color: "var(--b-keep)" },
+                              { pct: (e.communityNet / samplePrice!) * 100, color: "var(--b-comm)" },
+                              { pct: (e.cobuntuNet / samplePrice!) * 100, color: "var(--b-cob)" },
+                              { pct: (e.stripeAmt / samplePrice!) * 100, color: "var(--b-stripe)" },
+                          ].filter((b) => b.pct > 0.01)
+                        : [
+                              { pct: s.sellerOfSale, color: "var(--b-keep)" },
+                              { pct: s.communityOfSale, color: "var(--b-comm)" },
+                              { pct: s.platformOfSale, color: "var(--b-cob)" },
+                          ].filter((b) => b.pct > 0);
+
                     return (
-                        <li key={pkg.id} className="grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-3 border-b border-[var(--line-soft)] p-4 transition-colors last:border-none hover:bg-[var(--sunk)] sm:px-5">
+                        <li
+                            key={pkg.id}
+                            className="grid grid-cols-[1fr_auto] items-start gap-x-6 gap-y-4 border-b border-[var(--line)] px-4 py-5 last:border-none sm:px-6"
+                        >
                             <div className="min-w-0">
-                                <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                                    <span className="text-[15px] font-semibold text-[var(--ink)]">{pkg.name}</span>
-                                    <span className="text-[19px] font-semibold leading-none text-[var(--ink)]" style={{ fontFamily: "var(--display)" }}>{rate}%</span>
-                                    {floorPkg && pkg.id === floorPkg.id && (
-                                        <span className="rounded-full bg-[var(--warn-w)] px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[.06em] text-[var(--warn)]">
+                                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                                    <span className="text-[14px] font-semibold tracking-[-0.005em] text-[var(--ink)]">
+                                        {pkg.name}
+                                    </span>
+                                    {/*
+                                     * The rate in the body face with tabular figures, not a
+                                     * contrasting display serif. This is a number to compare
+                                     * down a column of three, not a banner.
+                                     */}
+                                    <span className="text-[22px] font-semibold leading-none tabular-nums tracking-[-0.02em] text-[var(--ink)]">
+                                        {rate}
+                                        <span className="text-[14px] font-medium text-[var(--ink-3)]">%</span>
+                                    </span>
+                                    {isFloor && (
+                                        /* A quiet marker of fact, not an alert. */
+                                        <span className="text-[10.5px] font-semibold uppercase tracking-[.08em] text-[var(--ink-3)]">
                                             {label("offerDefaultBadge", "Applies now by default")}
                                         </span>
                                     )}
                                 </div>
                                 {pkg.description && (
-                                    <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--ink-2)]">{pkg.description}</p>
+                                    <p className="mt-1.5 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
+                                        {pkg.description}
+                                    </p>
                                 )}
                             </div>
+
                             <button
                                 type="button"
                                 disabled={busy}
                                 onClick={() => onChoose(pkg.id)}
-                                className="row-span-2 shrink-0 cursor-pointer self-center rounded-lg bg-[var(--commit)] px-4 py-2 text-[13px] font-semibold text-white hover:opacity-90 disabled:opacity-40"
+                                className="shrink-0 cursor-pointer rounded-md bg-[var(--commit)] px-3.5 py-2 text-[12.5px] font-semibold tabular-nums text-white transition-opacity hover:opacity-90 disabled:opacity-40"
                             >
                                 {say("offerPick", { rate }, `Offer ${rate}%`)}
                             </button>
-                            {/* The split, as the slim bar the spine uses + a legend. */}
-                            <div className="col-start-1 mt-1">
-                                <div className="flex h-1.5 max-w-[420px] gap-[2px] overflow-hidden rounded-full">
-                                    {seg.map((x, i) => (
-                                        <span key={i} className="h-full first:rounded-l-full last:rounded-r-full" style={{ width: `${x.pct}%`, background: x.color, minWidth: "4px" }} />
+
+                            <div className="col-span-2 min-w-0">
+                                {/* One segmented measure, square ends, hairline gaps. */}
+                                <div className="flex h-[3px] w-full overflow-hidden">
+                                    {bands.map((b, i) => (
+                                        <span
+                                            key={i}
+                                            className="h-full"
+                                            style={{
+                                                width: `${b.pct}%`,
+                                                background: b.color,
+                                                minWidth: "3px",
+                                                marginRight: i < bands.length - 1 ? "1px" : undefined,
+                                            }}
+                                        />
                                     ))}
                                 </div>
-                                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-[var(--ink-2)]">
-                                    {seg.map((x, i) => (
-                                        <span key={i} className="inline-flex items-center gap-1.5">
-                                            <span className="h-[7px] w-[7px] flex-none rounded-[2px]" style={{ background: x.color }} />
-                                            {x.name} <b className="font-semibold tabular-nums text-[var(--ink)]">{round(x.pct)}%</b>
-                                        </span>
-                                    ))}
-                                </div>
+
+                                {e ? (
+                                    /*
+                                     * The settlement, as a document: who, how much, right
+                                     * aligned on one column, ruled off and totalled. The
+                                     * total is the point -- it is what makes the four rows
+                                     * checkable rather than asserted.
+                                     */
+                                    <dl className="mt-3.5 text-[12.5px] leading-[1.9]">
+                                        <Row
+                                            swatch="var(--b-keep)"
+                                            name={sellerRowName}
+                                            amount={money(cents[0], cur)}
+                                        />
+                                        <Row
+                                            swatch="var(--b-comm)"
+                                            name={communityName}
+                                            amount={money(cents[1], cur)}
+                                            note={say(
+                                                "offerCommissionNote",
+                                                {
+                                                    rate,
+                                                    gross: money(Math.round(grossCommission * 100), cur),
+                                                    share: platformShare,
+                                                    cut: money(Math.round(cobuntuOfCommission * 100), cur),
+                                                    platform: platformName,
+                                                },
+                                                `${rate}% is ${money(Math.round(grossCommission * 100), cur)}, less ${platformName}'s ${platformShare}% of it (${money(Math.round(cobuntuOfCommission * 100), cur)})`,
+                                            )}
+                                        />
+                                        <Row
+                                            swatch="var(--b-cob)"
+                                            name={platformName}
+                                            amount={money(cents[2], cur)}
+                                        />
+                                        {e.stripeAmt > 0 && (
+                                            <Row
+                                                swatch="var(--b-stripe)"
+                                                name={label("spineStripeRow", "Stripe (card processing)")}
+                                                amount={money(cents[3], cur)}
+                                            />
+                                        )}
+                                        <div className="mt-2 flex items-baseline justify-between border-t border-[var(--line)] pt-2">
+                                            <dt className="text-[var(--ink-2)]">
+                                                {label("offerTicketTotal", "Ticket price")}
+                                            </dt>
+                                            <dd className="font-semibold tabular-nums text-[var(--ink)]">
+                                                {money(Math.round(samplePrice! * 100), cur)}
+                                            </dd>
+                                        </div>
+                                    </dl>
+                                ) : (
+                                    /* No price to work against: percentages, flat fees absent. */
+                                    <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-[var(--ink-2)]">
+                                        {[
+                                            { pct: s.sellerOfSale, color: "var(--b-keep)", name: sellerRowName },
+                                            { pct: s.communityOfSale, color: "var(--b-comm)", name: communityName },
+                                            { pct: s.platformOfSale, color: "var(--b-cob)", name: platformName },
+                                        ]
+                                            .filter((x) => x.pct > 0)
+                                            .map((x, i) => (
+                                                <span key={i} className="inline-flex items-center gap-1.5">
+                                                    <span
+                                                        className="mt-[5px] h-[6px] w-[6px] flex-none"
+                                                        style={{ background: x.color }}
+                                                    />
+                                                    {x.name}{" "}
+                                                    <b className="font-semibold tabular-nums text-[var(--ink)]">
+                                                        {round(x.pct)}%
+                                                    </b>
+                                                </span>
+                                            ))}
+                                    </div>
+                                )}
                             </div>
                         </li>
                     );
                 })}
             </ul>
         </Card>
+    );
+}
+
+/**
+ * One line of the settlement: swatch, who, and the amount on the money column.
+ *
+ * The note sits on its OWN line beneath the name rather than trailing it. Run
+ * inline it wraps on a narrow panel and drags the row's swatch down with it,
+ * leaving a coloured square orphaned beside the second line of text -- caught
+ * in a render at 620px, which is narrower than the screenshot but well within
+ * what the admin sidebar leaves.
+ */
+function Row({
+    swatch,
+    name,
+    amount,
+    note,
+}: {
+    swatch: string;
+    name: string;
+    amount: string;
+    note?: string;
+}) {
+    return (
+        <div className="flex items-start justify-between gap-4 py-[1px]">
+            <dt className="flex min-w-0 gap-2">
+                <span
+                    className="mt-[7px] h-[6px] w-[6px] flex-none"
+                    style={{ background: swatch }}
+                    aria-hidden="true"
+                />
+                <span className="min-w-0">
+                    <span className="text-[var(--ink)]">{name}</span>
+                    {note && (
+                        <span className="block text-[11.5px] leading-snug text-[var(--ink-3)]">
+                            {note}
+                        </span>
+                    )}
+                </span>
+            </dt>
+            <dd className="shrink-0 tabular-nums text-[var(--ink)]">{amount}</dd>
+        </div>
     );
 }
 
