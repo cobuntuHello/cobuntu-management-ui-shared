@@ -135,16 +135,16 @@ export function OfferedPackages({
 
     return (
         <Card className="overflow-hidden text-[var(--ink)]">
-            <div className="border-b border-[var(--line)] px-4 py-4 sm:px-6">
-                <h3 className="text-[15px] font-semibold tracking-[-0.005em] text-[var(--ink)]">
+            <div className="px-4 pb-1 pt-5 sm:px-5">
+                <h3 className="text-[17px] font-semibold tracking-[-0.01em] text-[var(--ink)]">
                     {label("offerTitle", "Set the commission")}
                 </h3>
-                <p className="mt-1 text-[13px] leading-relaxed text-[var(--ink-2)]">
+                <p className="mt-1 text-[13.5px] leading-relaxed text-[var(--ink-2)]">
                     {say("offerSubtitle", { seller: sellerName },
                          `Offer ${sellerName} one of these. They confirm it, then you can publish.`)}
                 </p>
                 {floorPkg && (
-                    <p className="mt-3 border-l-2 border-[var(--b-comm)] pl-3 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
+                    <p className="mt-3 rounded-xl bg-[var(--sunk)] px-3.5 py-2.5 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
                         {say("offerFloorNote",
                              { community: communityName, rate: floorRate, name: floorPkg.name, seller: sellerName },
                              `Until you set terms, ${communityName} already takes ${floorRate}% on every sale — ${floorPkg.name}, the floor of ${sellerName}'s tier. Offer a package to lock it in or change it.`)}
@@ -190,11 +190,18 @@ export function OfferedPackages({
                     return (
                         <li
                             key={pkg.id}
-                            className="grid grid-cols-[1fr_auto] items-start gap-x-6 gap-y-4 border-b border-[var(--line)] px-4 py-5 last:border-none sm:px-6"
+                            /*
+                             * An inset grouped block, the way a phone groups a
+                             * section: its own rounded surface with space around
+                             * it, rather than a row cut out of a ruled table.
+                             * Hairlines between list items is the web idiom that
+                             * made this read as a document.
+                             */
+                            className="mx-3 mb-3 grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-3.5 rounded-2xl border border-[var(--line-soft)] bg-[var(--card)] p-4 sm:mx-4 sm:p-5"
                         >
                             <div className="min-w-0">
                                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                                    <span className="text-[14px] font-semibold tracking-[-0.005em] text-[var(--ink)]">
+                                    <span className="text-[15.5px] font-semibold tracking-[-0.01em] text-[var(--ink)]">
                                         {pkg.name}
                                     </span>
                                     {/*
@@ -202,19 +209,22 @@ export function OfferedPackages({
                                      * contrasting display serif. This is a number to compare
                                      * down a column of three, not a banner.
                                      */}
-                                    <span className="text-[22px] font-semibold leading-none tabular-nums tracking-[-0.02em] text-[var(--ink)]">
+                                    <span className="text-[24px] font-semibold leading-none tabular-nums tracking-[-0.02em] text-[var(--ink)]">
                                         {rate}
-                                        <span className="text-[14px] font-medium text-[var(--ink-3)]">%</span>
+                                        <span className="text-[15px] font-medium text-[var(--ink-3)]">%</span>
                                     </span>
                                     {isFloor && (
                                         /* A quiet marker of fact, not an alert. */
-                                        <span className="text-[10.5px] font-semibold uppercase tracking-[.08em] text-[var(--ink-3)]">
+                                        /* A filled chip, which is how a phone marks
+                                           state -- but in the muted surface, not an
+                                           alert colour. It is a fact, not a warning. */
+                                        <span className="rounded-full bg-[var(--sunk)] px-2.5 py-1 text-[11px] font-medium text-[var(--ink-2)]">
                                             {label("offerDefaultBadge", "Applies now by default")}
                                         </span>
                                     )}
                                 </div>
                                 {pkg.description && (
-                                    <p className="mt-1.5 text-[12.5px] leading-relaxed text-[var(--ink-2)]">
+                                    <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--ink-2)]">
                                         {pkg.description}
                                     </p>
                                 )}
@@ -224,24 +234,22 @@ export function OfferedPackages({
                                 type="button"
                                 disabled={busy}
                                 onClick={() => onChoose(pkg.id)}
-                                className="shrink-0 cursor-pointer rounded-md bg-[var(--commit)] px-3.5 py-2 text-[12.5px] font-semibold tabular-nums text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+                                /* 44px tall: a thumb target, not a text link with a
+                                   background. Fully rounded, which is the shape a
+                                   phone uses for a commit. */
+                                className="h-11 shrink-0 cursor-pointer rounded-full bg-[var(--commit)] px-5 text-[13.5px] font-semibold tabular-nums text-white transition-opacity hover:opacity-90 disabled:opacity-40"
                             >
                                 {say("offerPick", { rate }, `Offer ${rate}%`)}
                             </button>
 
                             <div className="col-span-2 min-w-0">
                                 {/* One segmented measure, square ends, hairline gaps. */}
-                                <div className="flex h-[3px] w-full overflow-hidden">
+                                <div className="flex h-[6px] w-full gap-[2px] overflow-hidden rounded-full">
                                     {bands.map((b, i) => (
                                         <span
                                             key={i}
-                                            className="h-full"
-                                            style={{
-                                                width: `${b.pct}%`,
-                                                background: b.color,
-                                                minWidth: "3px",
-                                                marginRight: i < bands.length - 1 ? "1px" : undefined,
-                                            }}
+                                            className="h-full first:rounded-l-full last:rounded-r-full"
+                                            style={{ width: `${b.pct}%`, background: b.color, minWidth: "6px" }}
                                         />
                                     ))}
                                 </div>
@@ -253,7 +261,7 @@ export function OfferedPackages({
                                      * total is the point -- it is what makes the four rows
                                      * checkable rather than asserted.
                                      */
-                                    <dl className="mt-3.5 text-[12.5px] leading-[1.9]">
+                                    <dl className="mt-3.5 overflow-hidden rounded-xl bg-[var(--sunk)] px-3.5 py-1 text-[13.5px]">
                                         <Row
                                             swatch="var(--b-keep)"
                                             name={sellerRowName}
@@ -287,8 +295,10 @@ export function OfferedPackages({
                                                 amount={money(cents[3], cur)}
                                             />
                                         )}
-                                        <div className="mt-2 flex items-baseline justify-between border-t border-[var(--line)] pt-2">
-                                            <dt className="text-[var(--ink-2)]">
+                                        {/* The total is the one thing separated, because
+                                            it is the check on everything above it. */}
+                                        <div className="flex items-center justify-between border-t border-[var(--line)] py-2.5">
+                                            <dt className="font-medium text-[var(--ink)]">
                                                 {label("offerTicketTotal", "Ticket price")}
                                             </dt>
                                             <dd className="font-semibold tabular-nums text-[var(--ink)]">
@@ -349,17 +359,20 @@ function Row({
     note?: string;
 }) {
     return (
-        <div className="flex items-start justify-between gap-4 py-[1px]">
-            <dt className="flex min-w-0 gap-2">
+        <div className="flex items-start justify-between gap-4 py-2.5">
+            {/* items-start, and the dot nudged onto the first line's optical
+                centre: centred vertically it drifts between the two lines of a
+                row that carries a note, and stops reading as that row's mark. */}
+            <dt className="flex min-w-0 items-start gap-2.5">
                 <span
-                    className="mt-[7px] h-[6px] w-[6px] flex-none"
+                    className="mt-[6px] h-[7px] w-[7px] flex-none rounded-full"
                     style={{ background: swatch }}
                     aria-hidden="true"
                 />
                 <span className="min-w-0">
                     <span className="text-[var(--ink)]">{name}</span>
                     {note && (
-                        <span className="block text-[11.5px] leading-snug text-[var(--ink-3)]">
+                        <span className="block text-[12px] leading-snug text-[var(--ink-3)]">
                             {note}
                         </span>
                     )}

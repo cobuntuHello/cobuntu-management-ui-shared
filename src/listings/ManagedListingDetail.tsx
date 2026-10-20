@@ -528,6 +528,22 @@ export function ManagedListingDetail({
    * button, which would be a second, vaguer door to the same choice.
    */
   const showInlinePackages = viewer === "leader" && waiting && rate == null && offered.length > 0;
+  /*
+   * APPROVE IS REFUSED BY THE BACKEND HERE, so the button must not offer it.
+   *
+   * EventListingService throws "Commission proposal must be accepted before
+   * approving a paid event listing" whenever a paid member event reaches
+   * approval with its ticket listing still PENDING -- i.e. with no rate the
+   * seller has ACCEPTED. Offering a package is not enough; they have to
+   * confirm it. Until this, the leader got an enabled button and a thrown
+   * error, which reads as a broken page rather than as a rule.
+   *
+   * Scoped to paid EVENTS on purpose. That is the one path with a proven
+   * server-side guard; products resolve their terms through a different route
+   * and disabling approve there on a hunch would break a flow that works.
+   */
+  const approveNeedsTerms =
+    kind === "event" && listing.isPaid === true && rate == null;
 
   async function openCompose(): Promise<{ id: string; name: string; description: string | null; rate: number }[]> {
     setComposing(true);
@@ -1203,6 +1219,13 @@ export function ManagedListingDetail({
         withdrawal on purpose — one is "we said no", the other is "I took it
         back", and a row that confuses them lies about who decided.
       */}
+      {reviewActions.length > 0 && approveNeedsTerms && (
+        /* On a touch screen a title attribute is invisible, so the reason is
+           said in the bar rather than only on hover. */
+        <p className="w-full text-[12px] leading-snug text-[var(--ink-2)] sm:mr-auto sm:w-auto sm:self-center">
+          {t("approveNeedsTerms")}
+        </p>
+      )}
       {reviewActions.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {/*
@@ -1227,8 +1250,9 @@ export function ManagedListingDetail({
                     title: t("confirmApproveTitle"),
                     body: t("confirmApproveBody", { community: community?.name || t("community") }),
                     confirm: approveLabel,
-                  })} disabled={busy}
-                  className="rounded-lg bg-[var(--commit)] px-4 py-2.5 text-[13px] font-semibold text-white hover:opacity-90 cursor-pointer disabled:opacity-40">
+                  })} disabled={busy || approveNeedsTerms}
+                  title={approveNeedsTerms ? t("approveNeedsTerms") : undefined}
+                  className="rounded-lg bg-[var(--commit)] px-4 py-2.5 text-[13px] font-semibold text-white hover:opacity-90 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40">
                   {approveLabel}
                 </button>
               );
