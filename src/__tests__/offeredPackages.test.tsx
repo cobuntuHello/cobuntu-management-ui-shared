@@ -384,42 +384,88 @@ describe("the share column", () => {
  * two meant going back and forth and holding the first in your head. The rows
  * stay put now and the receipt unfolds under the one you opened.
  */
-describe("the picker opens packages in place", () => {
+describe("the picker is master / detail", () => {
     const price = { samplePrice: 25, sampleCurrency: "EUR" };
 
-    it("keeps the other packages listed while one is open", async () => {
+    /*
+     * The rail and the pane, not an accordion. Expanding rows pushed the
+     * numbers down the screen every time one opened, which is what made three
+     * packages impossible to compare; here the figures stay in one place and
+     * only their values change.
+     */
+    it("keeps every package reachable while one is open", async () => {
         await showNumbers({ ...base, ...price, viewer: "leader" });
         const dialog = within(screen.getByRole("dialog"));
-        // The one that was opened shows its numbers...
         expect(dialog.getByText("Ticket price")).toBeInTheDocument();
-        // ...and the other two are still there to compare against.
+        // The rail still lists all three, so switching is one click.
+        expect(dialog.getAllByText("Self-run").length).toBeGreaterThan(0);
         expect(dialog.getByText("Co-run")).toBeInTheDocument();
         expect(dialog.getByText("PBN-run")).toBeInTheDocument();
     });
 
-    it("toggles shut when the same row is clicked again", async () => {
+    it("marks the open package in the rail", async () => {
         await showNumbers({ ...base, ...price, viewer: "leader" });
         const dialog = within(screen.getByRole("dialog"));
-        const row = dialog.getAllByRole("button").find((b) => (b.textContent ?? "").includes("Self-run"))!;
-        expect(row.getAttribute("aria-expanded")).toBe("true");
-        await userEvent.click(row);
-        expect(row.getAttribute("aria-expanded")).toBe("false");
-        expect(dialog.queryByText("Ticket price")).toBeNull();
+        const current = dialog
+            .getAllByRole("button")
+            .filter((b) => b.getAttribute("aria-current") === "true");
+        expect(current).toHaveLength(1);
+        expect(current[0].textContent).toContain("Self-run");
+    });
+
+    it("switches the pane without closing anything", async () => {
+        await showNumbers({ ...base, ...price, viewer: "leader" });
+        const dialog = within(screen.getByRole("dialog"));
+        const coRun = dialog.getAllByRole("button").find((b) => (b.textContent ?? "").includes("Co-run"))!;
+        await userEvent.click(coRun);
+        // Still exactly one pane, now showing the other package's commit.
+        expect(screen.getByRole("button", { name: "Offer 15%" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Offer 8%" })).toBeNull();
     });
 
     /*
-     * THE PORTAL BUG, pinned.
-     *
-     * ActionModalShell portals to document.body, which is outside the panel root
-     * that sets the listing tokens as inline custom properties. Without
-     * re-applying them here every var(--ink) in these rows resolves to nothing
-     * and the text renders in whatever the modal inherits -- which is exactly
-     * how it shipped once: grey on white, barely readable.
+     * Nothing is picked when the modal opens, on purpose: the footer commits to
+     * whatever the pane is showing, so a package nobody chose must never be it.
+     */
+    it("commits nothing until a package is chosen", async () => {
+        await showList({ ...base, ...price, viewer: "leader" });
+        expect(screen.queryByRole("button", { name: /^Offer / })).toBeNull();
+        expect(screen.getByText(/Pick one to see what it pays out/)).toBeInTheDocument();
+    });
+
+    it("offers a way back on the phone's second step", async () => {
+        await showNumbers({ ...base, ...price, viewer: "leader" });
+        // Always rendered; CSS hides it once there is room for both columns.
+        expect(screen.getByRole("button", { name: /All packages/ })).toBeInTheDocument();
+    });
+
+    /*
+     * TWO ways out, which is deliberate: the corner X is the convention, and a
+     * Close in the footer is where a thumb already is on a full-screen phone
+     * sheet, next to the button it might have meant to press instead.
+     */
+    it("can be closed from the footer as well as the corner", async () => {
+        await showList({ ...base, ...price, viewer: "leader" });
+        const dialog = within(screen.getByRole("dialog"));
+        // The corner button is labelled for screen readers; the footer one has
+        // a visible word. Two different controls, not one found twice.
+        const corner = dialog.getByLabelText("Close");
+        const footer = dialog
+            .getAllByRole("button", { name: "Close" })
+            .find((b) => b.textContent === "Close")!;
+        expect(corner).not.toBe(footer);
+        expect(corner.textContent).toBe(""); // the X is a glyph, labelled for AT
+
+    });
+
+    /*
+     * THE PORTAL BUG, pinned. ActionModalShell portals to document.body, which
+     * is outside the panel root that sets the listing tokens, so without
+     * re-applying them every var(--ink) here resolves to nothing and the text
+     * renders in whatever the modal inherits: grey on white.
      */
     it("carries the listing tokens into the portal", async () => {
         await showList({ ...base, ...price, viewer: "leader" });
-        const dialog = screen.getByRole("dialog");
-        const tokened = dialog.querySelector('[style*="--ink"]');
-        expect(tokened).not.toBeNull();
+        expect(screen.getByRole("dialog").querySelector('[style*="--ink"]')).not.toBeNull();
     });
 });
