@@ -1,5 +1,7 @@
+import type { ReactNode } from "react";
 import { Card } from "./primitives";
 import { saleSplit, euroSplit, money, allocateCents } from "./DealSpine";
+import { CobuntuMark, StripeMark, SaleMark } from "./marks";
 
 /**
  * The packages a leader can offer, laid out on the review page itself.
@@ -69,6 +71,7 @@ import { saleSplit, euroSplit, money, allocateCents } from "./DealSpine";
  * already a prop here for the subtitle.
  */
 export function OfferedPackages({
+    kind = "event",
     packages,
     platformShare = 10,
     sellerFee = null,
@@ -85,6 +88,8 @@ export function OfferedPackages({
     onChoose,
     t,
 }: {
+    /** What is being sold, for the mark on the ticket row. */
+    kind?: "product" | "event";
     packages: { id: string; name: string; description: string | null; rate: number }[];
     /** Cobuntu's cut OF the commission, as a percent. Per community. */
     platformShare?: number;
@@ -300,6 +305,7 @@ export function OfferedPackages({
                                      */
                                     <dl className="mt-4 text-[13.5px]">
                                         <Line
+                                            icon={<SaleMark kind={kind} />}
                                             name={label("offerTicketTotal", "Ticket price")}
                                             amount={money(Math.round(samplePrice! * 100), cur)}
                                             muted
@@ -316,20 +322,20 @@ export function OfferedPackages({
                                           * makes these three add up.
                                           */}
                                         <Line
-                                            mark={{ src: communityIconUrl, name: communityName, color: "var(--b-comm)" }}
+                                            icon={<ImageMark src={communityIconUrl} name={communityName} />}
                                             name={communityName}
                                             amount={money(destination[0], cur)}
                                             deduct
                                         />
                                         <Line
-                                            mark={{ name: platformName, color: "var(--b-cob)" }}
+                                            icon={<CobuntuMark />}
                                             name={platformName}
                                             amount={money(destination[1], cur)}
                                             deduct
                                         />
                                         {destination[2] > 0 && (
                                             <Line
-                                                mark={{ name: "Stripe", color: "var(--b-stripe)" }}
+                                                icon={<StripeMark />}
                                                 name={label("spineStripeRow", "Stripe (card processing)")}
                                                 amount={money(destination[2], cur)}
                                                 deduct
@@ -337,7 +343,7 @@ export function OfferedPackages({
                                         )}
                                         <div className="mt-1 flex items-center justify-between gap-4 border-t-2 border-[var(--ink)]/15 pt-3">
                                             <dt className="flex min-w-0 items-center gap-2.5 text-[14px] font-semibold text-[var(--ink)]">
-                                                <Mark src={sellerImageUrl} name={sellerName} color="var(--b-keep)" />
+                                                <PersonMark src={sellerImageUrl} name={sellerName} />
                                                 <span className="min-w-0">{sellerRowName}</span>
                                             </dt>
                                             <dd className="shrink-0 text-[17px] font-semibold tabular-nums tracking-[-0.01em] text-[var(--ink)]">
@@ -398,26 +404,37 @@ export function OfferedPackages({
 }
 
 /**
- * The small round mark beside a party's name.
+ * A community's own icon, in a SQUARE tile.
  *
- * A real image where one exists -- the community's `iconUrl`, the requester's
- * `profileImage` -- and a monogram in that row's band colour where one does
- * not. Cobuntu and Stripe deliberately get monograms rather than logos: the
- * Cobuntu brand mark is a WORDMARK set in a font this package does not load,
- * and Stripe's is a trademark that should be their own asset file and not
- * something redrawn from memory. A wrong logo is worse than an honest letter.
- * Swapping either in later is a src on this component and nothing else.
+ * Square because community icons ARE square -- they are uploaded as logos, not
+ * portraits, and a circular crop eats the corners of a wordmark or a monogram
+ * logo. Only the person's mark below is round, because that one is a face.
+ *
+ * Falls back to the community's initial on the same square, so a community
+ * without an icon still has something on the column rather than a hole.
  */
-function Mark({
-    src,
-    name,
-    color,
-}: {
-    src?: string | null;
-    name: string;
-    color: string;
-}) {
-    const initial = name.trim().replace(/^[^\p{L}\p{N}]+/u, "")[0]?.toUpperCase() || "?";
+function ImageMark({ src, name }: { src?: string | null; name: string }) {
+    if (src) {
+        return (
+            <img
+                src={src}
+                alt=""
+                className="h-5 w-5 flex-none rounded-[5px] bg-[var(--sunk)] object-cover"
+            />
+        );
+    }
+    return (
+        <span
+            aria-hidden="true"
+            className="flex h-5 w-5 flex-none items-center justify-center rounded-[5px] bg-[var(--b-comm)] text-[10px] font-semibold text-white"
+        >
+            {initialOf(name)}
+        </span>
+    );
+}
+
+/** A person, and so round: this one really is a portrait. */
+function PersonMark({ src, name }: { src?: string | null; name: string }) {
     if (src) {
         return (
             <img
@@ -430,12 +447,16 @@ function Mark({
     return (
         <span
             aria-hidden="true"
-            className="flex h-5 w-5 flex-none items-center justify-center rounded-full text-[10px] font-semibold text-white"
-            style={{ background: color }}
+            className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-[var(--b-keep)] text-[10px] font-semibold text-white"
         >
-            {initial}
+            {initialOf(name)}
         </span>
     );
+}
+
+/** First letter or digit, skipping a leading bullet or bracket in a name. */
+function initialOf(name: string): string {
+    return name.trim().replace(/^[^\p{L}\p{N}]+/u, "")[0]?.toUpperCase() || "?";
 }
 
 /**
@@ -448,14 +469,14 @@ function Mark({
  * The rates are stated once, under the total.
  */
 function Line({
-    mark,
+    icon,
     name,
     amount,
     deduct = false,
     muted = false,
 }: {
-    /** Absent on the ticket line, which is nobody's money yet. */
-    mark?: { src?: string | null; name: string; color: string };
+    /** The row's mark, already rendered: a logo, a photo or an initial. */
+    icon?: ReactNode;
     name: string;
     amount: string;
     /** Money leaving the sale: shown as a subtraction. */
@@ -474,13 +495,9 @@ function Line({
                     muted ? "text-[var(--ink-2)]" : "text-[var(--ink)]"
                 }`}
             >
-                {mark ? (
-                    <Mark src={mark.src} name={mark.name} color={mark.color} />
-                ) : (
-                    /* Keeps the ticket line's name on the same left edge as the
-                       rows under it, which is what makes the column read. */
-                    <span className="h-5 w-5 flex-none" aria-hidden="true" />
-                )}
+                {/* Every row carries a mark, including the ticket. An indent with
+                    nothing in it reads as an icon that failed to load. */}
+                <span className="flex h-5 w-5 flex-none items-center justify-center">{icon}</span>
                 <span className="min-w-0">{name}</span>
             </dt>
             <dd

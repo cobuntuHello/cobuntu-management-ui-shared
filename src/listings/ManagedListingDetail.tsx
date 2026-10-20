@@ -957,6 +957,7 @@ export function ManagedListingDetail({
       {showInlinePackages && (
         <div className="mb-6">
           <OfferedPackages
+            kind={kind}
             packages={offered}
             platformShare={fees ? Math.round(fees.platformRate * 100) : undefined}
             sellerFee={fees ? { rate: fees.memberSellerRate, fixed: fees.memberSellerFixed } : null}

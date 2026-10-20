@@ -232,16 +232,21 @@ describe("what the card shows", () => {
 /**
  * The marks beside each party.
  *
- * Real images where the data has one -- the community's iconUrl, the
- * requester's profileImage -- and a monogram in the row's band colour where it
- * does not. Cobuntu and Stripe get monograms ON PURPOSE: the Cobuntu brand mark
- * is a wordmark in a font this package does not load, and Stripe's is a
- * trademark that belongs in an asset file rather than redrawn from memory.
+ * Real brand SVGs for Cobuntu and Stripe, the community's own icon, the
+ * requester's photo, and a glyph for the sale itself. These shipped once as
+ * coloured letters on the reasoning that a wrong logo is worse than an honest
+ * monogram -- true, but the assets existed in the backoffice all along, so the
+ * reasoning was applied to a fact that was not checked.
+ *
+ * SHAPE is load-bearing here and is what these tests mostly pin: a community
+ * icon is a logo and stays SQUARE (a circular crop eats the corners of a
+ * wordmark), Stripe's mark is square because that is how Stripe sets it, and
+ * only the person is round, because only the person is a face.
  */
 describe("the party marks", () => {
     const price = { samplePrice: 25, sampleCurrency: "EUR" };
 
-    it("uses the real images it is given", () => {
+    it("uses the real images it is given, square for a logo and round for a face", () => {
         const { container } = render(
             <OfferedPackages
                 {...base}
@@ -251,21 +256,30 @@ describe("the party marks", () => {
                 sellerImageUrl="https://img.test/drew.png"
             />,
         );
-        const srcs = Array.from(container.querySelectorAll("img")).map((i) => i.getAttribute("src"));
-        expect(srcs).toContain("https://img.test/pbn.png");
-        expect(srcs).toContain("https://img.test/drew.png");
+        const community = container.querySelector('img[src="https://img.test/pbn.png"]');
+        const person = container.querySelector('img[src="https://img.test/drew.png"]');
+        expect(community).not.toBeNull();
+        expect(person).not.toBeNull();
+        expect(community!.className).toContain("rounded-[5px]");
+        expect(community!.className).not.toContain("rounded-full");
+        expect(person!.className).toContain("rounded-full");
     });
 
-    it("falls back to a monogram, never a blank or a guessed logo", () => {
+    it("draws the real Cobuntu and Stripe marks, not letters", () => {
+        render(<OfferedPackages {...base} {...price} viewer="leader" />);
+        // Labelled SVGs, one per package row.
+        expect(screen.getAllByLabelText("Cobuntu").length).toBe(3);
+        expect(screen.getAllByLabelText("Stripe").length).toBe(3);
+        // The monograms they replaced are gone.
+        expect(screen.queryByText("C")).toBeNull();
+        expect(screen.queryByText("S")).toBeNull();
+    });
+
+    it("never renders an img without a src, which is the broken-icon bug", () => {
         const { container } = render(<OfferedPackages {...base} {...price} viewer="leader" />);
-        // No image data at all: nothing should be rendering an <img> with an
-        // empty or undefined src, which is the classic broken-icon bug.
         for (const img of Array.from(container.querySelectorAll("img"))) {
             expect(img.getAttribute("src")).toBeTruthy();
         }
-        // Cobuntu and Stripe always monogram, image data or not.
-        expect(screen.getAllByText("C").length).toBeGreaterThan(0);
-        expect(screen.getAllByText("S").length).toBeGreaterThan(0);
     });
 
     it("gives Stripe its own row, separate from the platform fee", () => {
