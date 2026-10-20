@@ -235,9 +235,12 @@ export function OfferedPackages({
                                 disabled={busy}
                                 onClick={() => onChoose(pkg.id)}
                                 /* 44px tall: a thumb target, not a text link with a
-                                   background. Fully rounded, which is the shape a
-                                   phone uses for a commit. */
-                                className="h-11 shrink-0 cursor-pointer rounded-full bg-[var(--commit)] px-5 text-[13.5px] font-semibold tabular-nums text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+                                   background. rounded-lg, not a pill: every other
+                                   button in this panel (approve, decline, counter,
+                                   the header pair) is rounded-lg, and one control
+                                   wearing a different shape reads as a different
+                                   kind of thing. */
+                                className="h-11 shrink-0 cursor-pointer rounded-lg bg-[var(--commit)] px-5 text-[13.5px] font-semibold tabular-nums text-white transition-opacity hover:opacity-90 disabled:opacity-40"
                             >
                                 {say("offerPick", { rate }, `Offer ${rate}%`)}
                             </button>
@@ -262,15 +265,25 @@ export function OfferedPackages({
                                      * checkable rather than asserted.
                                      */
                                     <dl className="mt-3.5 overflow-hidden rounded-xl bg-[var(--sunk)] px-3.5 py-1 text-[13.5px]">
+                                        {/*
+                                          * A RECEIPT: start at what the buyer pays,
+                                          * take each party out of it, and land on what
+                                          * the seller is left with. The same four
+                                          * numbers as before, but as money LEAVING a
+                                          * sale rather than four parallel shares of
+                                          * one -- which is the order a seller
+                                          * experiences it in, and the only order where
+                                          * the last line is the answer to the question.
+                                          */}
                                         <Row
-                                            swatch="var(--b-keep)"
-                                            name={sellerRowName}
-                                            amount={money(cents[0], cur)}
+                                            name={label("offerTicketTotal", "Ticket price")}
+                                            amount={money(Math.round(samplePrice! * 100), cur)}
                                         />
                                         <Row
                                             swatch="var(--b-comm)"
                                             name={communityName}
                                             amount={money(cents[1], cur)}
+                                            deduct
                                             note={say(
                                                 "offerCommissionNote",
                                                 {
@@ -287,22 +300,34 @@ export function OfferedPackages({
                                             swatch="var(--b-cob)"
                                             name={platformName}
                                             amount={money(cents[2], cur)}
+                                            deduct
                                         />
                                         {e.stripeAmt > 0 && (
                                             <Row
                                                 swatch="var(--b-stripe)"
                                                 name={label("spineStripeRow", "Stripe (card processing)")}
                                                 amount={money(cents[3], cur)}
+                                                deduct
                                             />
                                         )}
-                                        {/* The total is the one thing separated, because
-                                            it is the check on everything above it. */}
-                                        <div className="flex items-center justify-between border-t border-[var(--line)] py-2.5">
-                                            <dt className="font-medium text-[var(--ink)]">
-                                                {label("offerTicketTotal", "Ticket price")}
+                                        {/*
+                                          * The bottom line, ruled off the way a till
+                                          * receipt rules off its total: a DASHED rule,
+                                          * which is the one borrowed mark that says
+                                          * "receipt" without turning the card into a
+                                          * costume.
+                                          */}
+                                        <div className="flex items-center justify-between gap-3 border-t border-dashed border-[var(--ink-3)]/40 py-3">
+                                            <dt className="flex items-center gap-2.5 font-semibold text-[var(--ink)]">
+                                                <span
+                                                    className="h-[7px] w-[7px] flex-none rounded-full"
+                                                    style={{ background: "var(--b-keep)" }}
+                                                    aria-hidden="true"
+                                                />
+                                                {sellerRowName}
                                             </dt>
-                                            <dd className="font-semibold tabular-nums text-[var(--ink)]">
-                                                {money(Math.round(samplePrice! * 100), cur)}
+                                            <dd className="text-[15px] font-semibold tabular-nums text-[var(--ink)]">
+                                                {money(cents[0], cur)}
                                             </dd>
                                         </div>
                                     </dl>
@@ -339,46 +364,68 @@ export function OfferedPackages({
 }
 
 /**
- * One line of the settlement: swatch, who, and the amount on the money column.
+ * One line of the receipt: who, a dot leader, and the amount in the money
+ * column -- with a minus on anything coming OUT of the ticket.
  *
- * The note sits on its OWN line beneath the name rather than trailing it. Run
- * inline it wraps on a narrow panel and drags the row's swatch down with it,
- * leaving a coloured square orphaned beside the second line of text -- caught
- * in a render at 620px, which is narrower than the screenshot but well within
- * what the admin sidebar leaves.
+ * The leader dots are the receipt's own device and they earn their place here:
+ * three packages are read down a column, and a ruled gap between a long
+ * community name and a short amount is what stops the eye landing on the wrong
+ * row. Drawn as a dotted border on a flexible spacer rather than repeated
+ * characters, so it fills whatever space is left at any width and a screen
+ * reader never reads it out.
+ *
+ * The note sits on its own line beneath the name. Run inline it wraps on a
+ * narrow panel and drags the row's dot down with it, leaving a coloured mark
+ * orphaned beside the second line -- caught in a render at 390px.
  */
 function Row({
     swatch,
     name,
     amount,
     note,
+    deduct = false,
 }: {
-    swatch: string;
+    /** The band this row matches in the meter. The ticket row has none. */
+    swatch?: string;
     name: string;
     amount: string;
     note?: string;
+    /** Money leaving the sale: shown as a subtraction. */
+    deduct?: boolean;
 }) {
     return (
-        <div className="flex items-start justify-between gap-4 py-2.5">
-            {/* items-start, and the dot nudged onto the first line's optical
-                centre: centred vertically it drifts between the two lines of a
-                row that carries a note, and stops reading as that row's mark. */}
-            <dt className="flex min-w-0 items-start gap-2.5">
+        <div className="py-2.5">
+            {/* items-start: when a long name wraps, the amount and the dot stay
+                on its FIRST line, the way a receipt puts the figure against the
+                line it belongs to. Centred, they drift into the gap between the
+                two lines and stop belonging to either. */}
+            <div className="flex items-start gap-2.5">
+                {/* The ticket row has no band in the meter and so no dot, but it
+                    keeps the indent or its name will not line up with the rows
+                    beneath it. */}
                 <span
-                    className="mt-[6px] h-[7px] w-[7px] flex-none rounded-full"
-                    style={{ background: swatch }}
+                    className={`mt-[7px] h-[7px] w-[7px] flex-none${swatch ? " rounded-full" : ""}`}
+                    style={swatch ? { background: swatch } : undefined}
                     aria-hidden="true"
                 />
-                <span className="min-w-0">
-                    <span className="text-[var(--ink)]">{name}</span>
-                    {note && (
-                        <span className="block text-[12px] leading-snug text-[var(--ink-3)]">
-                            {note}
-                        </span>
-                    )}
-                </span>
-            </dt>
-            <dd className="shrink-0 tabular-nums text-[var(--ink)]">{amount}</dd>
+                {/* min-w-0, NOT shrink-0: a long community name used to push the
+                    amount clean out of the card on a narrow panel -- the row read
+                    "PBN | Porto Business Network   -EUR 0.3" with the last digit
+                    gone, which on a money card is not a layout nit. It wraps now
+                    and the amount is never what gives way. No media query,
+                    because the card can be narrow at any viewport. */}
+                <dt className="min-w-0 text-[var(--ink)]">{name}</dt>
+                <span
+                    className="mt-[10px] min-w-[16px] flex-1 border-b border-dotted border-[var(--ink-3)]/45"
+                    aria-hidden="true"
+                />
+                <dd className="ml-auto shrink-0 tabular-nums text-[var(--ink)]">
+                    {deduct ? `\u2212${amount}` : amount}
+                </dd>
+            </div>
+            {note && (
+                <p className="mt-0.5 pl-[17px] text-[12px] leading-snug text-[var(--ink-3)]">{note}</p>
+            )}
         </div>
     );
 }

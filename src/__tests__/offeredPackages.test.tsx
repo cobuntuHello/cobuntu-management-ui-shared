@@ -74,6 +74,9 @@ const PACKAGES = [
     { id: "c", name: "PBN-run", description: null, rate: 22 },
 ];
 
+/** U+2212 MINUS SIGN, not a hyphen: it aligns with the digits. */
+const MINUS = "\u2212";
+
 const base = {
     packages: PACKAGES,
     ...FEES,
@@ -168,7 +171,29 @@ describe("what the card shows", () => {
         expect(
             screen.getByText("8% is €2.00, less Cobuntu's 5% of it (€0.10)"),
         ).toBeTruthy();
-        expect(screen.getAllByText("€1.90").length).toBeGreaterThan(0);
+        /*
+         * A RECEIPT, so the community's line is a SUBTRACTION from the ticket.
+         * The minus is not decoration: the card reads top-down from what the
+         * buyer pays to what the seller is left with, and a row showing a bare
+         * "EUR 1.90" in that column reads as money arriving, not leaving.
+         */
+        expect(screen.getAllByText(`${MINUS}€1.90`).length).toBeGreaterThan(0);
+    });
+
+    it("subtracts every deduction and leaves the seller's line positive", async () => {
+        render(<OfferedPackages {...base} {...price} viewer="leader" />);
+        const minus = MINUS;
+        // The three parties that TAKE money each show a minus...
+        for (const amount of [`${minus}€1.90`, `${minus}€0.70`, `${minus}€0.62`]) {
+            expect(screen.getAllByText(amount).length).toBeGreaterThan(0);
+        }
+        // ...and the two that are not deductions do not.
+        // Once: the seller's share differs per package (21.78 / 20.10 / 18.42).
+        expect(screen.getAllByText("€21.78").length).toBe(1); // seller keeps
+        // Three times: the ticket is the same sale whichever package is picked.
+        expect(screen.getAllByText("€25.00").length).toBe(3); // ticket price
+        expect(screen.queryByText(`${minus}€21.78`)).toBeNull();
+        expect(screen.queryByText(`${minus}€25.00`)).toBeNull();
     });
 
     /*
