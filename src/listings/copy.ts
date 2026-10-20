@@ -119,6 +119,7 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     /* The phone's way back from a package to the list. */
     offerBack: "All packages",
     offerClose: "Close",
+    offerEmptyTitle: "What a sale pays out",
     /* Why Approve is disabled: the server refuses this, so the button says so. */
     approveNeedsTerms: "Agree the commission first. They have to accept a package before this can go live.",
     /*

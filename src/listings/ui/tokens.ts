@@ -110,6 +110,20 @@ export const LISTING_MOTION = `
   from { opacity: 0; transform: translateY(-4px); }
   to   { opacity: 1; transform: none; }
 }
+/*
+ * The picker's pane, when it swaps from one package to another -- and, on a
+ * phone, when the list becomes a package. A small slide from the side it came
+ * from, so the change registers as movement rather than as a flicker of new
+ * numbers in the same place.
+ */
+@keyframes cbt-pane-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes cbt-pane-back {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: none; }
+}
 @keyframes cbt-row-in {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: none; }
