@@ -198,7 +198,14 @@ export function ActionModalShell({
                     <button
                         onClick={requestClose}
                         aria-label="Close"
-                        className="w-9 h-9 shrink-0 rounded-lg hover:bg-zinc-100 flex items-center justify-center cursor-pointer -mr-1"
+                        /*
+                         * A CIRCULAR muted button, matching the close on the
+                         * account and notifications drawers. It was a square
+                         * with a hover-only background, so at rest there was
+                         * nothing there to aim at -- the only affordance was
+                         * the glyph itself.
+                         */
+                        className="w-9 h-9 shrink-0 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center cursor-pointer -mr-1 transition-colors"
                     >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-500">
                             <line x1="18" y1="6" x2="6" y2="18" />
