@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { LISTING_DETAIL_COPY, defaultTranslate } from "../listings/copy";
 
 /**
@@ -24,6 +26,46 @@ describe("the package's own English", () => {
         for (const key of ["threadTitle", "counterSend", "withdrawRequest", "community"]) {
             expect(LISTING_DETAIL_COPY[key]).toBeTruthy();
         }
+    });
+
+    /*
+     * EVERY key, scanned from the source -- not a hand-kept list.
+     *
+     * A hand-kept list is what let four keys ship missing: three added with the
+     * commission card and one on the split bar's aria-label. They did not fail
+     * loudly, because a missing key RENDERS AS THE KEY, so a live PBN request
+     * showed rows reading "offerSellerKeeps" and "offerTicketTotal" next to
+     * real money. The suite was green the whole time.
+     *
+     * The fallback argument on the component helpers -- label(k, "English") --
+     * does NOT save this: ManagedListingDetail always passes a `t` (its own
+     * defaultTranslate when the host has none), so the literal is dead code and
+     * the key wins. This scan is the only thing standing between a new key and
+     * a user reading it.
+     */
+    it("defines every key the listings source asks for", () => {
+        const dir = join(__dirname, "..", "listings");
+        const files: string[] = [];
+        const walk = (d: string) => {
+            for (const e of readdirSync(d, { withFileTypes: true })) {
+                const full = join(d, e.name);
+                if (e.isDirectory()) walk(full);
+                else if (/\.tsx?$/.test(e.name) && e.name !== "copy.ts") files.push(full);
+            }
+        };
+        walk(dir);
+
+        const missing: Record<string, string[]> = {};
+        for (const f of files) {
+            const src = readFileSync(f, "utf8");
+            for (const m of src.matchAll(/(?:\blabel|\bsay|\bt)\(\s*"([A-Za-z0-9_]+)"/g)) {
+                const key = m[1];
+                if (LISTING_DETAIL_COPY[key] === undefined) {
+                    (missing[key] ??= []).push(f.split("/").pop()!);
+                }
+            }
+        }
+        expect(missing).toEqual({});
     });
 
     it("fills in placeholders", () => {
