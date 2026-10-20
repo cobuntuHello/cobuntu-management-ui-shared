@@ -189,6 +189,25 @@ export function OfferedPackages({
                      * bottom line of a receipt is the one number that has to be
                      * arithmetic the reader can repeat.
                      */
+                    /*
+                     * Each row's share of the ticket, derived from the cents the
+                     * money column actually prints.
+                     *
+                     * This is the number that caused the original complaint -- a
+                     * package headlined 8% whose row read 7.6% -- so it matters
+                     * that the two are different QUESTIONS, not a disagreement.
+                     * 8% is what the community charges; 7.6% is what reaches them
+                     * once Cobuntu's share of that commission comes out. The
+                     * sentence under the total says so.
+                     *
+                     * Computed from the allocated cents rather than from the rates,
+                     * so a row's percentage can never contradict the amount beside
+                     * it, and the four of them sum to 100 the way the euros sum to
+                     * the ticket. Deriving it from the rate instead is exactly how
+                     * "8%" ended up next to EUR 0.38.
+                     */
+                    const shareOf = (c: number) =>
+                        samplePrice ? `${round((c / Math.round(samplePrice * 100)) * 100)}%` : undefined;
                     const sellerCents = e
                         ? Math.round(samplePrice! * 100) - destination.reduce((a, b) => a + b, 0)
                         : 0;
@@ -324,12 +343,14 @@ export function OfferedPackages({
                                         <Line
                                             icon={<ImageMark src={communityIconUrl} name={communityName} />}
                                             name={communityName}
+                                            share={shareOf(destination[0])}
                                             amount={money(destination[0], cur)}
                                             deduct
                                         />
                                         <Line
                                             icon={<CobuntuMark />}
                                             name={platformName}
+                                            share={shareOf(destination[1])}
                                             amount={money(destination[1], cur)}
                                             deduct
                                         />
@@ -337,6 +358,7 @@ export function OfferedPackages({
                                             <Line
                                                 icon={<StripeMark />}
                                                 name={label("spineStripeRow", "Stripe (card processing)")}
+                                                share={shareOf(destination[2])}
                                                 amount={money(destination[2], cur)}
                                                 deduct
                                             />
@@ -346,9 +368,14 @@ export function OfferedPackages({
                                                 <PersonMark src={sellerImageUrl} name={sellerName} />
                                                 <span className="min-w-0">{sellerRowName}</span>
                                             </dt>
-                                            <dd className="shrink-0 text-[17px] font-semibold tabular-nums tracking-[-0.01em] text-[var(--ink)]">
-                                                {money(sellerCents, cur)}
-                                            </dd>
+                                            <div className="flex shrink-0 items-baseline gap-3">
+                                                <span className="w-[52px] text-right text-[12.5px] font-medium tabular-nums text-[var(--ink-3)]">
+                                                    {shareOf(sellerCents)}
+                                                </span>
+                                                <dd className="w-[76px] text-right text-[17px] font-semibold tabular-nums tracking-[-0.01em] text-[var(--ink)]">
+                                                    {money(sellerCents, cur)}
+                                                </dd>
+                                            </div>
                                         </div>
                                         {/*
                                           * The rates, once, under the figures they
@@ -471,6 +498,7 @@ function initialOf(name: string): string {
 function Line({
     icon,
     name,
+    share,
     amount,
     deduct = false,
     muted = false,
@@ -478,6 +506,8 @@ function Line({
     /** The row's mark, already rendered: a logo, a photo or an initial. */
     icon?: ReactNode;
     name: string;
+    /** This row's share of the ticket, e.g. "7.6%". */
+    share?: string;
     amount: string;
     /** Money leaving the sale: shown as a subtraction. */
     deduct?: boolean;
@@ -500,13 +530,24 @@ function Line({
                 <span className="flex h-5 w-5 flex-none items-center justify-center">{icon}</span>
                 <span className="min-w-0">{name}</span>
             </dt>
-            <dd
-                className={`shrink-0 tabular-nums ${
-                    muted ? "text-[var(--ink-2)]" : "text-[var(--ink)]"
-                }`}
-            >
-                {deduct ? `\u2212${amount}` : amount}
-            </dd>
+            {/*
+                Two fixed-width right-aligned columns, so the percentages line up
+                under each other and the amounts do too. Left to shrink-wrap, a
+                row with no share pulls its amount out of the money column and
+                the figures stop being readable as a column at all.
+            */}
+            <div className="flex shrink-0 items-baseline gap-3">
+                <span className="w-[52px] text-right text-[12.5px] tabular-nums text-[var(--ink-3)]">
+                    {share}
+                </span>
+                <dd
+                    className={`w-[76px] text-right tabular-nums ${
+                        muted ? "text-[var(--ink-2)]" : "text-[var(--ink)]"
+                    }`}
+                >
+                    {deduct ? `\u2212${amount}` : amount}
+                </dd>
+            </div>
         </div>
     );
 }
