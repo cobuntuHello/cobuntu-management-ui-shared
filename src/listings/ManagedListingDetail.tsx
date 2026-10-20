@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { Clock } from "lucide-react";
@@ -119,6 +119,21 @@ export interface ManagedListingDetailProps {
   listingId: string;
   /** Back to the Listings tab this row was opened from. */
   backHref: string;
+  /**
+   * Buttons for the top-right of the header, beside the item's name.
+   *
+   * A SLOT rather than props for each button, because the destinations are the
+   * host's business and not this package's: the backoffice sends a leader to
+   * that community's own event or product page, routes this component knows
+   * nothing about and should not learn. The community app passes nothing and
+   * the row simply does not render, which is why this is optional rather than
+   * a `viewer === "leader"` branch in here.
+   *
+   * Given a FUNCTION it is called with the listed item, because the href the
+   * host wants to build usually needs the item's slug or id, and only this
+   * component has loaded it. Given a node it is rendered as-is.
+   */
+  headerActions?: ReactNode | ((item: { id?: string; slug?: string; name?: string | null }) => ReactNode);
   /** Name of the thing being listed, for the breadcrumb. */
   itemName?: string | null;
   /**
@@ -172,7 +187,7 @@ export interface ManagedListingDetailProps {
 }
 
 export function ManagedListingDetail({
-  kind, listingId, backHref, itemName, breadcrumbs, appendCommunityCrumb, appendItemCrumb, currentUser,
+  kind, listingId, backHref, headerActions, itemName, breadcrumbs, appendCommunityCrumb, appendItemCrumb, currentUser,
   apiBaseUrl = "", authHeaders, t: translate, viewer = "owner", brand,
 }: ManagedListingDetailProps & ListingDetailConfig) {
   const t = translate ?? defaultTranslate;
@@ -454,6 +469,15 @@ export function ManagedListingDetail({
    */
   const heroItem: any =
     kind === "event" ? (listing.event ?? listing.events ?? null) : (listing.products ?? listing.product ?? null);
+  /*
+   * The header's actions, resolved. A function is handed the listed item,
+   * because the link the host wants to build needs the item's slug or id and
+   * only this component has loaded it.
+   */
+  const headerActionsNode: ReactNode =
+    typeof headerActions === "function"
+      ? headerActions({ id: heroItem?.id, slug: heroItem?.slug, name: listedItemName })
+      : (headerActions ?? null);
   const heroImage: string | null =
     (kind === "event"
       ? heroItem?.bannerUrl ?? heroItem?.coverImage ?? heroItem?.imageUrl
@@ -739,7 +763,12 @@ export function ManagedListingDetail({
         * now; the headline is the event or product, with the facts that decide
         * the call beside it: when it runs, what it costs, and who asked.
         */}
-      <div className="flex items-start gap-3.5 mb-6">
+      {/*
+        * The header's actions, resolved. A function gets the item it needs to
+        * build a link to; a node is taken as given. Rendered only when the host
+        * supplied something, so the community app's header is untouched.
+        */}
+      <div className="flex flex-wrap items-start gap-3.5 mb-6">
         {heroImage ? (
           <img src={heroImage} alt="" className="w-20 h-[60px] sm:w-24 sm:h-[72px] rounded-xl object-cover shrink-0 bg-zinc-100" />
         ) : (
@@ -772,6 +801,15 @@ export function ManagedListingDetail({
           <span className={`shrink-0 px-2.5 py-1 rounded-md text-[12px] font-medium ${STATE_TONE[state]}`}>
             {t(STATE_LABEL_KEY[state])}
           </span>
+        )}
+        {/*
+          * ml-auto so they sit at the far right of the header, and the row
+          * wraps rather than squeezing them: on a narrow panel the pair drops
+          * to its own line instead of crushing the item's name, which is the
+          * one thing on this row that must stay readable.
+          */}
+        {headerActionsNode && (
+          <div className="ml-auto flex shrink-0 items-center gap-2">{headerActionsNode}</div>
         )}
       </div>
 
