@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import {
   type CreateOutcome,
   primaryDestination,
@@ -84,6 +83,16 @@ export interface CreatedModalProps {
    * rather than rendering a button that goes nowhere.
    */
   reviewHref?: string;
+  /**
+   * How to follow one of the actions. The host's router in an app; omitted, it
+   * is a plain browser navigation, so the component carries no framework
+   * dependency (it is also rendered on sites that are not Next.js).
+   */
+  onNavigate?: (href: string) => void;
+}
+
+function browserNavigate(href: string) {
+  if (typeof window !== "undefined") window.location.assign(href);
 }
 
 export function CreatedModal({
@@ -95,8 +104,8 @@ export function CreatedModal({
   manageHref,
   createAnotherHref,
   reviewHref,
+  onNavigate = browserNavigate,
 }: CreatedModalProps) {
-  const router = useRouter();
   if (!open) return null;
 
   const isEvent = kind === "event";
@@ -146,7 +155,7 @@ export function CreatedModal({
       <button
         key={key}
         type="button"
-        onClick={() => router.push(href)}
+        onClick={() => onNavigate(href)}
         className="px-6 py-2.5 max-md:w-full max-md:py-3.5 text-[14.5px] font-semibold cursor-pointer transition-opacity hover:opacity-90"
         style={
           filled
@@ -250,7 +259,7 @@ export function CreatedModal({
 
       <button
         type="button"
-        onClick={() => router.push(createAnotherHref)}
+        onClick={() => onNavigate(createAnotherHref)}
         className="mt-5 text-[13px] font-medium cursor-pointer opacity-55 transition-opacity hover:opacity-100"
       >
         Create another {noun}
