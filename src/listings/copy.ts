@@ -113,6 +113,8 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     /* The floor that checkout already charges when nothing is agreed. */
     offerFloorNote: "Until you set terms, {community} already takes {rate}% on every sale — {name}, the floor of {seller}'s tier. Offer a package to lock it in or change it.",
     offerDefaultBadge: "Applies now by default",
+    /* Why Approve is disabled: the server refuses this, so the button says so. */
+    approveNeedsTerms: "Agree the commission first. They have to accept a package before this can go live.",
     /*
      * The settlement rows. These ship as the package's own English because the
      * hosts mount this card with no message file -- a key missing here does not
