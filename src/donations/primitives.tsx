@@ -3,6 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { Info } from "lucide-react";
+import { usePortalTarget } from "../ui/portalContainer";
 
 /**
  * The handful of primitives the donations editor needs, kept LOCAL to this
@@ -45,6 +46,7 @@ import { Info } from "lucide-react";
 export function HelpTip({ text, label }: { text: string; label?: string }) {
   const [open, setOpen] = React.useState(false);
   const [rect, setRect] = React.useState<DOMRect | null>(null);
+  const portalTarget = usePortalTarget();
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
 
   const close = React.useCallback(() => setOpen(false), []);
@@ -96,7 +98,7 @@ export function HelpTip({ text, label }: { text: string; label?: string }) {
       >
         <Info className="w-3 h-3" />
       </button>
-      {open && rect && typeof document !== "undefined" &&
+      {open && rect && portalTarget &&
         createPortal(
           <div
             role="tooltip"
@@ -111,7 +113,7 @@ export function HelpTip({ text, label }: { text: string; label?: string }) {
           >
             {text}
           </div>,
-          document.body,
+          portalTarget,
         )}
     </>
   );

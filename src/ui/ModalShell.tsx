@@ -4,6 +4,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "../lib/cn";
+import { usePortalTarget } from "./portalContainer";
 
 /**
  * Fixed-height modal with header/body/footer slots.
@@ -57,8 +58,10 @@ export function ModalShell({
   dismissOnBackdrop = true,
   className,
 }: ModalShellProps) {
+  // Inside an embedding host's themed wrapper when it provides one.
+  const portalTarget = usePortalTarget();
   // SSR guard: createPortal needs document.
-  if (typeof document === "undefined" || !open) return null;
+  if (typeof document === "undefined" || !open || !portalTarget) return null;
 
   const widthClass =
     width === "sm" || width === "md" || width === "lg"
@@ -150,6 +153,6 @@ export function ModalShell({
         )}
       </div>
     </div>,
-    document.body,
+    portalTarget,
   );
 }

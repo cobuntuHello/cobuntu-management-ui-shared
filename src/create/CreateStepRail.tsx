@@ -110,17 +110,25 @@ export function CreateStepRail({
   steps,
   current,
   kind,
+  extraLabels,
 }: {
-  steps: CreateStepId[];
-  current: CreateStepId;
+  /*
+   * Strings are accepted beside the built-in ids for steps a HOST appends (an
+   * embedding site's own questions after the Cobuntu steps). Those have no
+   * entry in LABELS, so their names come from `extraLabels`.
+   */
+  steps: readonly (CreateStepId | (string & {}))[];
+  current: CreateStepId | (string & {});
   kind: CreateWizardKind;
+  /** Names for host-defined steps, keyed by step id. Built-in ids keep LABELS. */
+  extraLabels?: Readonly<Record<string, string>>;
   /** Accepted for call-site compatibility; the bar is not a navigation control. */
   onStepClick?: (step: CreateStepId) => void;
 }) {
   if (steps.length < 2) return null;
 
   const index = steps.indexOf(current);
-  const labels = LABELS[kind];
+  const labels: Record<string, string> = { ...(extraLabels ?? {}), ...LABELS[kind] };
   const next = steps[index + 1];
   /*
    * Fill measures the steps BEHIND you, not the one you are standing on.

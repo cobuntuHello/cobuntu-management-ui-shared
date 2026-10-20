@@ -209,6 +209,7 @@ export { EmptyState, LedgerIcon, ShelfIcon } from "./overview/EmptyState";
  */
 export { TOPIC_LIMITS } from "./listings/ui/topicLimits";
 export { LAYERS, type LayerName } from "./ui/layers";
+export { PortalContainerProvider, usePortalContainer, usePortalTarget } from "./ui/portalContainer";
 
 /*
  * Unsplash. The three stock-photo pickers each held their own copy of the

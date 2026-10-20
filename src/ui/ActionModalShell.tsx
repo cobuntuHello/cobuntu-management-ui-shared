@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { usePortalTarget } from "./portalContainer";
 
 /**
  * The full-bleed-on-mobile action modal used by every "do something to people"
@@ -78,6 +79,7 @@ export function ActionModalShell({
     children,
 }: ActionModalShellProps) {
     const [mounted, setMounted] = React.useState(false);
+    const portalTarget = usePortalTarget();
     const [animating, setAnimating] = React.useState(false);
     const cardRef = React.useRef<HTMLDivElement>(null);
     // Mobile swipe-to-dismiss tracking. Touch start Y is captured at
@@ -147,7 +149,7 @@ export function ActionModalShell({
     }
 
     if (!mounted) return null;
-    if (typeof document === "undefined") return null;
+    if (typeof document === "undefined" || !portalTarget) return null;
 
     const reduceMotion = REDUCED_MOTION;
 
@@ -226,6 +228,6 @@ export function ActionModalShell({
                 </div>
             </div>
         </div>,
-        document.body,
+        portalTarget,
     );
 }
