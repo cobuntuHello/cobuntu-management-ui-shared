@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { ActionModalShell } from "../../ui/ActionModalShell";
+import { listingTokenStyle } from "./tokens";
 import { Card } from "./primitives";
 import { saleSplit, euroSplit, money, allocateCents } from "./DealSpine";
 import { CobuntuMark, StripeMark, SaleMark } from "./marks";
@@ -200,49 +201,65 @@ export function OfferedPackages({
                 isOpen={open}
                 onClose={() => setOpen(false)}
                 title={label("offerTitle", "Set the commission")}
-                subtitle={picked
-                    ? label("offerModalReview", "What each sale pays out.")
-                    : say("offerSubtitle", { seller: sellerName },
-                          `Offer ${sellerName} one of these. They confirm it, then you can publish.`)}
+                subtitle={say("offerSubtitle", { seller: sellerName },
+                              `Offer ${sellerName} one of these. They confirm it, then you can publish.`)}
                 footer={
-                    picked ? (
-                        <div className="flex w-full items-center justify-between gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setPicked(null)}
-                                className="h-11 cursor-pointer rounded-lg bg-[var(--sunk)] px-4 text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--line)]"
-                            >
-                                {label("offerBack", "Back")}
-                            </button>
-                            <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() => { onChoose(picked.id); setOpen(false); }}
-                                className="h-11 cursor-pointer rounded-lg bg-[var(--commit)] px-5 text-[13.5px] font-semibold tabular-nums text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-                            >
-                                {say("offerPick", { rate: Number(picked.rate) }, `Offer ${Number(picked.rate)}%`)}
-                            </button>
-                        </div>
-                    ) : (
-                        /* Nothing to commit to yet, so the footer says what to do
-                           rather than offering a dead primary button. */
-                        <p className="text-[12.5px] text-[var(--ink-3)]">
-                            {label("offerModalHint", "Pick one to see what it pays out.")}
-                        </p>
-                    )
+                    /* Portalled, so the tokens have to come with it: see the note
+                       on the body below. Without this the commit button loses
+                       --commit and renders transparent. */
+                    <div style={listingTokenStyle()} className="w-full">
+                        {picked ? (
+                            <div className="flex w-full items-center justify-end">
+                                <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => { onChoose(picked.id); setOpen(false); }}
+                                    className="h-11 cursor-pointer rounded-lg bg-[var(--commit)] px-5 text-[13.5px] font-semibold tabular-nums text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+                                >
+                                    {say("offerPick", { rate: Number(picked.rate) }, `Offer ${Number(picked.rate)}%`)}
+                                </button>
+                            </div>
+                        ) : (
+                            /* Nothing opened yet, so the footer says what to do
+                               rather than offering a dead primary button. There is
+                               no Back: the rows toggle, so the way out of a package
+                               is the package itself. */
+                            <p className="text-[12.5px] text-[var(--ink-3)]">
+                                {label("offerModalHint", "Pick one to see what it pays out.")}
+                            </p>
+                        )}
+                    </div>
                 }
             >
-                {picked === null ? (
-                    <ul>
+{/*
+                  * INLINE, not a second screen.
+                  *
+                  * Picking a package used to REPLACE the list with that
+                  * package's numbers, so comparing two meant going back and
+                  * forth and holding the first one in your head. They open in
+                  * place now: the row stays where it is and its receipt unfolds
+                  * underneath, which is what makes three packages comparable at
+                  * all.
+                  *
+                  * Tokens are re-applied here because this content is PORTALLED
+                  * to document.body, outside the panel root that sets them. Without
+                  * it every var(--ink) in these rows resolves to nothing and the
+                  * text renders in whatever the modal inherits -- which is exactly
+                  * how it shipped: grey on white, unreadable.
+                  */}
+                <div style={listingTokenStyle()}>
+                    <ul className="px-4 sm:px-5">
                         {packages.map((pkg) => {
                             const rate = Number(pkg.rate);
                             const isFloor = !!floorPkg && pkg.id === floorPkg.id;
+                            const isOpen = picked?.id === pkg.id;
                             return (
                                 <li key={pkg.id} className="border-t border-[var(--line)] first:border-t-0">
                                     <button
                                         type="button"
-                                        onClick={() => setPicked(pkg)}
-                                        className="flex w-full cursor-pointer items-center gap-3 py-5 text-left transition-colors hover:bg-[var(--sunk)]"
+                                        aria-expanded={isOpen}
+                                        onClick={() => setPicked(isOpen ? null : pkg)}
+                                        className="flex w-full cursor-pointer items-center gap-3 py-5 text-left"
                                     >
                                         <div className="min-w-0">
                                             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -274,244 +291,218 @@ export function OfferedPackages({
                                                 </p>
                                             )}
                                         </div>
-                                        <svg className="ml-auto shrink-0 text-[var(--ink-3)]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                        <svg
+                                            className={`ml-auto shrink-0 text-[var(--ink-3)] transition-transform${isOpen ? " rotate-90" : ""}`}
+                                            width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                                            strokeLinejoin="round" aria-hidden="true"
+                                        >
                                             <polyline points="9 18 15 12 9 6" />
                                         </svg>
                                     </button>
+                                    {isOpen && (() => {
+                                        const rate = Number(pkg.rate);
+                                        const isFloor = !!floorPkg && pkg.id === floorPkg.id;
+                                        const e = canWorkEuros
+                                            ? euroSplit(
+                                                  samplePrice!, rate, platformShare, sellerFee,
+                                                  stripeRate != null ? { rate: stripeRate, fixed: stripeFixed ?? 0 } : null,
+                                              )
+                                            : null;
+                                        /*
+                                         * What each party ENDS UP WITH, in cents that sum exactly to
+                                         * the deductions. The gross-commission scaffolding that used to
+                                         * live here went with the basis column: the rate a party
+                                         * charges and the amount it receives are different numbers, and
+                                         * only the second one belongs in the money column.
+                                         */
+                                        const destination = e
+                                            ? allocateCents(samplePrice! - e.hostKeeps, [e.communityNet, e.cobuntuNet, e.stripeAmt])
+                                            : [0, 0, 0];
+                                        /*
+                                         * The seller's line is the ticket MINUS the rows above it, not
+                                         * a fifth rounded figure. Rounded on its own it can land a cent
+                                         * away from what the printed rows actually subtract to, and the
+                                         * bottom line of a receipt is the one number that has to be
+                                         * arithmetic the reader can repeat.
+                                         */
+                                        /*
+                                         * Each row's share of the ticket, derived from the cents the
+                                         * money column actually prints.
+                                         *
+                                         * This is the number that caused the original complaint -- a
+                                         * package headlined 8% whose row read 7.6% -- so it matters
+                                         * that the two are different QUESTIONS, not a disagreement.
+                                         * 8% is what the community charges; 7.6% is what reaches them
+                                         * once Cobuntu's share of that commission comes out. The
+                                         * sentence under the total says so.
+                                         *
+                                         * Computed from the allocated cents rather than from the rates,
+                                         * so a row's percentage can never contradict the amount beside
+                                         * it, and the four of them sum to 100 the way the euros sum to
+                                         * the ticket. Deriving it from the rate instead is exactly how
+                                         * "8%" ended up next to EUR 0.38.
+                                         */
+                                        const shareOf = (c: number) =>
+                                            samplePrice ? `${round((c / Math.round(samplePrice * 100)) * 100)}%` : undefined;
+                                        const sellerCents = e
+                                            ? Math.round(samplePrice! * 100) - destination.reduce((a, b) => a + b, 0)
+                                            : 0;
+
+                                        const s = saleSplit(rate, platformShare, sellerFee);
+                                        /*
+                                         * ONE BAND PER ROW of the receipt beneath it, in the same
+                                         * colours as those rows' marks -- seller, community, platform,
+                                         * Stripe. A bar whose segments do not match the rows under it
+                                         * is decoration, and it has drifted out of step twice while
+                                         * this card was being reworked, so it is worth saying: if a
+                                         * row is added or merged here, this list changes with it.
+                                         */
+                                        const bands = e
+                                            ? [
+                                                  { pct: (e.hostKeeps / samplePrice!) * 100, color: "var(--b-keep)" },
+                                                  { pct: (e.communityNet / samplePrice!) * 100, color: "var(--b-comm)" },
+                                                  { pct: (e.cobuntuNet / samplePrice!) * 100, color: "var(--b-cob)" },
+                                                  { pct: (e.stripeAmt / samplePrice!) * 100, color: "var(--b-stripe)" },
+                                              ].filter((b) => b.pct > 0.01)
+                                            : [
+                                                  { pct: s.sellerOfSale, color: "var(--b-keep)" },
+                                                  { pct: s.communityOfSale, color: "var(--b-comm)" },
+                                                  { pct: s.platformOfSale, color: "var(--b-cob)" },
+                                              ].filter((b) => b.pct > 0);
+                                        return (
+                                            <div className="pb-5">
+                                                <div className="col-span-2 min-w-0">
+                                                    {/* One segmented measure, square ends, hairline gaps. */}
+                                                    <div className="flex h-[6px] w-full gap-[2px] overflow-hidden rounded-full">
+                                                        {bands.map((b, i) => (
+                                                            <span
+                                                                key={i}
+                                                                className="h-full first:rounded-l-full last:rounded-r-full"
+                                                                style={{ width: `${b.pct}%`, background: b.color, minWidth: "6px" }}
+                                                            />
+                                                        ))}
+                                                    </div>
+
+                                                    {e ? (
+                                                        /*
+                                                         * The receipt, on the card's own surface.
+                                                         *
+                                                         * It used to sit in a tinted box of its own,
+                                                         * which is what made three nested surfaces and
+                                                         * put a beige slab in the middle of a white
+                                                         * panel. Rules and space do the same work
+                                                         * without a second background.
+                                                         */
+                                                        <dl className="mt-4 text-[13.5px]">
+                                                            <Line
+                                                                icon={<SaleMark kind={kind} />}
+                                                                name={label("offerTicketTotal", "Ticket price")}
+                                                                amount={money(Math.round(samplePrice! * 100), cur)}
+                                                                muted
+                                                            />
+                                                            {/*
+                                                              * Three parties, each as its own line, and
+                                                              * each showing what it RECEIVES. Stripe is
+                                                              * separate from the platform fee even though
+                                                              * it is paid out of it -- a leader reading
+                                                              * "card processing" wants to see the card
+                                                              * processing, not be told it is folded into
+                                                              * someone else's number. The note under the
+                                                              * total carries the one relationship that
+                                                              * makes these three add up.
+                                                              */}
+                                                            <Line
+                                                                icon={<ImageMark src={communityIconUrl} name={communityName} />}
+                                                                name={communityName}
+                                                                share={shareOf(destination[0])}
+                                                                amount={money(destination[0], cur)}
+                                                                deduct
+                                                            />
+                                                            <Line
+                                                                icon={<CobuntuMark />}
+                                                                name={platformName}
+                                                                share={shareOf(destination[1])}
+                                                                amount={money(destination[1], cur)}
+                                                                deduct
+                                                            />
+                                                            {destination[2] > 0 && (
+                                                                <Line
+                                                                    icon={<StripeMark />}
+                                                                    name={label("spineStripeRow", "Stripe (card processing)")}
+                                                                    share={shareOf(destination[2])}
+                                                                    amount={money(destination[2], cur)}
+                                                                    deduct
+                                                                />
+                                                            )}
+                                                            <div className="mt-1 flex items-center justify-between gap-4 border-t-2 border-[var(--ink)]/15 pt-3">
+                                                                <dt className="flex min-w-0 items-center gap-2.5 text-[14px] font-semibold text-[var(--ink)]">
+                                                                    <PersonMark src={sellerImageUrl} name={sellerName} />
+                                                                    <span className="min-w-0">{sellerRowName}</span>
+                                                                </dt>
+                                                                <div className="flex shrink-0 items-baseline gap-3">
+                                                                    <span className="w-[52px] text-right text-[12.5px] font-medium tabular-nums text-[var(--ink-3)]">
+                                                                        {shareOf(sellerCents)}
+                                                                    </span>
+                                                                    <dd className="w-[76px] text-right text-[17px] font-semibold tabular-nums tracking-[-0.01em] text-[var(--ink)]">
+                                                                        {money(sellerCents, cur)}
+                                                                    </dd>
+                                                                </div>
+                                                            </div>
+                                                            {/*
+                                                              * The rates, once, under the figures they
+                                                              * explain -- rather than a basis column that
+                                                              * never matched the amount beside it, which is
+                                                              * what made "8%" sit next to EUR 0.38 and
+                                                              * start this whole question.
+                                                              */}
+                                                            <p className="mt-3 text-[12px] leading-relaxed text-[var(--ink-3)]">
+                                                                {say("offerBasisNote", {
+                                                                    community: communityName,
+                                                                    rate,
+                                                                    share: platformShare,
+                                                                    platform: platformName,
+                                                                    seller: sellerName,
+                                                                    fee: sellerFee
+                                                                        ? `${round(sellerFee.rate * 100)}% + ${money(sellerFee.fixed, cur)}`
+                                                                        : "",
+                                                                },
+                                                                `${communityName} charges ${rate}%. ${platformName} takes ${platformShare}% of that, plus ${sellerFee ? `${round(sellerFee.rate * 100)}% + ${money(sellerFee.fixed, cur)}` : "its fee"} of ${sellerName}'s share, and pays Stripe out of it.`)}
+                                                            </p>
+                                                        </dl>
+                                                    ) : (
+                                                        /* No price to work against: percentages, flat fees absent. */
+                                                        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-[var(--ink-2)]">
+                                                            {[
+                                                                { pct: s.sellerOfSale, color: "var(--b-keep)", name: sellerRowName },
+                                                                { pct: s.communityOfSale, color: "var(--b-comm)", name: communityName },
+                                                                { pct: s.platformOfSale, color: "var(--b-cob)", name: platformName },
+                                                            ]
+                                                                .filter((x) => x.pct > 0)
+                                                                .map((x, i) => (
+                                                                    <span key={i} className="inline-flex items-center gap-1.5">
+                                                                        <span
+                                                                            className="mt-[5px] h-[6px] w-[6px] flex-none"
+                                                                            style={{ background: x.color }}
+                                                                        />
+                                                                        {x.name}{" "}
+                                                                        <b className="font-semibold tabular-nums text-[var(--ink)]">
+                                                                            {round(x.pct)}%
+                                                                        </b>
+                                                                    </span>
+                                                                ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </li>
                             );
                         })}
                     </ul>
-                ) : (
-                    (() => {
-                        const pkg = picked;
-                        const rate = Number(pkg.rate);
-                        const isFloor = !!floorPkg && pkg.id === floorPkg.id;
-                        const e = canWorkEuros
-                            ? euroSplit(
-                                  samplePrice!, rate, platformShare, sellerFee,
-                                  stripeRate != null ? { rate: stripeRate, fixed: stripeFixed ?? 0 } : null,
-                              )
-                            : null;
-                        /*
-                         * What each party ENDS UP WITH, in cents that sum exactly to
-                         * the deductions. The gross-commission scaffolding that used to
-                         * live here went with the basis column: the rate a party
-                         * charges and the amount it receives are different numbers, and
-                         * only the second one belongs in the money column.
-                         */
-                        const destination = e
-                            ? allocateCents(samplePrice! - e.hostKeeps, [e.communityNet, e.cobuntuNet, e.stripeAmt])
-                            : [0, 0, 0];
-                        /*
-                         * The seller's line is the ticket MINUS the rows above it, not
-                         * a fifth rounded figure. Rounded on its own it can land a cent
-                         * away from what the printed rows actually subtract to, and the
-                         * bottom line of a receipt is the one number that has to be
-                         * arithmetic the reader can repeat.
-                         */
-                        /*
-                         * Each row's share of the ticket, derived from the cents the
-                         * money column actually prints.
-                         *
-                         * This is the number that caused the original complaint -- a
-                         * package headlined 8% whose row read 7.6% -- so it matters
-                         * that the two are different QUESTIONS, not a disagreement.
-                         * 8% is what the community charges; 7.6% is what reaches them
-                         * once Cobuntu's share of that commission comes out. The
-                         * sentence under the total says so.
-                         *
-                         * Computed from the allocated cents rather than from the rates,
-                         * so a row's percentage can never contradict the amount beside
-                         * it, and the four of them sum to 100 the way the euros sum to
-                         * the ticket. Deriving it from the rate instead is exactly how
-                         * "8%" ended up next to EUR 0.38.
-                         */
-                        const shareOf = (c: number) =>
-                            samplePrice ? `${round((c / Math.round(samplePrice * 100)) * 100)}%` : undefined;
-                        const sellerCents = e
-                            ? Math.round(samplePrice! * 100) - destination.reduce((a, b) => a + b, 0)
-                            : 0;
+                </div>
 
-                        const s = saleSplit(rate, platformShare, sellerFee);
-                        /*
-                         * ONE BAND PER ROW of the receipt beneath it, in the same
-                         * colours as those rows' marks -- seller, community, platform,
-                         * Stripe. A bar whose segments do not match the rows under it
-                         * is decoration, and it has drifted out of step twice while
-                         * this card was being reworked, so it is worth saying: if a
-                         * row is added or merged here, this list changes with it.
-                         */
-                        const bands = e
-                            ? [
-                                  { pct: (e.hostKeeps / samplePrice!) * 100, color: "var(--b-keep)" },
-                                  { pct: (e.communityNet / samplePrice!) * 100, color: "var(--b-comm)" },
-                                  { pct: (e.cobuntuNet / samplePrice!) * 100, color: "var(--b-cob)" },
-                                  { pct: (e.stripeAmt / samplePrice!) * 100, color: "var(--b-stripe)" },
-                              ].filter((b) => b.pct > 0.01)
-                            : [
-                                  { pct: s.sellerOfSale, color: "var(--b-keep)" },
-                                  { pct: s.communityOfSale, color: "var(--b-comm)" },
-                                  { pct: s.platformOfSale, color: "var(--b-cob)" },
-                              ].filter((b) => b.pct > 0);
-                        return (
-                            <div className="py-2">
-                                <div className="min-w-0">
-                                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                                        <span className="text-[15.5px] font-semibold tracking-[-0.01em] text-[var(--ink)]">
-                                            {pkg.name}
-                                        </span>
-                                        {/*
-                                         * The rate in the body face with tabular figures, not a
-                                         * contrasting display serif. This is a number to compare
-                                         * down a column of three, not a banner.
-                                         */}
-                                        <span className="text-[24px] font-semibold leading-none tabular-nums tracking-[-0.02em] text-[var(--ink)]">
-                                            {rate}
-                                            <span className="text-[15px] font-medium text-[var(--ink-3)]">%</span>
-                                        </span>
-                                        {isFloor && (
-                                            /* A quiet marker of fact, not an alert. */
-                                            /* A filled chip, which is how a phone marks
-                                               state -- but in the muted surface, not an
-                                               alert colour. It is a fact, not a warning. */
-                                            <span className="rounded-full bg-[var(--sunk)] px-2.5 py-1 text-[11px] font-medium text-[var(--ink-2)]">
-                                                {label("offerDefaultBadge", "Applies now by default")}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {pkg.description && (
-                                        <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--ink-2)]">
-                                            {pkg.description}
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="col-span-2 min-w-0">
-                                    {/* One segmented measure, square ends, hairline gaps. */}
-                                    <div className="flex h-[6px] w-full gap-[2px] overflow-hidden rounded-full">
-                                        {bands.map((b, i) => (
-                                            <span
-                                                key={i}
-                                                className="h-full first:rounded-l-full last:rounded-r-full"
-                                                style={{ width: `${b.pct}%`, background: b.color, minWidth: "6px" }}
-                                            />
-                                        ))}
-                                    </div>
-
-                                    {e ? (
-                                        /*
-                                         * The receipt, on the card's own surface.
-                                         *
-                                         * It used to sit in a tinted box of its own,
-                                         * which is what made three nested surfaces and
-                                         * put a beige slab in the middle of a white
-                                         * panel. Rules and space do the same work
-                                         * without a second background.
-                                         */
-                                        <dl className="mt-4 text-[13.5px]">
-                                            <Line
-                                                icon={<SaleMark kind={kind} />}
-                                                name={label("offerTicketTotal", "Ticket price")}
-                                                amount={money(Math.round(samplePrice! * 100), cur)}
-                                                muted
-                                            />
-                                            {/*
-                                              * Three parties, each as its own line, and
-                                              * each showing what it RECEIVES. Stripe is
-                                              * separate from the platform fee even though
-                                              * it is paid out of it -- a leader reading
-                                              * "card processing" wants to see the card
-                                              * processing, not be told it is folded into
-                                              * someone else's number. The note under the
-                                              * total carries the one relationship that
-                                              * makes these three add up.
-                                              */}
-                                            <Line
-                                                icon={<ImageMark src={communityIconUrl} name={communityName} />}
-                                                name={communityName}
-                                                share={shareOf(destination[0])}
-                                                amount={money(destination[0], cur)}
-                                                deduct
-                                            />
-                                            <Line
-                                                icon={<CobuntuMark />}
-                                                name={platformName}
-                                                share={shareOf(destination[1])}
-                                                amount={money(destination[1], cur)}
-                                                deduct
-                                            />
-                                            {destination[2] > 0 && (
-                                                <Line
-                                                    icon={<StripeMark />}
-                                                    name={label("spineStripeRow", "Stripe (card processing)")}
-                                                    share={shareOf(destination[2])}
-                                                    amount={money(destination[2], cur)}
-                                                    deduct
-                                                />
-                                            )}
-                                            <div className="mt-1 flex items-center justify-between gap-4 border-t-2 border-[var(--ink)]/15 pt-3">
-                                                <dt className="flex min-w-0 items-center gap-2.5 text-[14px] font-semibold text-[var(--ink)]">
-                                                    <PersonMark src={sellerImageUrl} name={sellerName} />
-                                                    <span className="min-w-0">{sellerRowName}</span>
-                                                </dt>
-                                                <div className="flex shrink-0 items-baseline gap-3">
-                                                    <span className="w-[52px] text-right text-[12.5px] font-medium tabular-nums text-[var(--ink-3)]">
-                                                        {shareOf(sellerCents)}
-                                                    </span>
-                                                    <dd className="w-[76px] text-right text-[17px] font-semibold tabular-nums tracking-[-0.01em] text-[var(--ink)]">
-                                                        {money(sellerCents, cur)}
-                                                    </dd>
-                                                </div>
-                                            </div>
-                                            {/*
-                                              * The rates, once, under the figures they
-                                              * explain -- rather than a basis column that
-                                              * never matched the amount beside it, which is
-                                              * what made "8%" sit next to EUR 0.38 and
-                                              * start this whole question.
-                                              */}
-                                            <p className="mt-3 text-[12px] leading-relaxed text-[var(--ink-3)]">
-                                                {say("offerBasisNote", {
-                                                    community: communityName,
-                                                    rate,
-                                                    share: platformShare,
-                                                    platform: platformName,
-                                                    seller: sellerName,
-                                                    fee: sellerFee
-                                                        ? `${round(sellerFee.rate * 100)}% + ${money(sellerFee.fixed, cur)}`
-                                                        : "",
-                                                },
-                                                `${communityName} charges ${rate}%. ${platformName} takes ${platformShare}% of that, plus ${sellerFee ? `${round(sellerFee.rate * 100)}% + ${money(sellerFee.fixed, cur)}` : "its fee"} of ${sellerName}'s share, and pays Stripe out of it.`)}
-                                            </p>
-                                        </dl>
-                                    ) : (
-                                        /* No price to work against: percentages, flat fees absent. */
-                                        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-[var(--ink-2)]">
-                                            {[
-                                                { pct: s.sellerOfSale, color: "var(--b-keep)", name: sellerRowName },
-                                                { pct: s.communityOfSale, color: "var(--b-comm)", name: communityName },
-                                                { pct: s.platformOfSale, color: "var(--b-cob)", name: platformName },
-                                            ]
-                                                .filter((x) => x.pct > 0)
-                                                .map((x, i) => (
-                                                    <span key={i} className="inline-flex items-center gap-1.5">
-                                                        <span
-                                                            className="mt-[5px] h-[6px] w-[6px] flex-none"
-                                                            style={{ background: x.color }}
-                                                        />
-                                                        {x.name}{" "}
-                                                        <b className="font-semibold tabular-nums text-[var(--ink)]">
-                                                            {round(x.pct)}%
-                                                        </b>
-                                                    </span>
-                                                ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })()
-                )}
             </ActionModalShell>
         </>
     );

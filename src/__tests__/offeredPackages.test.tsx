@@ -376,3 +376,50 @@ describe("the share column", () => {
         expect(ticket?.textContent).not.toMatch(/%/);
     });
 });
+
+/**
+ * Opening a package in place.
+ *
+ * It used to REPLACE the list with the picked package's numbers, so comparing
+ * two meant going back and forth and holding the first in your head. The rows
+ * stay put now and the receipt unfolds under the one you opened.
+ */
+describe("the picker opens packages in place", () => {
+    const price = { samplePrice: 25, sampleCurrency: "EUR" };
+
+    it("keeps the other packages listed while one is open", async () => {
+        await showNumbers({ ...base, ...price, viewer: "leader" });
+        const dialog = within(screen.getByRole("dialog"));
+        // The one that was opened shows its numbers...
+        expect(dialog.getByText("Ticket price")).toBeInTheDocument();
+        // ...and the other two are still there to compare against.
+        expect(dialog.getByText("Co-run")).toBeInTheDocument();
+        expect(dialog.getByText("PBN-run")).toBeInTheDocument();
+    });
+
+    it("toggles shut when the same row is clicked again", async () => {
+        await showNumbers({ ...base, ...price, viewer: "leader" });
+        const dialog = within(screen.getByRole("dialog"));
+        const row = dialog.getAllByRole("button").find((b) => (b.textContent ?? "").includes("Self-run"))!;
+        expect(row.getAttribute("aria-expanded")).toBe("true");
+        await userEvent.click(row);
+        expect(row.getAttribute("aria-expanded")).toBe("false");
+        expect(dialog.queryByText("Ticket price")).toBeNull();
+    });
+
+    /*
+     * THE PORTAL BUG, pinned.
+     *
+     * ActionModalShell portals to document.body, which is outside the panel root
+     * that sets the listing tokens as inline custom properties. Without
+     * re-applying them here every var(--ink) in these rows resolves to nothing
+     * and the text renders in whatever the modal inherits -- which is exactly
+     * how it shipped once: grey on white, barely readable.
+     */
+    it("carries the listing tokens into the portal", async () => {
+        await showList({ ...base, ...price, viewer: "leader" });
+        const dialog = screen.getByRole("dialog");
+        const tokened = dialog.querySelector('[style*="--ink"]');
+        expect(tokened).not.toBeNull();
+    });
+});
