@@ -972,7 +972,11 @@ export function ManagedListingDetail({
                seller's share is not "yours". */
             viewer={viewer}
             communityName={community?.name || t("community")}
+            /* Real images where the API gives us one: the community's icon and
+               the requester's photo. Both are already in the listing payload. */
+            communityIconUrl={community?.iconUrl ?? null}
             sellerName={listing.requestedBy?.name || t("someone")}
+            sellerImageUrl={listing.requestedBy?.profileImage ?? null}
             busy={posting || busy}
             onChoose={(pkgId) => void postProposal(pkgId)}
             t={t}

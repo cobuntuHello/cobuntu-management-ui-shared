@@ -164,13 +164,18 @@ describe("what the card shows", () => {
     /*
      * The original complaint: a heading reading 8% over a row reading 7.6%,
      * with nothing saying they were different things. Both are true -- one is
-     * charged, the other arrives -- so both are named.
+     * CHARGED and the other ARRIVES -- and the fix is not to print them beside
+     * each other, which is what made them look like a contradiction. The money
+     * column carries only what each party receives; the rates are stated once,
+     * in a sentence, underneath.
      */
-    it("shows the gross commission AND what is taken out of it", () => {
+    it("states the rates once, under the figures they explain", () => {
         render(<OfferedPackages {...base} {...price} viewer="leader" />);
         expect(
-            screen.getByText("8% is €2.00, less Cobuntu's 5% of it (€0.10)"),
-        ).toBeTruthy();
+            screen.getAllByText(
+                /PBN charges 8%\. Cobuntu takes 5% of that, plus 4% \+ €0\.30 of Drew Milligan's share, and pays Stripe out of it\./,
+            ).length,
+        ).toBe(1);
         /*
          * A RECEIPT, so the community's line is a SUBTRACTION from the ticket.
          * The minus is not decoration: the card reads top-down from what the
@@ -221,5 +226,55 @@ describe("what the card shows", () => {
     it("still names the floor package, which bills whether or not terms are set", () => {
         render(<OfferedPackages {...base} {...price} viewer="leader" />);
         expect(screen.getByText(/already takes 8% on every sale/)).toBeTruthy();
+    });
+});
+
+/**
+ * The marks beside each party.
+ *
+ * Real images where the data has one -- the community's iconUrl, the
+ * requester's profileImage -- and a monogram in the row's band colour where it
+ * does not. Cobuntu and Stripe get monograms ON PURPOSE: the Cobuntu brand mark
+ * is a wordmark in a font this package does not load, and Stripe's is a
+ * trademark that belongs in an asset file rather than redrawn from memory.
+ */
+describe("the party marks", () => {
+    const price = { samplePrice: 25, sampleCurrency: "EUR" };
+
+    it("uses the real images it is given", () => {
+        const { container } = render(
+            <OfferedPackages
+                {...base}
+                {...price}
+                viewer="leader"
+                communityIconUrl="https://img.test/pbn.png"
+                sellerImageUrl="https://img.test/drew.png"
+            />,
+        );
+        const srcs = Array.from(container.querySelectorAll("img")).map((i) => i.getAttribute("src"));
+        expect(srcs).toContain("https://img.test/pbn.png");
+        expect(srcs).toContain("https://img.test/drew.png");
+    });
+
+    it("falls back to a monogram, never a blank or a guessed logo", () => {
+        const { container } = render(<OfferedPackages {...base} {...price} viewer="leader" />);
+        // No image data at all: nothing should be rendering an <img> with an
+        // empty or undefined src, which is the classic broken-icon bug.
+        for (const img of Array.from(container.querySelectorAll("img"))) {
+            expect(img.getAttribute("src")).toBeTruthy();
+        }
+        // Cobuntu and Stripe always monogram, image data or not.
+        expect(screen.getAllByText("C").length).toBeGreaterThan(0);
+        expect(screen.getAllByText("S").length).toBeGreaterThan(0);
+    });
+
+    it("gives Stripe its own row, separate from the platform fee", () => {
+        render(<OfferedPackages {...base} {...price} viewer="leader" />);
+        expect(screen.getAllByText("Stripe (card processing)").length).toBe(3);
+        expect(screen.getAllByText("Cobuntu").length).toBe(3);
+        // ...and the two carry different amounts, i.e. one is not folded into
+        // the other behind a single figure.
+        expect(screen.getAllByText(`${MINUS}€0.70`).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(`${MINUS}€0.62`).length).toBeGreaterThan(0);
     });
 });
