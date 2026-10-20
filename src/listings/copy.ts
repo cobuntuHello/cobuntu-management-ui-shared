@@ -116,8 +116,6 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     /* The banner opens the picker; the picker's two steps have their own words. */
     offerOpen: "Choose a package",
     offerModalHint: "Pick one to see what it pays out.",
-    offerModalReview: "What each sale pays out.",
-    offerBack: "Back",
     /* Why Approve is disabled: the server refuses this, so the button says so. */
     approveNeedsTerms: "Agree the commission first. They have to accept a package before this can go live.",
     /*
