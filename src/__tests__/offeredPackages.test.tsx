@@ -427,10 +427,17 @@ describe("the picker is master / detail", () => {
      * Nothing is picked when the modal opens, on purpose: the footer commits to
      * whatever the pane is showing, so a package nobody chose must never be it.
      */
-    it("commits nothing until a package is chosen", async () => {
+    it("commits nothing until a package is chosen, and says why the pane is empty", async () => {
         await showList({ ...base, ...price, viewer: "leader" });
         expect(screen.queryByRole("button", { name: /^Offer / })).toBeNull();
-        expect(screen.getByText(/Pick one to see what it pays out/)).toBeInTheDocument();
+        /*
+         * A real empty state, not one grey sentence adrift in half a modal:
+         * a heading that says what this side is for, and a line saying what to
+         * do. The sentence appears ONCE -- it was in the footer as well, which
+         * is the same instruction twice in one dialog.
+         */
+        expect(screen.getByText("What a sale pays out")).toBeInTheDocument();
+        expect(screen.getAllByText(/Pick one to see what it pays out/)).toHaveLength(1);
     });
 
     it("offers a way back on the phone's second step", async () => {

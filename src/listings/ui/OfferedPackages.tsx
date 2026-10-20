@@ -212,7 +212,7 @@ export function OfferedPackages({
                        --commit and renders transparent. */
                     <div style={listingTokenStyle()} className="w-full">
                         {picked ? (
-                            <div className="flex w-full items-center justify-between gap-3">
+                            <div className="flex w-full items-center justify-end gap-3">
                                 <button
                                     type="button"
                                     onClick={() => setOpen(false)}
@@ -234,8 +234,11 @@ export function OfferedPackages({
                                rather than offering a dead primary button. There is
                                no Back: the rows toggle, so the way out of a package
                                is the package itself. */
-                            /* Close alone. The pane already says to pick one, and
-                               saying it twice in one modal is noise. */
+                            /* Close alone, and right-aligned like the pair it
+                               replaces, so the control does not move when a
+                               package is picked. The pane already says to pick
+                               one; saying it twice in one modal is noise. */
+                            <div className="flex w-full items-center justify-end">
                             <button
                                 type="button"
                                 onClick={() => setOpen(false)}
@@ -243,6 +246,7 @@ export function OfferedPackages({
                             >
                                 {label("offerClose", "Close")}
                             </button>
+                            </div>
                         )}
                     </div>
                 }
@@ -263,7 +267,7 @@ export function OfferedPackages({
                   * text renders in whatever the modal inherits -- which is exactly
                   * how it shipped: grey on white, unreadable.
                   */}
-                <div style={listingTokenStyle()}>
+                <div style={listingTokenStyle()} data-cbt-panel>
                     {/*
                       * MASTER / DETAIL, and TWO STEPS on a phone.
                       *
@@ -307,7 +311,10 @@ export function OfferedPackages({
                                                         <span className="text-[12px] font-medium text-[var(--ink-3)]">%</span>
                                                     </span>
                                                     {isFloorRow && (
-                                                        <span className="mt-1 inline-block rounded-full bg-[var(--sunk)] px-2 py-0.5 text-[10.5px] font-medium text-[var(--ink-2)] sm:bg-[var(--card)]">
+                                                        <span /* --line, not --sunk: the SELECTED row is already --sunk, so a --sunk
+   chip vanishes on exactly the row it matters on. (It was --card at
+   sm+, which is the rail's own background, so it vanished there too.) */
+                                            className="mt-1 inline-block rounded-full bg-[var(--line)] px-2 py-0.5 text-[10.5px] font-medium text-[var(--ink-2)]">
                                                             {label("offerDefaultBadge", "Applies now by default")}
                                                         </span>
                                                     )}
@@ -396,8 +403,15 @@ export function OfferedPackages({
                                               { pct: s.communityOfSale, color: "var(--b-comm)" },
                                               { pct: s.platformOfSale, color: "var(--b-cob)" },
                                           ].filter((b) => b.pct > 0);
+                                    /*
+                                     * key = the package, so React remounts this
+                                     * subtree when the selection changes and the
+                                     * animation runs again. Without the key the node
+                                     * is reused, the numbers change in place, and
+                                     * nothing tells the eye that anything happened.
+                                     */
                                     return (
-                                        <div>
+                                        <div key={pkg.id} style={{ animation: "cbt-pane-in .22s ease-out" }}>
                                             <button
                                                 type="button"
                                                 onClick={() => setPicked(null)}
@@ -546,10 +560,29 @@ export function OfferedPackages({
                             ) : (
                                 /* Desktop, nothing picked yet. A prompt rather than the first
                                    package's numbers: the footer commits to whatever is showing,
-                                   and a package nobody chose must never be it. */
-                                <p className="py-12 text-center text-[13px] text-[var(--ink-3)]">
-                                    {label("offerModalHint", "Pick one to see what it pays out.")}
-                                </p>
+                                   and a package nobody chose must never be it.
+
+                                   It was one grey sentence floating in an empty half of the
+                                   modal, which reads as something that failed to load. A mark,
+                                   a line saying what this side is FOR, and a second saying what
+                                   to do: the same anatomy as any empty state. */
+                                <div
+                                    style={{ animation: "cbt-pane-back .22s ease-out" }}
+                                    className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center"
+                                >
+                                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--sunk)] text-[var(--ink-3)]">
+                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                            <path d="M6 2h12v19l-2.5-1.6L13 21l-2.5-1.6L8 21l-2-1.6V2z" />
+                                            <path d="M9.5 8h5M9.5 12h5" />
+                                        </svg>
+                                    </span>
+                                    <p className="mt-3.5 text-[14px] font-semibold text-[var(--ink)]">
+                                        {label("offerEmptyTitle", "What a sale pays out")}
+                                    </p>
+                                    <p className="mt-1 max-w-[30ch] text-[13px] leading-relaxed text-[var(--ink-2)]">
+                                        {label("offerModalHint", "Pick one to see what it pays out.")}
+                                    </p>
+                                </div>
                             )}
                         </section>
                     </div>
