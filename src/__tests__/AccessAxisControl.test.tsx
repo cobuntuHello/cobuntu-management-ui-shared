@@ -133,3 +133,17 @@ describe("disabled prop", () => {
     expect(screen.getByText("Specific tiers").closest("button")).toBeDisabled();
   });
 });
+
+describe("accessibility roles", () => {
+  it("exposes the mode rows as a radio group with the selected one checked", () => {
+    setup({ mode: "all", tierIds: [] });
+    expect(screen.getByRole("radio", { name: /Public/ })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("radio", { name: /All members/ })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("exposes the nested tier list as checkboxes", () => {
+    setup({ mode: "tiers", tierIds: ["t1"] });
+    expect(screen.getByRole("checkbox", { name: /Founding/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("checkbox", { name: /Standard/ })).toHaveAttribute("aria-checked", "false");
+  });
+});
