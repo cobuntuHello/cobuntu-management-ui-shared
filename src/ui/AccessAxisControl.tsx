@@ -133,6 +133,9 @@ export function AccessAxisControl({
               <button
                 key={tier.id}
                 type="button"
+                role="checkbox"
+                aria-checked={checked}
+                aria-disabled={disabled}
                 disabled={disabled}
                 onClick={() => onChange(toggleTier(value, tier.id, choosableIds, ceiling))}
                 className={`relative flex w-full items-center gap-3 rounded-[9px] py-[9px] pl-[30px] pr-3.5 text-left transition-colors active:bg-zinc-100 disabled:cursor-default ${
@@ -185,6 +188,9 @@ function Row({
   return (
     <button
       type="button"
+      role="radio"
+      aria-checked={selected}
+      aria-disabled={disabled}
       disabled={disabled}
       onClick={onClick}
       className="flex min-h-[46px] w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left transition-colors active:bg-zinc-100 disabled:cursor-default"
