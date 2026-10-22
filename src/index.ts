@@ -75,6 +75,8 @@ export type {
 
 export { MembershipTierPicker } from "./ui/MembershipTierPicker";
 export type { MembershipTierPickerProps, MembershipTier } from "./ui/MembershipTierPicker";
+export { AccessAxisControl } from "./ui/AccessAxisControl";
+export type { AccessAxisControlProps } from "./ui/AccessAxisControl";
 export {
   toTierAccessValue,
   fromTierAccessValue,
