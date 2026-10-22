@@ -117,6 +117,25 @@ export interface ListingFilterBarProps {
   search?: string;
   onSearchChange?: (s: string) => void;
   searchPlaceholder?: string;
+  /**
+   * LAUNCHER MODE. When given, the search field stops being an input and
+   * becomes a button that calls this instead — the host opens its own search
+   * palette.
+   *
+   * This is how the community-app's FilterBar has always behaved, and its
+   * reasoning is worth repeating because it is the reason this prop exists
+   * rather than a second input: a page that renders this bar usually ALSO has
+   * a palette on the same screen (the rail magnifier, the header field, Cmd-K).
+   * Two identically-worded search boxes, one of which can offer things the
+   * other cannot, is a choice nobody can make correctly because nothing tells
+   * them which is which. Routing the field to the palette means there is only
+   * ever one place to type.
+   *
+   * Takes precedence over onSearchChange when both are passed. `search` is
+   * still honoured: a query chosen in the palette shows in the field, so the
+   * bar reflects what is filtering the list.
+   */
+  onSearchLaunch?: () => void;
   /** How many results the CURRENT selection yields (summary line + "Show N"). */
   resultCount?: number;
   /** The noun the summary counts, e.g. "results". */
@@ -152,9 +171,42 @@ function activeCount(facets: Facet[], value: FilterValue): number {
  * runs un-branded, so the brand accent falls back to neutral ink; copy and
  * values come from the caller.
  */
+/**
+ * The search field's shell: one box, worn by either an <input> (in-place
+ * search) or a <button> (launcher mode). Sharing the chrome is the point --
+ * the two modes must be indistinguishable until clicked, or the bar looks
+ * like two different controls depending on which page you are on.
+ */
+function SearchShell({
+  as,
+  htmlFor,
+  onClick,
+  children,
+}: {
+  as: "button" | "label";
+  htmlFor: string;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  const className =
+    "flex min-h-[40px] min-w-0 flex-1 items-center gap-2 rounded-[11px] border border-[rgba(128,128,128,0.18)] bg-[rgba(128,128,128,0.04)] px-3 text-zinc-500 transition-colors focus-within:border-[rgba(128,128,128,0.35)]";
+  if (as === "button") {
+    return (
+      <button type="button" onClick={onClick} className={`${className} cursor-pointer text-left hover:border-[rgba(128,128,128,0.35)]`}>
+        {children}
+      </button>
+    );
+  }
+  return (
+    <label htmlFor={htmlFor} className={className}>
+      {children}
+    </label>
+  );
+}
+
 export function ListingFilterBar({
   inlineFacets = [], facets, value, onChange,
-  search, onSearchChange, searchPlaceholder = "Search",
+  search, onSearchChange, onSearchLaunch, searchPlaceholder = "Search",
   resultCount, resultNoun = "results", countFor, copy, className,
 }: ListingFilterBarProps) {
   const t = { ...DEFAULT_COPY, ...copy };
@@ -250,23 +302,38 @@ export function ListingFilterBar({
       })}
 
       <div className="flex items-center gap-2">
-        {onSearchChange && (
-          <label
+        {(onSearchLaunch || onSearchChange) && (
+          /*
+            Launcher mode renders a BUTTON wearing the field's clothes, not an
+            input. Same box, same magnifier, same place in the row -- what
+            changes is that clicking it opens the host's palette instead of
+            putting a caret in a second search box. See onSearchLaunch.
+          */
+          <SearchShell
+            as={onSearchLaunch ? "button" : "label"}
             htmlFor={searchId}
-            className="flex min-h-[40px] min-w-0 flex-1 items-center gap-2 rounded-[11px] border border-[rgba(128,128,128,0.18)] bg-[rgba(128,128,128,0.04)] px-3 text-zinc-500 transition-colors focus-within:border-[rgba(128,128,128,0.35)]"
+            onClick={onSearchLaunch}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 opacity-45" aria-hidden="true">
               <circle cx="11" cy="11" r="7" /><path d="m20 20-3.6-3.6" />
             </svg>
-            <input
-              id={searchId}
-              type="search"
-              value={search ?? ""}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder={searchPlaceholder}
-              className="min-w-0 flex-1 bg-transparent text-[14px] text-zinc-900 outline-none placeholder:text-zinc-400"
-            />
-          </label>
+            {onSearchLaunch ? (
+              /* Shows the active query so the bar reflects what is filtering
+                 the list, and the placeholder when nothing is set. */
+              <span className={`min-w-0 flex-1 truncate text-left text-[14px] ${search ? "text-zinc-900" : "text-zinc-400"}`}>
+                {search || searchPlaceholder}
+              </span>
+            ) : (
+              <input
+                id={searchId}
+                type="search"
+                value={search ?? ""}
+                onChange={(e) => onSearchChange!(e.target.value)}
+                placeholder={searchPlaceholder}
+                className="min-w-0 flex-1 bg-transparent text-[14px] text-zinc-900 outline-none placeholder:text-zinc-400"
+              />
+            )}
+          </SearchShell>
         )}
 
         {facets.length > 0 && (
