@@ -139,8 +139,22 @@ export interface ManagedListingDetailProps {
    * Given a FUNCTION it is called with the listed item, because the href the
    * host wants to build usually needs the item's slug or id, and only this
    * component has loaded it. Given a node it is rendered as-is.
+   *
+   * `live` is in here because a "Preview" button is a promise: on a listing
+   * that is still PENDING the item is not on the community's shelf yet, so
+   * that link opens a 404 for a leader who was told they could go and look at
+   * it. The host cannot work this out for itself -- it never sees the listing
+   * row -- so the only place the answer exists is here.
    */
-  headerActions?: ReactNode | ((item: { id?: string; slug?: string; name?: string | null }) => ReactNode);
+  headerActions?:
+    | ReactNode
+    | ((item: {
+        id?: string;
+        slug?: string;
+        name?: string | null;
+        /** ACTIVE and approved: on the shelf, so safe to link a viewer to. */
+        live?: boolean;
+      }) => ReactNode);
   /** Name of the thing being listed, for the breadcrumb. */
   itemName?: string | null;
   /**
@@ -481,9 +495,18 @@ export function ManagedListingDetail({
    * because the link the host wants to build needs the item's slug or id and
    * only this component has loaded it.
    */
+  /*
+   * Live means BOTH: ACTIVE and actually approved.
+   *
+   * Status alone is not enough. `approvedAt` is the column the approval wrote
+   * and it is the one the shelf reads, and the two do come apart -- PBN has
+   * live event listings whose terms were never snapshotted, so trusting one
+   * field here is how a Preview button ends up pointing at nothing.
+   */
+  const itemIsLive = state === "ACTIVE" && Boolean(listing.approvedAt);
   const headerActionsNode: ReactNode =
     typeof headerActions === "function"
-      ? headerActions({ id: heroItem?.id, slug: heroItem?.slug, name: listedItemName })
+      ? headerActions({ id: heroItem?.id, slug: heroItem?.slug, name: listedItemName, live: itemIsLive })
       : (headerActions ?? null);
   const heroImage: string | null =
     (kind === "event"
