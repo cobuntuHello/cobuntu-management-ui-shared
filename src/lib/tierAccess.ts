@@ -240,3 +240,21 @@ export function tierAccessSummary(
   if (names.length <= 2) return names.join(" and ");
   return `${names.length} membership tiers`;
 }
+
+/**
+ * How open a tier-access value is, on the shared audience scale.
+ *
+ * Declared beside `tierAccessSummary` so the picture and the words are read
+ * and changed together -- the same rule the event form follows for its own
+ * option lists. A mapping kept at the call site drifts from the summary it is
+ * supposed to illustrate.
+ *
+ * There is no 0 here: a product cannot be hidden from everyone. The narrowest
+ * a tier-access value gets is "some tiers", so the scale starts at 1 and an
+ * empty meter never appears on these controls.
+ */
+export function tierAccessLevel(value: TierAccessValue): 1 | 2 | 3 {
+  if (value.mode === "public") return 3;
+  if (value.mode === "all") return 2;
+  return 1;
+}
