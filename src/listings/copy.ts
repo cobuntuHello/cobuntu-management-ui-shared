@@ -261,6 +261,11 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     feesYouKeep: "You keep",
     feesCommunityNet: "Community net",
     feesPct: "{rate}%",
+    /* The community's commission is not what the community receives: Cobuntu
+       takes a cut OF it on member sales. Said on its own line, under the
+       commission, so the two figures stop looking like a contradiction. */
+    feesCommunityCut: "Cobuntu takes {amount} of this",
+    feesCommunityReceives: "{amount} to the community",
     feesFromGross: "from {amount} taken",
     feesNothingTakenYet: "Nothing taken yet",
     feesLandsIn: "Lands in {account}",
