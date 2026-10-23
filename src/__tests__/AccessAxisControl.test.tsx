@@ -3,6 +3,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AccessAxisControl } from "../ui/AccessAxisControl";
 import { ceilingFor } from "../lib/tierAccess";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { TierAccessValue } from "../lib/tierAccess";
 
 /**
@@ -146,4 +148,47 @@ describe("accessibility roles", () => {
     expect(screen.getByRole("checkbox", { name: /Founding/ })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("checkbox", { name: /Standard/ })).toHaveAttribute("aria-checked", "false");
   });
+});
+
+describe("the option rows read as cards", () => {
+    const src = readFileSync(resolve(process.cwd(), "src/ui/AccessAxisControl.tsx"), "utf8");
+
+    it("has a resting surface and a hover, not only a press state", () => {
+        /*
+         * These rows carried `active:bg-zinc-100` and nothing else, so at rest
+         * they were bare text on white and did not read as the choices they
+         * are. Nothing happened on hover either.
+         */
+        expect(src).toContain("bg-zinc-50 hover:bg-zinc-100");
+    });
+
+    it("marks the selected row by LIFTING it, not by tinting it", () => {
+        /*
+         * Selection used to be carried entirely by a 20px dot at the far right
+         * -- a long way from the label it answers on a wide card.
+         *
+         * The first fix tinted the selected row with the brand colour at 7%.
+         * Rendered with no brand token (the admin's case, where the fallback
+         * is near-black) that came out a grey within a hair of the zinc-50
+         * beneath it, so the chosen row was indistinguishable again. White
+         * against zinc-50 is a difference that survives having no hue at all.
+         */
+        expect(src).toContain("bg-white shadow-");
+        expect(src).not.toContain('var(--brand-color,#18181b)_7%');
+    });
+
+    it("takes the brand colour for the marks, with an ink fallback", () => {
+        // The admin has no --brand-color, and the fallback is the ink it
+        // already used, so nothing regresses there.
+        expect(src).toContain('var(--brand-color, #18181b)');
+    });
+
+    it("stops drawing the tier checkboxes as the heaviest thing in the control", () => {
+        /*
+         * Four stacked zinc-900 squares put the most weight on the control's
+         * LEAST important rows -- children of a choice already made above
+         * them.
+         */
+        expect(src).not.toContain("border-zinc-900 bg-zinc-900");
+    });
 });
