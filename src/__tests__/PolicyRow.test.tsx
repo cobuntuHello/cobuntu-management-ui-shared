@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { PolicyRow, AudienceMeter } from "../ui/PolicyRow";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 /**
  * The settings row that shows its answer instead of explaining it.
@@ -130,5 +132,36 @@ describe("AudienceMeter", () => {
     it("is hidden from screen readers, which read the value in text", () => {
         const { container } = render(<AudienceMeter level={2} />);
         expect(container.querySelector("[aria-hidden='true']")).toBeTruthy();
+    });
+});
+
+/*
+ * ── The header state chip ──────────────────────────────────────────────────
+ *
+ * Lives in this file rather than its own because it is the same idea as
+ * PolicyRow: say a thing once, in the place that says it best.
+ */
+describe("ManagedListingDetail's state chip", () => {
+    it("is suppressed exactly for the states NextAction announces", () => {
+        const src = readFileSync(resolve(process.cwd(), "src/listings/ManagedListingDetail.tsx"), "utf8");
+        /*
+         * A live listing carried a green "Live" chip directly above a banner
+         * reading "You both shook on it / This listing is live" -- one fact,
+         * twice, in a single eyeful.
+         */
+        expect(src).toContain('const BANNERED_STATES = new Set<ListingState>(["ACTIVE", "PENDING"])');
+        expect(src).toContain("!BANNERED_STATES.has(state)");
+    });
+
+    it("keeps the chip for the states that have no banner at all", () => {
+        const next = readFileSync(resolve(process.cwd(), "src/listings/ui/NextAction.tsx"), "utf8");
+        /*
+         * NextAction handles ACTIVE and PENDING and returns null otherwise, so
+         * for PAUSED / CANCELLED / REVOKED the chip is the ONLY thing on the
+         * page saying what state the listing is in. If this ever stops being
+         * true, BANNERED_STATES has to grow to match.
+         */
+        expect(next).toContain('if (state === "ACTIVE")');
+        expect(next).toContain('if (state !== "PENDING") return null;');
     });
 });

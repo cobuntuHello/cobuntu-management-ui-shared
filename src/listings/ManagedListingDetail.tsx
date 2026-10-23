@@ -95,6 +95,13 @@ const STATE_LABEL_KEY: Record<ListingState, string> = {
   REVOKED: "stateRevoked",
 };
 
+/**
+ * States NextAction already announces in a banner, so the header chip would
+ * be the second label for one fact. Kept next to the labels it suppresses,
+ * because the day NextAction learns a new state this set has to follow it.
+ */
+const BANNERED_STATES = new Set<ListingState>(["ACTIVE", "PENDING"]);
+
 const STATE_TONE: Record<ListingState, string> = {
   ACTIVE: "text-emerald-700 bg-emerald-50",
   PENDING: "text-amber-700 bg-amber-50",
@@ -808,12 +815,22 @@ export function ManagedListingDetail({
           </div>
         </div>
         {/*
-          * No status chip while under review: the "Your turn / In review"
-          * banner right below already says it, and two labels for one state in
-          * the same eyeful is clutter. Other states (paused, closed) have no
-          * banner, so the chip stays there to carry them.
+          * The chip only appears for a state NOTHING ELSE on the page states.
+          *
+          * NextAction renders a banner for ACTIVE and for PENDING and returns
+          * null for everything else. So on a live listing the header carried a
+          * green "Live" chip directly above a banner reading "You both shook
+          * on it / This listing is live" -- the same fact, twice, in one
+          * eyeful, and the chip is the half that says it with less. Under
+          * review was already excluded for exactly this reason; ACTIVE had
+          * simply been missed.
+          *
+          * PAUSED, CANCELLED and REVOKED get no banner, so for those the chip
+          * is the only thing on the page that says what state the listing is
+          * in. Dropping it outright would leave a withdrawn listing looking
+          * identical to a live one.
           */}
-        {state && !waiting && (
+        {state && !waiting && !BANNERED_STATES.has(state) && (
           <span className={`shrink-0 px-2.5 py-1 rounded-md text-[12px] font-medium ${STATE_TONE[state]}`}>
             {t(STATE_LABEL_KEY[state])}
           </span>
