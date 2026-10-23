@@ -97,15 +97,29 @@ export function ManageLedger({
     const cash = (n: number) => formatMoney(n, currency, locale);
     const day = (iso: string) =>
         new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
+    const dayTime = (iso: string) =>
+        new Date(iso).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
 
-    // Which sale/refund rows have their fee breakdown open. Per-viewer, local.
-    const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
-    const toggle = (key: string) =>
-        setOpenKeys((prev) => {
-            const next = new Set(prev);
-            next.has(key) ? next.delete(key) : next.add(key);
-            return next;
-        });
+    /*
+     * The fee breakdown used to expand INLINE, a second <tr> under the sale
+     * row. That is a different UI language from every other money detail in
+     * this app -- the community's own Ledger (app/[communityTag]/ledger)
+     * opens a slide-in side panel for the same kind of detail, and this is
+     * the one ledger view that didn't match it. `selectedMovement` +
+     * `panelVisible` is that page's exact state shape (see openPanel/
+     * closePanel there): two pieces of state, not one, so the panel can
+     * slide OUT before the data backing it disappears.
+     */
+    const [selectedMovement, setSelectedMovement] = useState<LedgerMovement | null>(null);
+    const [panelVisible, setPanelVisible] = useState(false);
+    const openPanel = (m: LedgerMovement) => {
+        setSelectedMovement(m);
+        requestAnimationFrame(() => setPanelVisible(true));
+    };
+    const closePanel = () => {
+        setPanelVisible(false);
+        setTimeout(() => setSelectedMovement(null), 250);
+    };
     const columns = 3 + (showCommunity ? 1 : 0); // movement + gross + [community] + seller
 
     if (movements.length === 0) {
@@ -167,34 +181,41 @@ export function ManageLedger({
                                 key={m.key}
                                 m={m}
                                 showCommunity={showCommunity}
-                                isMember={isMember}
-                                columns={columns}
-                                expanded={openKeys.has(m.key)}
-                                onToggle={toggle}
                                 cash={cash}
                                 day={day}
                                 t={t}
+                                onOpen={openPanel}
                             />
                         ))}
                     </tbody>
                 </table>
             </div>
+
+            {selectedMovement && (
+                <BreakdownPanel
+                    m={selectedMovement}
+                    visible={panelVisible}
+                    isMember={isMember}
+                    cash={cash}
+                    day={day}
+                    dayTime={dayTime}
+                    t={t}
+                    onClose={closePanel}
+                />
+            )}
         </div>
     );
 }
 
 function Row({
-    m, showCommunity, isMember, columns, expanded, onToggle, cash, day, t,
+    m, showCommunity, cash, day, t, onOpen,
 }: {
     m: LedgerMovement;
     showCommunity: boolean;
-    isMember: boolean;
-    columns: number;
-    expanded: boolean;
-    onToggle: (key: string) => void;
     cash: (n: number) => string;
     day: (iso: string) => string;
     t: (key: string, vars?: Record<string, string | number>) => string;
+    onOpen: (m: LedgerMovement) => void;
 }) {
     /*
      * A won dispute took nothing, so it gets neither the minus nor the red.
@@ -227,93 +248,185 @@ function Row({
     ].filter(Boolean).join(" · ");
 
     return (
-        <>
-            <tr className="border-b border-zinc-200/70 last:border-b-0 align-top">
-                <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${TONE[m.kind] ?? "bg-zinc-100 text-zinc-600"}`}>
-                            {t(`ledgerKind_${m.kind}`)}
+        <tr className="border-b border-zinc-200/70 last:border-b-0 align-top">
+            <td className="px-4 py-3">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${TONE[m.kind] ?? "bg-zinc-100 text-zinc-600"}`}>
+                        {t(`ledgerKind_${m.kind}`)}
+                    </span>
+                    {/*
+                      * "Guest" rather than nothing. A guest checkout has no
+                      * account; the server falls back to the email, and null
+                      * means not even that. An empty cell reads as a missing
+                      * record. Sales only -- a payout has no buyer.
+                      */}
+                    {m.kind === "sale" && (
+                        <span className={`text-[13.5px] ${m.buyerName ? "font-medium text-zinc-900" : "text-zinc-500"}`}>
+                            {m.buyerName || t("ledgerGuestBuyer")}
                         </span>
-                        {/*
-                          * "Guest" rather than nothing. A guest checkout has no
-                          * account; the server falls back to the email, and null
-                          * means not even that. An empty cell reads as a missing
-                          * record. Sales only -- a payout has no buyer.
-                          */}
-                        {m.kind === "sale" && (
-                            <span className={`text-[13.5px] ${m.buyerName ? "font-medium text-zinc-900" : "text-zinc-500"}`}>
-                                {m.buyerName || t("ledgerGuestBuyer")}
-                            </span>
-                        )}
-                        {m.kind !== "sale" && m.buyerName && (
-                            <span className="text-[13.5px] font-medium text-zinc-900">{m.buyerName}</span>
-                        )}
-                        {m.payoutLeg && (
-                            <span className="text-[13.5px] font-medium text-zinc-900">
-                                {t(`ledgerLeg_${m.payoutLeg}`)}
-                            </span>
-                        )}
-                        {/*
-                          * The fee-breakdown toggle. A quiet text button rather
-                          * than a row-wide click target: the amounts stay
-                          * selectable, and only rows that carry fee lines get it.
-                          */}
-                        {expandable && (
-                            <button
-                                type="button"
-                                onClick={() => onToggle(m.key)}
-                                aria-expanded={expanded}
-                                className="cursor-pointer text-[11.5px] font-semibold text-zinc-400 hover:text-zinc-700"
-                            >
-                                {expanded ? "▾ " : "▸ "}{t("ledgerShowBreakdown")}
-                            </button>
-                        )}
-                    </div>
-                    <p className="mt-0.5 text-[12px] text-zinc-500">{subline}</p>
-                </td>
+                    )}
+                    {m.kind !== "sale" && m.buyerName && (
+                        <span className="text-[13.5px] font-medium text-zinc-900">{m.buyerName}</span>
+                    )}
+                    {m.payoutLeg && (
+                        <span className="text-[13.5px] font-medium text-zinc-900">
+                            {t(`ledgerLeg_${m.payoutLeg}`)}
+                        </span>
+                    )}
+                    {/*
+                      * Fee breakdown opens the same side drawer the
+                      * community's own Ledger page uses for a sale's detail
+                      * -- not an inline toggle. A real button (not a row-wide
+                      * click target) so the amounts stay selectable text.
+                      */}
+                    {expandable && (
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onOpen(m); }}
+                            className="cursor-pointer text-[11.5px] font-semibold text-zinc-400 hover:text-zinc-700"
+                        >
+                            {t("ledgerShowBreakdown")} ›
+                        </button>
+                    )}
+                </div>
+                <p className="mt-0.5 text-[12px] text-zinc-500">{subline}</p>
+            </td>
+            <td className={`px-4 py-3 text-right text-[13.5px] tabular-nums ${tone}`}>
+                {amount(m.gross)}
+            </td>
+            {showCommunity && (
                 <td className={`px-4 py-3 text-right text-[13.5px] tabular-nums ${tone}`}>
-                    {amount(m.gross)}
+                    {amount(m.communityCut)}
                 </td>
-                {showCommunity && (
-                    <td className={`px-4 py-3 text-right text-[13.5px] tabular-nums ${tone}`}>
-                        {amount(m.communityCut)}
-                    </td>
-                )}
-                <td className={`px-4 py-3 text-right text-[13.5px] font-semibold tabular-nums ${tone}`}>
-                    {amount(m.sellerNet)}
-                </td>
-            </tr>
-
-            {expandable && expanded && (
-                <tr className="border-b border-zinc-200/70 last:border-b-0 bg-zinc-50/60">
-                    <td colSpan={columns} className="px-4 pb-3 pt-0">
-                        <dl className="grid gap-x-8 gap-y-1 sm:grid-cols-2">
-                            {(m.vat ?? 0) > 0 && (
-                                <FeeLine k={t("ledgerFeeVat")} v={cash(m.vat ?? 0)} />
-                            )}
-                            <FeeLine
-                                k={t("ledgerFeeStripe")}
-                                v={isMember ? t("ledgerFeeStripeAbsorbed") : cash(m.stripeFee ?? 0)}
-                                muted={isMember}
-                            />
-                            <FeeLine k={t("ledgerFeeCobuntu")} v={cash(m.cobuntuFee ?? 0)} />
-                            {(m.communityFee ?? 0) > 0 && (
-                                <FeeLine k={t("ledgerFeeCommunity")} v={cash(m.communityFee ?? 0)} />
-                            )}
-                        </dl>
-                    </td>
-                </tr>
             )}
-        </>
+            <td className={`px-4 py-3 text-right text-[13.5px] font-semibold tabular-nums ${tone}`}>
+                {amount(m.sellerNet)}
+            </td>
+        </tr>
     );
 }
 
-/** One line in a row's expanded fee breakdown. */
-function FeeLine({ k, v, muted }: { k: string; v: string; muted?: boolean }) {
+/**
+ * A single money movement's detail, in a side drawer.
+ *
+ * Mirrors app/[communityTag]/ledger/page.tsx's sale panel exactly: same
+ * `fixed inset-0 … flex justify-end` wrapper, same backdrop-opacity +
+ * translate-x transition pair driven by a `visible` flag, same
+ * rounded-l-2xl panel with a sticky header and a chevron close button. That
+ * page is where every other money detail in the admin app already opens a
+ * drawer; this view is the one that used to do something else, not the
+ * other way round.
+ */
+function BreakdownPanel({
+    m, visible, isMember, cash, day, dayTime, t, onClose,
+}: {
+    m: LedgerMovement;
+    visible: boolean;
+    isMember: boolean;
+    cash: (n: number) => string;
+    day: (iso: string) => string;
+    dayTime: (iso: string) => string;
+    t: (key: string, vars?: Record<string, string | number>) => string;
+    onClose: () => void;
+}) {
+    const won = m.kind === "dispute" && m.status === "DISPUTE_WON";
+    const negative = m.sign === -1 && !won;
+
     return (
-        <div className="flex items-baseline justify-between gap-4">
-            <dt className="text-[12px] text-zinc-500">{k}</dt>
-            <dd className={`text-[12.5px] tabular-nums ${muted ? "text-zinc-400" : "font-medium text-zinc-800"}`}>{v}</dd>
+        <div className="fixed inset-0 z-50 flex justify-end">
+            <div
+                className={`absolute inset-0 bg-black transition-opacity duration-250 ${visible ? "opacity-20" : "opacity-0"}`}
+                onClick={onClose}
+            />
+            <div
+                className={`relative w-full max-w-[440px] bg-white h-full overflow-y-auto shadow-2xl rounded-l-2xl transition-transform duration-250 ease-out ${
+                    visible ? "translate-x-0" : "translate-x-full"
+                }`}
+            >
+                <div className="sticky top-0 bg-white z-10 border-b border-zinc-100">
+                    <div className="px-6 pt-5 pb-4">
+                        <div className="flex items-center justify-between mb-5">
+                            <button
+                                onClick={onClose}
+                                aria-label={t("ledgerClose")}
+                                className="w-8 h-8 rounded-lg hover:bg-zinc-100 flex items-center justify-center cursor-pointer shrink-0 transition-colors"
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400">
+                                    <polyline points="13 17 18 12 13 7" />
+                                    <polyline points="6 17 11 12 6 7" />
+                                </svg>
+                            </button>
+                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${TONE[m.kind] ?? "bg-zinc-100 text-zinc-600"}`}>
+                                {t(`ledgerKind_${m.kind}`)}
+                            </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 mb-4">
+                            <span className="w-10 h-10 rounded-full bg-zinc-100 text-zinc-600 flex items-center justify-center shrink-0 text-sm font-semibold">
+                                {(m.buyerName || t("ledgerGuestBuyer")).trim().split(/\s+/).slice(0, 2).map((s) => s[0]).join("").toUpperCase()}
+                            </span>
+                            <div className="min-w-0">
+                                <p className="text-[15px] font-semibold text-zinc-900 truncate">
+                                    {m.buyerName || t("ledgerGuestBuyer")}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-baseline gap-2">
+                            <span className={`text-3xl font-semibold tabular-nums ${negative ? "text-red-700" : "text-zinc-900"}`}>
+                                {negative ? "−" : ""}{cash(m.gross)}
+                            </span>
+                        </div>
+                        <p className="text-sm text-zinc-400 mt-1">{t("ledgerAt", { date: day(m.at), time: dayTime(m.at) })}</p>
+                    </div>
+                </div>
+
+                <div className="px-6 pb-8">
+                    <div className="mt-6">
+                        <h4 className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider mb-3">{t("ledgerBreakdownTitle")}</h4>
+                        <div className="rounded-lg border border-zinc-100 bg-zinc-50/50 overflow-hidden">
+                            <table className="w-full text-sm">
+                                <tbody>
+                                    <tr className="border-b border-zinc-100">
+                                        <td className="px-4 py-2.5 text-zinc-500">{t("ledgerColGross")}</td>
+                                        <td className="px-4 py-2.5 text-zinc-900 text-right tabular-nums">{cash(m.gross)}</td>
+                                    </tr>
+                                    {(m.vat ?? 0) > 0 && (
+                                        <tr className="border-b border-zinc-100">
+                                            <td className="px-4 py-2.5 text-zinc-500">{t("ledgerFeeVat")}</td>
+                                            <td className="px-4 py-2.5 text-red-500 text-right tabular-nums">{`-${cash(m.vat ?? 0)}`}</td>
+                                        </tr>
+                                    )}
+                                    <tr className="border-b border-zinc-100">
+                                        <td className="px-4 py-2.5 text-zinc-500">{t("ledgerFeeStripe")}</td>
+                                        <td className={`px-4 py-2.5 text-right tabular-nums ${isMember ? "text-zinc-400" : "text-orange-500"}`}>
+                                            {isMember ? t("ledgerFeeStripeAbsorbed") : `-${cash(m.stripeFee ?? 0)}`}
+                                        </td>
+                                    </tr>
+                                    <tr className="border-b border-zinc-100">
+                                        <td className="px-4 py-2.5 text-zinc-500">{t("ledgerFeeCobuntu")}</td>
+                                        <td className="px-4 py-2.5 text-red-500 text-right tabular-nums">{`-${cash(m.cobuntuFee ?? 0)}`}</td>
+                                    </tr>
+                                    {(m.communityFee ?? 0) > 0 && (
+                                        <tr className="border-b border-zinc-100">
+                                            <td className="px-4 py-2.5 text-zinc-500">{t("ledgerFeeCommunity")}</td>
+                                            <td className="px-4 py-2.5 text-blue-500 text-right tabular-nums">{`-${cash(m.communityFee ?? 0)}`}</td>
+                                        </tr>
+                                    )}
+                                    <tr className="border-t-2 border-zinc-200 bg-emerald-50/60">
+                                        <td className="px-4 py-3.5 font-semibold text-zinc-900">{t("ledgerColSeller")}</td>
+                                        <td className="px-4 py-3.5 text-right">
+                                            <span className={`text-xl font-bold tabular-nums ${negative ? "text-red-600" : "text-emerald-600"}`}>
+                                                {negative ? "−" : ""}{cash(m.sellerNet)}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

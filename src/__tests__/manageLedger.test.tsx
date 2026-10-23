@@ -242,8 +242,8 @@ describe("fee lines and payout when/where", () => {
         fireEvent.click(screen.getByRole("button", { name: /Fee breakdown/ }));
 
         expect(screen.getByText("Absorbed by Cobuntu")).toBeInTheDocument();  // Stripe, member
-        expect(screen.getByText("€2.10")).toBeInTheDocument();                // Cobuntu fee
-        expect(screen.getByText("€3.60")).toBeInTheDocument();                // community commission
+        expect(screen.getByText("-€2.10")).toBeInTheDocument();               // Cobuntu fee
+        expect(screen.getByText("-€3.60")).toBeInTheDocument();               // community commission
     });
 
     it("shows real Stripe on a community sale breakdown", () => {
@@ -261,8 +261,8 @@ describe("fee lines and payout when/where", () => {
             />,
         );
         fireEvent.click(screen.getByRole("button", { name: /Fee breakdown/ }));
-        expect(screen.getByText("€1.44")).toBeInTheDocument();   // real Stripe
-        expect(screen.getByText("€4.72")).toBeInTheDocument();   // platform fee
+        expect(screen.getByText("-€1.44")).toBeInTheDocument();  // real Stripe
+        expect(screen.getByText("-€4.72")).toBeInTheDocument();  // platform fee
         expect(screen.queryByText("Absorbed by Cobuntu")).not.toBeInTheDocument();
     });
 });
