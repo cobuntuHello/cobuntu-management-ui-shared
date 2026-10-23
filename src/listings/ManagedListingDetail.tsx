@@ -190,7 +190,7 @@ export interface ManagedListingDetailProps {
    * of a bare initial. Each app passes its own session user (community-app from
    * its auth context, admin from /me). Optional — falls back to the initial.
    */
-  currentUser?: { name?: string | null; avatarUrl?: string | null };
+  currentUser?: { name?: string | null; avatarUrl?: string | null; usertag?: string | null; id?: string | null };
 }
 
 export function ManagedListingDetail({

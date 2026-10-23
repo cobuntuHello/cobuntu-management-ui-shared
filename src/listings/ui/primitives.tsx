@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { buildPersonaSvgString } from "../../lib/personaSvg";
 
 /**
  * The pieces the negotiation MVP invented, and only those.
@@ -75,12 +76,53 @@ export function Pill({
  * two parties, neither of whom may write to the other's side. Shape does that
  * work at 28px where colour alone would not.
  */
-export function Who({ side, label, imageUrl }: { side: "seller" | "community"; label?: string; imageUrl?: string | null }) {
+export function Who({
+    side,
+    label,
+    imageUrl,
+    seed,
+}: {
+    side: "seller" | "community";
+    label?: string;
+    imageUrl?: string | null;
+    /**
+     * Identifies a PERSON, and so switches the fallback from a letter to their
+     * persona face. Pass the most stable thing you have (usertag, then id):
+     * the face is derived from it, so a seed that changes between renders
+     * changes their face.
+     *
+     * Omit it for a party mark that stands for the community as an institution
+     * rather than a human -- an org has no face, and giving it one would claim
+     * a person is on the other end of the deal.
+     */
+    seed?: string | null;
+}) {
     const shape = side === "community" ? "rounded-[9px]" : "rounded-full";
     // A real photo when we have one (the composer passes the current user's),
     // in the same shape the letter would have taken so the side still reads.
     if (imageUrl) {
         return <img src={imageUrl} alt="" className={`size-7 shrink-0 object-cover ${shape} ring-1 ring-[var(--line)]`} />;
+    }
+    /*
+     * A person with no photo gets the same seeded Cobuntu face the community
+     * app gives them, not their initial.
+     *
+     * An initial was never a neutral placeholder here: the thread is where a
+     * leader and a seller argue about money, and a monogram in the app's own
+     * ink read as a SYSTEM note rather than something a person said. The face
+     * is also the avatar they already recognise as theirs everywhere else.
+     *
+     * Kept in the side's shape, because shape is what tells the two parties
+     * apart at 28px and that job outlives the fallback.
+     */
+    if (seed) {
+        return (
+            <span
+                className={`block size-7 shrink-0 overflow-hidden ${shape} ring-1 ring-[var(--line)]`}
+                aria-hidden="true"
+                dangerouslySetInnerHTML={{ __html: buildPersonaSvgString(seed) }}
+            />
+        );
     }
     return side === "community" ? (
         <span className="grid size-7 shrink-0 place-items-center rounded-[9px] bg-[var(--ink)] text-[9.5px] font-bold tracking-tight text-white">
