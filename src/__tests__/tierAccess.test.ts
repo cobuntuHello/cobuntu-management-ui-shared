@@ -9,6 +9,7 @@ import {
   ceilingFor,
   clampToCeiling,
   tierAccessConsequence,
+  tierAccessLevel,
 } from "../lib/tierAccess";
 import type { TierAccessValue } from "../lib/tierAccess";
 
@@ -242,4 +243,39 @@ describe("the consequence line speaks the right verb", () => {
     expect(s).toContain("Only Founding can register");
     expect(s).toContain("not be able to register");
   });
+});
+
+describe("tierAccessLevel", () => {
+    /*
+     * The picture beside the summary. It lives next to tierAccessSummary so
+     * the two are read and changed together -- a mapping kept at the call site
+     * drifts from the words it is supposed to illustrate.
+     */
+    it("reads public as fully open", () => {
+        expect(tierAccessLevel({ mode: "public", tierIds: [] })).toBe(3);
+    });
+
+    it("puts all-members one step in from public", () => {
+        expect(tierAccessLevel({ mode: "all", tierIds: [] })).toBe(2);
+    });
+
+    it("puts a named set of tiers at the narrow end", () => {
+        expect(tierAccessLevel({ mode: "tiers", tierIds: ["a"] })).toBe(1);
+        expect(tierAccessLevel({ mode: "tiers", tierIds: ["a", "b", "c"] })).toBe(1);
+    });
+
+    it("never reaches zero", () => {
+        /*
+         * A product cannot be hidden from everyone -- the narrowest a
+         * tier-access value gets is "some tiers" -- so an empty meter must
+         * never appear on these controls.
+         */
+        for (const v of [
+            { mode: "public" as const, tierIds: [] },
+            { mode: "all" as const, tierIds: [] },
+            { mode: "tiers" as const, tierIds: [] },
+        ]) {
+            expect(tierAccessLevel(v)).toBeGreaterThan(0);
+        }
+    });
 });

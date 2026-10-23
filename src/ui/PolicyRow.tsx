@@ -122,6 +122,37 @@ export function AudienceMeter({ level, className = "" }: { level: AudienceLevel;
     );
 }
 
+/**
+ * A topic glyph with a lock badge once the thing stops being public.
+ *
+ * Its own export because the drill-in row is not the only place this applies:
+ * ProductForm shows "Who can see it" / "Who can buy it" as INLINE headers over
+ * an expanded tier picker rather than as rows that open a sheet. Those need
+ * the same signal and must not grow a second, slightly different padlock --
+ * which is exactly how the same idea ends up looking like two ideas.
+ */
+export function PolicyIcon({ icon, level }: { icon: ReactNode; level: AudienceLevel }) {
+    const restricted = level < 3;
+    const sealed = level === 0;
+    if (!restricted) return <span className="relative shrink-0">{icon}</span>;
+    return (
+        <span className="relative shrink-0">
+            {icon}
+            {/* Ringed in the surface fill so the badge reads as sitting ON the
+                glyph rather than colliding with it. */}
+            <span className="absolute -bottom-[3px] -right-[3px] grid h-[14px] w-[14px] place-items-center rounded-full bg-zinc-50 ring-2 ring-zinc-50">
+                <Lock
+                    className={`h-[10px] w-[10px] ${sealed ? "text-zinc-600" : "text-zinc-500"}`}
+                    /* Solid for "nobody": the strongest state should be the
+                       heaviest mark, so the one row that shuts everyone out is
+                       the one that looks shut. */
+                    {...(sealed ? { fill: "currentColor", strokeWidth: 1.5 } : { strokeWidth: 2.4 })}
+                />
+            </span>
+        </span>
+    );
+}
+
 export interface PolicyRowProps {
     /**
      * The glyph for what this setting GOVERNS -- people for a guest list, a pin
@@ -145,9 +176,6 @@ export interface PolicyRowProps {
 export function PolicyRow({
     icon, title, value, level, onClick, hideAudience = false, disabled = false,
 }: PolicyRowProps) {
-    const restricted = !hideAudience && level < 3;
-    const sealed = !hideAudience && level === 0;
-
     return (
         <button
             type="button"
@@ -155,22 +183,7 @@ export function PolicyRow({
             disabled={disabled}
             className="group flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-zinc-50 px-4 py-3 text-left ring-1 ring-zinc-100/0 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-[0_10px_22px_-16px_rgba(60,40,30,0.5)] hover:ring-zinc-200 active:translate-y-0 disabled:cursor-default disabled:opacity-50"
         >
-            <span className="relative shrink-0">
-                {icon}
-                {restricted && (
-                    /* Ringed in the row's own fill so the badge reads as sitting
-                       ON the glyph rather than colliding with it. */
-                    <span className="absolute -bottom-[3px] -right-[3px] grid h-[14px] w-[14px] place-items-center rounded-full bg-zinc-50 ring-2 ring-zinc-50">
-                        <Lock
-                            className={`h-[10px] w-[10px] ${sealed ? "text-zinc-600" : "text-zinc-500"}`}
-                            /* Solid for "nobody": the strongest state should be
-                               the heaviest mark, so the one row that shuts
-                               everyone out is the one that looks shut. */
-                            {...(sealed ? { fill: "currentColor", strokeWidth: 1.5 } : { strokeWidth: 2.4 })}
-                        />
-                    </span>
-                )}
-            </span>
+            <PolicyIcon icon={icon} level={hideAudience ? 3 : level} />
             <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium text-zinc-800">{title}</span>
                 {/* The value alone. What it MEANS is in the sheet, next to the
