@@ -152,7 +152,11 @@ export interface ManagedListingDetailProps {
         id?: string;
         slug?: string;
         name?: string | null;
-        /** ACTIVE and approved: on the shelf, so safe to link a viewer to. */
+        /**
+         * ACTIVE: on the shelf, so safe to link a viewer to. Deliberately
+         * NOT also `approvedAt`, which is null on nearly every live listing
+         * and is not what any visibility filter reads.
+         */
         live?: boolean;
       }) => ReactNode);
   /** Name of the thing being listed, for the breadcrumb. */
@@ -496,14 +500,24 @@ export function ManagedListingDetail({
    * only this component has loaded it.
    */
   /*
-   * Live means BOTH: ACTIVE and actually approved.
+   * Live means ACTIVE, and ONLY that, because that is the column the shelf
+   * actually reads.
    *
-   * Status alone is not enough. `approvedAt` is the column the approval wrote
-   * and it is the one the shelf reads, and the two do come apart -- PBN has
-   * live event listings whose terms were never snapshotted, so trusting one
-   * field here is how a Preview button ends up pointing at nothing.
+   * This first required `approvedAt` as well, on the reasoning that it is the
+   * column an approval writes. That was wrong twice over. Every public
+   * visibility filter gates on status alone and none of them mentions
+   * `approvedAt` (EventEmbedController, EventInvitationPublicService,
+   * EventLifecycleService), and in prod 245 of the 250 ACTIVE event listings
+   * have a NULL `approvedAt` -- it is written only where a community
+   * self-lists its own event, so on nearly everything else it is empty while
+   * the listing sells perfectly well.
+   *
+   * Requiring it therefore hid Preview on almost every genuinely live
+   * listing, which is the opposite of what the button is for. A field whose
+   * name suggests the answer is not the same thing as the field the system
+   * reads.
    */
-  const itemIsLive = state === "ACTIVE" && Boolean(listing.approvedAt);
+  const itemIsLive = state === "ACTIVE";
   const headerActionsNode: ReactNode =
     typeof headerActions === "function"
       ? headerActions({ id: heroItem?.id, slug: heroItem?.slug, name: listedItemName, live: itemIsLive })

@@ -98,9 +98,15 @@ describe("headerActions", () => {
      *
      * A leader on a PENDING request has nothing to preview -- the item is not
      * on the shelf -- so a Preview link there opens a 404 on the back of a
-     * button that promised to show them the thing. The host cannot tell:
-     * it never sees the listing row. These pin that BOTH halves are required,
-     * because the two fields do come apart in prod.
+     * button that promised to show them the thing. The host cannot tell: it
+     * never sees the listing row.
+     *
+     * It is ACTIVE and nothing else. This first also required `approvedAt`,
+     * which reads like the stricter, safer rule and is in fact simply wrong:
+     * no visibility filter looks at that column, and 245 of the 250 ACTIVE
+     * event listings in prod have it NULL while selling. The stricter rule
+     * suppressed the button on nearly every listing it exists for, so the
+     * ACTIVE-without-approvedAt case below is the one that matters most.
      */
     describe("live", () => {
         /** Re-point fetch at a listing with the given row fields. */
@@ -146,17 +152,24 @@ describe("headerActions", () => {
             expect(screen.queryByRole("link", { name: "Preview" })).toBeNull();
         });
 
-        it("is false for ACTIVE with no approvedAt, so status alone cannot carry it", async () => {
-            expect(await liveFor({ status: "ACTIVE", approvedAt: null })).toBe(false);
+        it("is TRUE for ACTIVE with no approvedAt, which is the normal live listing", async () => {
+            // 245 of 250 live event listings in prod look exactly like this.
+            // Treating it as not-live is what made Preview never appear.
+            expect(await liveFor({ status: "ACTIVE", approvedAt: null })).toBe(true);
+            expect(screen.getByRole("link", { name: "Preview" })).toBeTruthy();
         });
 
-        it("is false for an approved listing the seller has since PAUSED", async () => {
+        it("is false for a listing the seller has since PAUSED", async () => {
             // Off the shelf by the owner's own hand: approved, not visible.
             expect(await liveFor({ status: "PAUSED", approvedAt: "2026-10-01T00:00:00.000Z" })).toBe(false);
         });
 
         it("is false once revoked, however it was approved before", async () => {
             expect(await liveFor({ status: "REVOKED", approvedAt: "2026-10-01T00:00:00.000Z" })).toBe(false);
+        });
+
+        it("is false while CANCELLED, so a withdrawn request offers no preview", async () => {
+            expect(await liveFor({ status: "CANCELLED", approvedAt: null })).toBe(false);
         });
     });
 
