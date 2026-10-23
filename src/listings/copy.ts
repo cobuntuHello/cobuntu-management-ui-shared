@@ -123,6 +123,17 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     /* Why Approve is disabled: the server refuses this, so the button says so. */
     approveNeedsTerms: "Agree the commission first. They have to accept a package before this can go live.",
     /*
+     * The same missing agreement, AFTER approval, where the sentence above is
+     * simply false: it is live, it is selling, and no package was ever agreed.
+     *
+     * Says what fills the gap instead, because a leader cannot see it anywhere
+     * else and it is the part that can cost them money: with nothing
+     * snapshotted on the listing, each sale resolves the cut from the
+     * community's current rate for this type, so changing that rate changes
+     * what this live listing earns.
+     */
+    liveWithoutTerms: "This listing is live without an agreed package. Sales use your current rate for this type, so changing that rate also changes what this one earns.",
+    /*
      * The settlement rows. These ship as the package's own English because the
      * hosts mount this card with no message file -- a key missing here does not
      * fall back to a literal, it RENDERS AS THE KEY, which is how

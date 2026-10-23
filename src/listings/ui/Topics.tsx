@@ -38,7 +38,13 @@ export interface TopicComment {
     body: string;
     authorUserId: string;
     createdAt?: string;
-    author?: { id: string; name?: string | null } | null;
+    /*
+     * `profileImage` and `usertag` were already in the payload -- core selects
+     * all four fields on both the product and the event topic routes -- and
+     * this type simply stopped at the name, so every comment fell back to a
+     * letter no matter whose photo was sitting unread in the response.
+     */
+    author?: { id: string; name?: string | null; usertag?: string | null; profileImage?: string | null } | null;
 }
 
 export interface Topic {
@@ -78,7 +84,7 @@ export function Topics({
     /** Who the viewer is talking TO — the community's name, or the seller's. */
     otherPartyName: string;
     /** The signed-in user, so the composer shows THEIR photo (not a bare letter). */
-    currentUser?: { name?: string | null; avatarUrl?: string | null };
+    currentUser?: { name?: string | null; avatarUrl?: string | null; usertag?: string | null; id?: string | null };
     busy?: boolean;
     onOpen: (subject: string, body: string) => void | Promise<void>;
     onComment: (topicId: string, body: string) => void | Promise<void>;
@@ -190,7 +196,7 @@ function Composer({
 }: {
     viewer: Viewer;
     otherPartyName: string;
-    currentUser?: { name?: string | null; avatarUrl?: string | null };
+    currentUser?: { name?: string | null; avatarUrl?: string | null; usertag?: string | null; id?: string | null };
     busy?: boolean;
     onPost: (subject: string, body: string) => void | Promise<void>;
     t: T;
@@ -224,11 +230,12 @@ function Composer({
         <Card className="p-3.5">
             <div className="flex gap-3">
                 {/* The composer is the signed-in user writing: show their photo,
-                    falling back to their own initial (not a bare "S"). */}
+                    then their face, and only then a letter. */}
                 <Who
                     side={sideOf(viewer)}
                     imageUrl={currentUser?.avatarUrl ?? undefined}
                     label={currentUser?.name ?? (viewer === "leader" ? otherPartyName : undefined)}
+                    seed={currentUser?.usertag || currentUser?.id || undefined}
                 />
                 {!expanded ? (
                     <button
@@ -374,6 +381,14 @@ function Ask({
                                 <Who
                                     side={c.authorUserId === topic.openedByUserId ? sideOf(viewer) : sideOf(viewer === "owner" ? "leader" : "owner")}
                                     label={c.author?.name ?? undefined}
+                                    imageUrl={c.author?.profileImage ?? undefined}
+                                    /* Every comment has a human author, so the
+                                       fallback is their face. usertag first so
+                                       it matches the face the rest of the
+                                       product already draws for them; the id is
+                                       the backstop, and authorUserId is present
+                                       even when `author` failed to expand. */
+                                    seed={c.author?.usertag || c.author?.id || c.authorUserId}
                                 />
                                 <p className="min-w-0 flex-1 pt-1 text-[13px] leading-relaxed text-[var(--ink-2)] whitespace-pre-wrap">
                                     {c.body}

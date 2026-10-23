@@ -93,6 +93,86 @@ describe("headerActions", () => {
         expect(link.getAttribute("href")).toBe("/pbn/events/the-build-room-2");
     });
 
+    /**
+     * `live` gates the host's Preview button.
+     *
+     * A leader on a PENDING request has nothing to preview -- the item is not
+     * on the shelf -- so a Preview link there opens a 404 on the back of a
+     * button that promised to show them the thing. The host cannot tell: it
+     * never sees the listing row.
+     *
+     * It is ACTIVE and nothing else. This first also required `approvedAt`,
+     * which reads like the stricter, safer rule and is in fact simply wrong:
+     * no visibility filter looks at that column, and 245 of the 250 ACTIVE
+     * event listings in prod have it NULL while selling. The stricter rule
+     * suppressed the button on nearly every listing it exists for, so the
+     * ACTIVE-without-approvedAt case below is the one that matters most.
+     */
+    describe("live", () => {
+        /** Re-point fetch at a listing with the given row fields. */
+        function withListing(over: Record<string, unknown>) {
+            globalThis.fetch = vi.fn(async (url: RequestInfo | URL) => {
+                const u = String(url);
+                const json = (b: unknown) =>
+                    ({ ok: true, status: 200, json: async () => b }) as unknown as Response;
+                if (/\/proposals$/.test(u)) return json([]);
+                if (/\/topics$/.test(u)) return json([]);
+                if (/\/packages$/.test(u)) return json([]);
+                if (/\/config\/fees/.test(u)) return json({});
+                return json({ ...LISTING, ...over });
+            }) as unknown as typeof globalThis.fetch;
+        }
+
+        /** The last `live` the slot was handed, once the item has loaded. */
+        async function liveFor(over: Record<string, unknown>) {
+            withListing(over);
+            const seen: Array<boolean | undefined> = [];
+            render(
+                <ManagedListingDetail
+                    {...base}
+                    viewer="leader"
+                    headerActions={(item) => {
+                        if (item.slug) seen.push(item.live);
+                        return item.live ? <a href="/live">Preview</a> : <span>no-preview</span>;
+                    }}
+                />,
+            );
+            await screen.findByText("The Build Room");
+            await waitFor(() => expect(seen.length).toBeGreaterThan(0));
+            return seen[seen.length - 1];
+        }
+
+        it("is true for an approved ACTIVE listing", async () => {
+            expect(await liveFor({ status: "ACTIVE", approvedAt: "2026-10-01T00:00:00.000Z" })).toBe(true);
+            expect(screen.getByRole("link", { name: "Preview" })).toBeTruthy();
+        });
+
+        it("is false while the request is still PENDING", async () => {
+            expect(await liveFor({ status: "PENDING", approvedAt: null })).toBe(false);
+            expect(screen.queryByRole("link", { name: "Preview" })).toBeNull();
+        });
+
+        it("is TRUE for ACTIVE with no approvedAt, which is the normal live listing", async () => {
+            // 245 of 250 live event listings in prod look exactly like this.
+            // Treating it as not-live is what made Preview never appear.
+            expect(await liveFor({ status: "ACTIVE", approvedAt: null })).toBe(true);
+            expect(screen.getByRole("link", { name: "Preview" })).toBeTruthy();
+        });
+
+        it("is false for a listing the seller has since PAUSED", async () => {
+            // Off the shelf by the owner's own hand: approved, not visible.
+            expect(await liveFor({ status: "PAUSED", approvedAt: "2026-10-01T00:00:00.000Z" })).toBe(false);
+        });
+
+        it("is false once revoked, however it was approved before", async () => {
+            expect(await liveFor({ status: "REVOKED", approvedAt: "2026-10-01T00:00:00.000Z" })).toBe(false);
+        });
+
+        it("is false while CANCELLED, so a withdrawn request offers no preview", async () => {
+            expect(await liveFor({ status: "CANCELLED", approvedAt: null })).toBe(false);
+        });
+    });
+
     it("takes a plain node too, for a host with nothing to look up", async () => {
         render(
             <ManagedListingDetail

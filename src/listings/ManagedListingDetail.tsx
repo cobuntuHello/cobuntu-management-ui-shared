@@ -139,8 +139,26 @@ export interface ManagedListingDetailProps {
    * Given a FUNCTION it is called with the listed item, because the href the
    * host wants to build usually needs the item's slug or id, and only this
    * component has loaded it. Given a node it is rendered as-is.
+   *
+   * `live` is in here because a "Preview" button is a promise: on a listing
+   * that is still PENDING the item is not on the community's shelf yet, so
+   * that link opens a 404 for a leader who was told they could go and look at
+   * it. The host cannot work this out for itself -- it never sees the listing
+   * row -- so the only place the answer exists is here.
    */
-  headerActions?: ReactNode | ((item: { id?: string; slug?: string; name?: string | null }) => ReactNode);
+  headerActions?:
+    | ReactNode
+    | ((item: {
+        id?: string;
+        slug?: string;
+        name?: string | null;
+        /**
+         * ACTIVE: on the shelf, so safe to link a viewer to. Deliberately
+         * NOT also `approvedAt`, which is null on nearly every live listing
+         * and is not what any visibility filter reads.
+         */
+        live?: boolean;
+      }) => ReactNode);
   /** Name of the thing being listed, for the breadcrumb. */
   itemName?: string | null;
   /**
@@ -190,7 +208,7 @@ export interface ManagedListingDetailProps {
    * of a bare initial. Each app passes its own session user (community-app from
    * its auth context, admin from /me). Optional — falls back to the initial.
    */
-  currentUser?: { name?: string | null; avatarUrl?: string | null };
+  currentUser?: { name?: string | null; avatarUrl?: string | null; usertag?: string | null; id?: string | null };
 }
 
 export function ManagedListingDetail({
@@ -481,9 +499,28 @@ export function ManagedListingDetail({
    * because the link the host wants to build needs the item's slug or id and
    * only this component has loaded it.
    */
+  /*
+   * Live means ACTIVE, and ONLY that, because that is the column the shelf
+   * actually reads.
+   *
+   * This first required `approvedAt` as well, on the reasoning that it is the
+   * column an approval writes. That was wrong twice over. Every public
+   * visibility filter gates on status alone and none of them mentions
+   * `approvedAt` (EventEmbedController, EventInvitationPublicService,
+   * EventLifecycleService), and in prod 245 of the 250 ACTIVE event listings
+   * have a NULL `approvedAt` -- it is written only where a community
+   * self-lists its own event, so on nearly everything else it is empty while
+   * the listing sells perfectly well.
+   *
+   * Requiring it therefore hid Preview on almost every genuinely live
+   * listing, which is the opposite of what the button is for. A field whose
+   * name suggests the answer is not the same thing as the field the system
+   * reads.
+   */
+  const itemIsLive = state === "ACTIVE";
   const headerActionsNode: ReactNode =
     typeof headerActions === "function"
-      ? headerActions({ id: heroItem?.id, slug: heroItem?.slug, name: listedItemName })
+      ? headerActions({ id: heroItem?.id, slug: heroItem?.slug, name: listedItemName, live: itemIsLive })
       : (headerActions ?? null);
   const heroImage: string | null =
     (kind === "event"
@@ -549,8 +586,46 @@ export function ManagedListingDetail({
    * server-side guard; products resolve their terms through a different route
    * and disabling approve there on a hunch would break a flow that works.
    */
-  const approveNeedsTerms =
+  /*
+   * A paid event listing with no rate the seller has ACCEPTED.
+   *
+   * Two completely different things follow from it depending on whether the
+   * listing has been approved yet, and for a while this said only the first
+   * one, on both.
+   */
+  const paidWithoutAgreedTerms =
     kind === "event" && listing.isPaid === true && rate == null;
+  /*
+   * BEFORE approval: the rule. Approve is refused by the backend, so the
+   * button must not offer it.
+   *
+   * Scoped to PENDING because that is the only state where Approve is offered
+   * at all (reviewerListingActions). It was unscoped, so on an ACTIVE listing
+   * it kept gating a button that is not on the page.
+   */
+  const approveNeedsTerms = paidWithoutAgreedTerms && state === "PENDING";
+  /*
+   * AFTER approval: a fact, and a liability.
+   *
+   * The same condition on a live listing was still rendering "before this can
+   * go live", beside a Revoke button, on a listing that went live months ago
+   * and has sold tickets. It is not an instruction, it already happened.
+   *
+   * What is true instead is worth saying, because nothing else on the page
+   * says it: with no snapshot on the row, every sale resolves the cut through
+   * the FALLBACK resolver, off the seller's tier and the product type. So the
+   * community's own rate settings are retroactively load-bearing here, and
+   * editing them silently retrades this listing. PBN has 26 live event
+   * listings in exactly this state.
+   *
+   * Events only, for the same reason the gate above is: `isPaid` is a
+   * server-computed flag this page only receives for events, and the file's
+   * own history (the "Free" incident at `heroIsFree`) is about why inferring
+   * paid-ness from a price is not a substitute. A product listing in this
+   * state therefore still says nothing, which is a known gap, not a decision
+   * that it cannot happen.
+   */
+  const liveWithoutAgreedTerms = paidWithoutAgreedTerms && state === "ACTIVE";
 
   async function openCompose(): Promise<{ id: string; name: string; description: string | null; rate: number }[]> {
     setComposing(true);
@@ -1241,11 +1316,15 @@ export function ManagedListingDetail({
         withdrawal on purpose — one is "we said no", the other is "I took it
         back", and a row that confuses them lies about who decided.
       */}
-      {reviewActions.length > 0 && approveNeedsTerms && (
+      {reviewActions.length > 0 && (approveNeedsTerms || liveWithoutAgreedTerms) && (
         /* On a touch screen a title attribute is invisible, so the reason is
-           said in the bar rather than only on hover. */
+           said in the bar rather than only on hover.
+
+           Which sentence depends on whether this is still a request or
+           already a shelf: one is the rule stopping you, the other is what is
+           happening in its absence. */
         <p className="w-full text-[12px] leading-snug text-[var(--ink-2)] sm:mr-auto sm:w-auto sm:self-center">
-          {t("approveNeedsTerms")}
+          {approveNeedsTerms ? t("approveNeedsTerms") : t("liveWithoutTerms")}
         </p>
       )}
       {reviewActions.length > 0 && (
