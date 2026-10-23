@@ -709,3 +709,45 @@ describe("payouts & fees card", () => {
         expect(screen.queryByText("Nothing taken yet")).not.toBeInTheDocument();
     });
 });
+
+/**
+ * THE COMMISSION, AND COBUNTU'S CUT OF IT.
+ *
+ * This card showed the community's FULL commission while the listing rows
+ * beneath it showed what the community is actually paid -- EUR 0.40 against
+ * EUR 0.38 on a EUR 5 sale, under one word, with nothing to say where the two
+ * cents went. Both figures were right; the page never admitted they were
+ * different measurements.
+ */
+describe("the community commission, and Cobuntu's cut of it", () => {
+    const withCut = (breakdown: Record<string, number>): OverviewStats =>
+        stats({
+            money: {
+                net: 412, gross: 500, held: 412, due: 0, paid: 0,
+                nextPayoutAt: null, currency: "EUR",
+                breakdown: breakdown as any,
+            },
+            ownership: "member",
+            rates: { cobuntuPct: null, communityPct: 8 },
+        });
+
+    it("says what Cobuntu took and what the community is left with", () => {
+        renderIt(withCut({ vat: 0, stripe: 0, cobuntu: 48, community: 40, communityCut: 2, net: 412 }));
+        expect(screen.getByText(/Cobuntu takes/)).toBeTruthy();
+        expect(screen.getByText(/to the community/)).toBeTruthy();
+    });
+
+    it("stays silent when there is no cut", () => {
+        // A zero would add a line that says nothing, and a community-owned
+        // item has no broker to pay at all.
+        renderIt(withCut({ vat: 0, stripe: 0, cobuntu: 48, community: 40, communityCut: 0, net: 412 }));
+        expect(screen.queryByText(/Cobuntu takes/)).toBeNull();
+    });
+
+    it("survives a backend that does not send the field yet", () => {
+        // Optional on purpose: the package is pinned by SHA, so an app can be
+        // running an older core than the one this shipped with.
+        renderIt(withCut({ vat: 0, stripe: 0, cobuntu: 48, community: 40, net: 412 }));
+        expect(screen.queryByText(/Cobuntu takes/)).toBeNull();
+    });
+});

@@ -57,6 +57,13 @@ type Slice = {
     key: string;
     label: string;
     note?: string | null;
+    /**
+     * A second line under the label, for a figure that is a slice OF this row
+     * rather than a sibling of it. The commission uses it to say what Cobuntu
+     * took out and what the community is left with -- neither belongs in the
+     * bar, because both are already inside this row's width.
+     */
+    sub?: string | null;
     amount: number;
     /** What the legend prints. Usually the money; "covered" for absorbed Stripe. */
     display: string;
@@ -115,6 +122,9 @@ function LegendItem({ slice }: { slice: Slice }) {
             <span className="min-w-0 flex-1 text-[12.5px] leading-snug text-zinc-600">
                 {slice.label}
                 {slice.note ? <span className="ml-1 text-zinc-400">{slice.note}</span> : null}
+                {slice.sub ? (
+                    <span className="mt-0.5 block text-[11.5px] text-zinc-400">{slice.sub}</span>
+                ) : null}
             </span>
             <span
                 className={`shrink-0 text-[12.5px] font-semibold tabular-nums ${
@@ -164,6 +174,19 @@ export function PayoutsAndFees({
                 key: "community",
                 label: t("feesCommunityCommission"),
                 note: rates?.communityPct != null ? t("feesPct", { rate: pct(rates.communityPct) }) : null,
+                /*
+                 * What the community is actually PAID, when the backend says.
+                 * The listing rows beneath this card report that figure, and
+                 * without this line the two read as a contradiction rather
+                 * than as a commission and the cut taken out of it.
+                 *
+                 * Only when there is a cut: a zero would add a line that says
+                 * nothing, and on a community-owned item there is no broker at
+                 * all.
+                 */
+                sub: b.communityCut
+                    ? `${t("feesCommunityCut", { amount: cash(b.communityCut) })} · ${t("feesCommunityReceives", { amount: cash(b.community - b.communityCut) })}`
+                    : null,
                 amount: b.community,
                 display: cash(b.community),
                 swatch: "bg-amber-500",

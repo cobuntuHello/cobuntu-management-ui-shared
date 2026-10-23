@@ -67,6 +67,16 @@ export interface FeeBreakdown {
     cobuntu: number;
     /** What the owner pays the broker community (its full commission; 0 if none). */
     community: number;
+    /**
+     * Cobuntu's slice OF that commission, on member sales. Optional so the
+     * package keeps compiling against a backend that does not send it yet.
+     *
+     * Without it this card and the listing row beneath it disagreed in public:
+     * the card showed the FULL commission (EUR 0.40 on a EUR 5 sale at 8%)
+     * while the row showed what the community is actually paid (EUR 0.38,
+     * after Cobuntu's cut of the commission). Two true numbers under one word.
+     */
+    communityCut?: number;
     /** What the owner keeps. Equal to `money.net`. */
     net: number;
 }
