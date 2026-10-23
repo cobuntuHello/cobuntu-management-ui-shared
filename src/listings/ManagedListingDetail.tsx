@@ -572,8 +572,46 @@ export function ManagedListingDetail({
    * server-side guard; products resolve their terms through a different route
    * and disabling approve there on a hunch would break a flow that works.
    */
-  const approveNeedsTerms =
+  /*
+   * A paid event listing with no rate the seller has ACCEPTED.
+   *
+   * Two completely different things follow from it depending on whether the
+   * listing has been approved yet, and for a while this said only the first
+   * one, on both.
+   */
+  const paidWithoutAgreedTerms =
     kind === "event" && listing.isPaid === true && rate == null;
+  /*
+   * BEFORE approval: the rule. Approve is refused by the backend, so the
+   * button must not offer it.
+   *
+   * Scoped to PENDING because that is the only state where Approve is offered
+   * at all (reviewerListingActions). It was unscoped, so on an ACTIVE listing
+   * it kept gating a button that is not on the page.
+   */
+  const approveNeedsTerms = paidWithoutAgreedTerms && state === "PENDING";
+  /*
+   * AFTER approval: a fact, and a liability.
+   *
+   * The same condition on a live listing was still rendering "before this can
+   * go live", beside a Revoke button, on a listing that went live months ago
+   * and has sold tickets. It is not an instruction, it already happened.
+   *
+   * What is true instead is worth saying, because nothing else on the page
+   * says it: with no snapshot on the row, every sale resolves the cut through
+   * the FALLBACK resolver, off the seller's tier and the product type. So the
+   * community's own rate settings are retroactively load-bearing here, and
+   * editing them silently retrades this listing. PBN has 26 live event
+   * listings in exactly this state.
+   *
+   * Events only, for the same reason the gate above is: `isPaid` is a
+   * server-computed flag this page only receives for events, and the file's
+   * own history (the "Free" incident at `heroIsFree`) is about why inferring
+   * paid-ness from a price is not a substitute. A product listing in this
+   * state therefore still says nothing, which is a known gap, not a decision
+   * that it cannot happen.
+   */
+  const liveWithoutAgreedTerms = paidWithoutAgreedTerms && state === "ACTIVE";
 
   async function openCompose(): Promise<{ id: string; name: string; description: string | null; rate: number }[]> {
     setComposing(true);
@@ -1264,11 +1302,15 @@ export function ManagedListingDetail({
         withdrawal on purpose — one is "we said no", the other is "I took it
         back", and a row that confuses them lies about who decided.
       */}
-      {reviewActions.length > 0 && approveNeedsTerms && (
+      {reviewActions.length > 0 && (approveNeedsTerms || liveWithoutAgreedTerms) && (
         /* On a touch screen a title attribute is invisible, so the reason is
-           said in the bar rather than only on hover. */
+           said in the bar rather than only on hover.
+
+           Which sentence depends on whether this is still a request or
+           already a shelf: one is the rule stopping you, the other is what is
+           happening in its absence. */
         <p className="w-full text-[12px] leading-snug text-[var(--ink-2)] sm:mr-auto sm:w-auto sm:self-center">
-          {t("approveNeedsTerms")}
+          {approveNeedsTerms ? t("approveNeedsTerms") : t("liveWithoutTerms")}
         </p>
       )}
       {reviewActions.length > 0 && (
