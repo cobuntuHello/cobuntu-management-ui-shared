@@ -106,6 +106,8 @@ export type {
 
 export { BannerPlaceholder, bannerPlaceholderGradient, bannerPlaceholderHash } from "./ui/BannerPlaceholder";
 export type { BannerPlaceholderProps } from "./ui/BannerPlaceholder";
+export { PolicyRow, AudienceMeter } from "./ui/PolicyRow";
+export type { PolicyRowProps, AudienceLevel } from "./ui/PolicyRow";
 
 /*
  * The listing review panel, shared.
