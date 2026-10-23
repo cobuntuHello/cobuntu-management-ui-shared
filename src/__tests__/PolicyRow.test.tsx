@@ -165,3 +165,27 @@ describe("ManagedListingDetail's state chip", () => {
         expect(next).toContain('if (state !== "PENDING") return null;');
     });
 });
+
+describe("RefundPolicyField", () => {
+    it("says only what differs between the two presets", () => {
+        /*
+         * Standard read "Buyers can self-refund within the usual window. You
+         * can always refund a buyer directly." The second sentence is true of
+         * BOTH options, so half the text told you nothing about the choice you
+         * were making. What differs is only whether the buyer can do it
+         * themselves.
+         */
+        const src = readFileSync(resolve(process.cwd(), "src/listings/RefundPolicyField.tsx"), "utf8");
+        expect(src).toContain('subtitle="Buyers can refund themselves within the usual window."');
+        expect(src).toContain('subtitle="Buyers ask you instead."');
+        expect(src).not.toContain("You can always refund a buyer directly");
+    });
+
+    it("is one file, not one per package", () => {
+        // It existed twice, in event-management-ui and product-management-ui,
+        // each comment claiming to be "ONE shared control" and naming the
+        // other as its mirror. Identical markup, nothing keeping them so.
+        const index = readFileSync(resolve(process.cwd(), "src/index.ts"), "utf8");
+        expect(index).toContain('export { RefundPolicyField');
+    });
+});
