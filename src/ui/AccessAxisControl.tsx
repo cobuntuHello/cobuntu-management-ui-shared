@@ -88,6 +88,7 @@ export function AccessAxisControl({
         {label}
       </div>
 
+      <div className="flex flex-col gap-1">
       <Row
         title="Public"
         subtitle={publicLabel}
@@ -124,9 +125,10 @@ export function AccessAxisControl({
           }
         />
       )}
+      </div>
 
       {value.mode === "tiers" && canChooseTiers && (
-        <div>
+        <div className="mt-1">
           {choosable.map((tier, i) => {
             const checked = tierIsIncluded(value, tier.id);
             return (
@@ -138,17 +140,23 @@ export function AccessAxisControl({
                 aria-disabled={disabled}
                 disabled={disabled}
                 onClick={() => onChange(toggleTier(value, tier.id, choosableIds, ceiling))}
-                className={`relative flex w-full items-center gap-3 rounded-[9px] py-[9px] pl-[30px] pr-3.5 text-left transition-colors active:bg-zinc-100 disabled:cursor-default ${
+                className={`relative flex w-full items-center gap-3 rounded-[9px] py-[9px] pl-[30px] pr-3.5 text-left transition-colors hover:bg-zinc-50 active:bg-zinc-100 disabled:cursor-default ${
                   // A faint rail from the parent row down to the last child —
                   // the visual tie that makes this read as nested.
                   i === choosable.length - 1 ? "before:bottom-1/2" : "before:bottom-0"
                 } before:absolute before:left-6 before:top-0 before:w-[1.5px] before:bg-zinc-100 before:content-['']`}
               >
                 <span className="min-w-0 flex-1 text-[13.5px] text-zinc-700">{tier.name}</span>
+                {/* Brand rather than pure black. Four stacked zinc-900 squares
+                    were the heaviest marks in the control, which put the most
+                    weight on its least important rows -- these are children of
+                    a choice already made above them. */}
                 <span
-                  className={`grid h-[19px] w-[19px] shrink-0 place-items-center rounded-[5px] border ${
-                    checked ? "border-zinc-900 bg-zinc-900" : "border-zinc-200"
-                  }`}
+                  className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] border transition-colors"
+                  style={{
+                    borderColor: checked ? "var(--brand-color, #18181b)" : "rgba(128,128,128,0.30)",
+                    background: checked ? "var(--brand-color, #18181b)" : "transparent",
+                  }}
                 >
                   {checked && (
                     <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4">
@@ -193,7 +201,40 @@ function Row({
       aria-disabled={disabled}
       disabled={disabled}
       onClick={onClick}
-      className="flex min-h-[46px] w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left transition-colors active:bg-zinc-100 disabled:cursor-default"
+      /*
+        * A RESTING SURFACE, and a selected state readable from the left edge.
+        *
+        * These rows had no fill and no hover -- only `active:`, a press state
+        * -- so at rest they were bare text on white and did not read as the
+        * choices they are. Selection was carried entirely by a 20px dot at the
+        * far right, which on a wide card is a long way from the label it
+        * answers: the chosen row looked identical to the other two until the
+        * eye travelled to the end of it.
+        *
+        * Now the row itself carries the answer. Selected takes a brand-tinted
+        * plate and ring; the rest take the muted plate used for every other
+        * settings row in these forms, and deepen on hover.
+        */
+      style={selected && !disabled ? { boxShadow: undefined, ["--tw-ring-color" as string]: "color-mix(in srgb, var(--brand-color, #18181b) 30%, transparent)" } : undefined}
+      className={`flex min-h-[46px] w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left transition-all disabled:cursor-default ${
+        /*
+          * Selected LIFTS: white plate, ring, soft shadow. Unselected is the
+          * muted plate.
+          *
+          * The first attempt tinted the selected row with the brand colour at
+          * 7%. Rendered with no brand token -- which is the admin's case, and
+          * the fallback is near-black -- that tint came out a grey within a
+          * hair of the zinc-50 beneath it, so the chosen row was once again
+          * indistinguishable from the other two. White against zinc-50 is a
+          * difference that survives having no hue at all, and the ring takes
+          * the brand colour where there is one.
+          */
+        disabled
+          ? "bg-zinc-50/60"
+          : selected
+            ? "bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_20px_-14px_rgba(0,0,0,0.5)] ring-[1.5px]"
+            : "bg-zinc-50 hover:bg-zinc-100 cursor-pointer"
+      }`}
     >
       <span className="min-w-0 flex-1">
         <span className={`block text-[14.5px] font-semibold ${disabled ? "text-zinc-300" : "text-zinc-900"}`}>
@@ -202,11 +243,21 @@ function Row({
         <span className="block text-[11.5px] text-zinc-400">{subtitle}</span>
       </span>
       <span
-        className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${
-          disabled ? "border-zinc-100" : selected ? "border-zinc-900" : "border-zinc-200"
-        }`}
+        className="grid h-5 w-5 shrink-0 place-items-center rounded-full border"
+        style={{
+          borderColor: disabled
+            ? "rgba(128,128,128,0.18)"
+            : selected
+              ? "var(--brand-color, #18181b)"
+              : "rgba(128,128,128,0.30)",
+        }}
       >
-        {selected && <span className={`h-[9px] w-[9px] rounded-full ${disabled ? "bg-zinc-200" : "bg-zinc-900"}`} />}
+        {selected && (
+          <span
+            className="h-[9px] w-[9px] rounded-full"
+            style={{ background: disabled ? "rgba(128,128,128,0.25)" : "var(--brand-color, #18181b)" }}
+          />
+        )}
       </span>
       {trailing}
     </button>
