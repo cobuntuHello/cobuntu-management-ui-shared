@@ -46,7 +46,8 @@ export function RefundPolicyField({
       <RefundOption
         selected={!off}
         onClick={() => onChange(REFUND_STANDARD)}
-        icon={<RotateCcw className="h-3 w-3" />}
+        icon={<RotateCcw className="h-[18px] w-[18px]" />}
+        badgeClassName="bg-orange-100 text-orange-600"
         title="Standard refunds"
         /*
          * The CONSEQUENCE, in one line.
@@ -62,7 +63,8 @@ export function RefundPolicyField({
       <RefundOption
         selected={off}
         onClick={() => onChange(REFUND_NONE)}
-        icon={<MessageCircle className="h-3 w-3" />}
+        icon={<MessageCircle className="h-[18px] w-[18px]" />}
+        badgeClassName="bg-sky-100 text-sky-600"
         title="No self-service refunds"
         subtitle="Buyers ask you instead."
       />
@@ -82,12 +84,16 @@ function RefundOption({
   selected,
   onClick,
   icon,
+  badgeClassName,
   title,
   subtitle,
 }: {
   selected: boolean;
   onClick: () => void;
   icon: React.ReactNode;
+  /** Always on, regardless of selection -- matches every other colored
+   *  row-item badge in the wizard, none of which fade to gray when unpicked. */
+  badgeClassName: string;
   title: string;
   subtitle: string;
 }) {
@@ -102,13 +108,11 @@ function RefundOption({
     >
       {/* Same colored-badge language as every other row-item in the create
           wizard (description/tags/category/CTA), so a refund row reads as
-          one more thing you're choosing. Each option gets its own icon,
-          picked for what it means rather than shared between both cards. */}
-      <span
-        className={`flex items-center justify-center w-[22px] h-[22px] rounded-full shrink-0 ${
-          selected ? "bg-orange-100 text-orange-600" : "bg-zinc-100 text-zinc-500"
-        }`}
-      >
+          one more thing you're choosing. Each option gets its own icon and
+          its own fixed color, picked for what it means -- sized to match the
+          Approval/Purchases rows' w-9 h-9 badges (was w-[22px], noticeably
+          smaller than every sibling row). */}
+      <span className={`flex items-center justify-center w-9 h-9 rounded-full shrink-0 ${badgeClassName}`}>
         {icon}
       </span>
       <span className="min-w-0 flex-1">

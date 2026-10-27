@@ -127,8 +127,16 @@ export function ModalShell({
                 type="button"
                 onClick={onClose}
                 aria-label="Close"
-                className="shrink-0 -mr-1 -mt-1 p-1.5 rounded-lg cursor-pointer transition-colors"
-                style={{ color: "color-mix(in srgb, var(--text-color, #18181b) 45%, transparent)" }}
+                // Muted circular chip, matching every other dismissible
+                // surface's close control (ActionModalShell, the wizard's
+                // tip banner) -- this shell's own X used to be a bare
+                // unfilled icon, the one dismiss affordance in the product
+                // that didn't match the rest.
+                className="shrink-0 -mr-1 -mt-1 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition-colors"
+                style={{
+                  color: "color-mix(in srgb, var(--text-color, #18181b) 55%, transparent)",
+                  background: "color-mix(in srgb, var(--text-color, #18181b) 6%, transparent)",
+                }}
               >
                 <X className="size-4" />
               </button>
