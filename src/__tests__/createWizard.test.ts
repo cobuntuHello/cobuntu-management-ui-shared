@@ -292,23 +292,22 @@ describe("back walks the steps before it leaves the page", () => {
   });
 });
 
-describe("a step whose answer is already known is not a step", () => {
+describe("the arrangement step always shows, even when there is only one package", () => {
     /*
-     * From the negotiation MVP, which is the agreed design for this flow, and
-     * it is a rule rather than a nicety: "this screen exists ONLY when the tier
-     * has more than one. With a single package there is nothing to decide, so
-     * Request listing submits straight through."
-     *
-     * The wizard already pre-selected a lone package on load — precisely
-     * because it is not a choice — and then showed the screen anyway, asking
-     * someone to confirm a decision that had been made for them, and counting
-     * it in "Step 2 of 3".
+     * This used to skip the step for a sole package ("a step whose answer is
+     * already known is not a step" -- the negotiation MVP's original rule).
+     * Reversed per live feedback: a seller who only ever sees one package got
+     * NO screen anywhere naming what they are paid, and the wizard's own
+     * stepper/footer called Policies & access the last step with no
+     * indication an arrangement had been decided for them. The package is
+     * still pre-selected; it is just also shown, every time, so the seller
+     * sees what they are agreeing to.
      */
     const personal = { canChooseOwnership: false, ownership: "personal" as const };
 
-    it("drops the arrangement step when there is exactly one package", () => {
+    it("keeps the arrangement step even when there is exactly one package", () => {
         expect(resolveCreateSteps({ ...personal, hasPackages: true, packageCount: 1 }))
-            .toEqual(["details"]);
+            .toEqual(["details", "listing"]);
     });
 
     it("keeps it when there is a real choice", () => {
@@ -468,18 +467,15 @@ describe("the content step", () => {
         expect(steps.indexOf("content")).toBeLessThan(steps.indexOf("access"));
     });
 
-    it("becomes the final step when the community publishes one arrangement", () => {
-        /*
-         * A sole package is not a choice, so that step does not exist and the
-         * create moves onto content. Worth pinning: it is the case where the
-         * new step inherits the commit buttons.
-         */
+    it("the arrangement step is still the final step when the community publishes one package", () => {
+        // The step exists (and is shown) even for a sole package now; it still
+        // comes after content and is still where the flow ends.
         const steps = resolveCreateSteps({
             canChooseOwnership: false, ownership: "personal", packageCount: 1,
             withCommerceStep: true, withContentStep: true,
         });
-        expect(steps).not.toContain("listing");
-        expect(isFinalStep(steps, "content")).toBe(true);
+        expect(steps).toContain("listing");
+        expect(isFinalStep(steps, "listing")).toBe(true);
     });
 
     it("has its own header copy rather than falling through to Access", () => {

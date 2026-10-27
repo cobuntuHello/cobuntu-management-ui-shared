@@ -245,23 +245,21 @@ export function resolveCreateSteps({
      * has no second party and no commission to agree.
      */
     /*
-     * The arrangement step exists only where there is something to arrange.
+     * The arrangement step, always shown for anything sold personally.
      *
-     * From the MVP, and it is a rule rather than a nicety: "this screen exists
-     * ONLY when the tier has more than one. With a single package there is
-     * nothing to decide, so Request listing submits straight through — a step
-     * whose answer is already known is not a step."
-     *
-     * The wizard already pre-selects a lone package on load, precisely because
-     * it is not a choice; showing the screen anyway asked someone to confirm a
-     * decision that had been made for them, and counted it in "Step 2 of 3".
-     *
-     * ZERO packages keeps the step. That case is not "nothing to decide", it is
-     * "nothing published" — and the step says so, which is how the seller
-     * learns the community will propose terms at review instead.
+     * Used to skip itself when the community published exactly one package,
+     * on the reasoning that a pre-selected lone option is "not a choice" and
+     * showing it anyway asked someone to confirm a decision already made for
+     * them. In practice that left a seller who only ever sees one package
+     * with NO screen at all naming the commission they are on -- the final
+     * step (Policies & access) read as the last step while what they are
+     * actually paid was never shown anywhere (reported from live use: "I
+     * think the stepper is wrong, I never saw a package to pick"). The
+     * commission is worth seeing even when it is not a decision, so the step
+     * is unconditional now; the wizard still pre-selects the lone package, it
+     * just also shows the seller what it pre-selected.
      */
-    const soleArrangement = packageCount === 1;
-    if (ownership === "personal" && !soleArrangement) steps.push("listing");
+    if (ownership === "personal") steps.push("listing");
     /*
      * Keyed on the EFFECTIVE ownership, not on whether ownership was a choice.
      * The capability is a property of WHAT is being created, not of WHO is
