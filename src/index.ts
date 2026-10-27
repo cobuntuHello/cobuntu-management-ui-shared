@@ -49,6 +49,9 @@ export type { WizardProgressProps, WizardStep } from "./ui/WizardProgress";
 export { DiscardPrompt } from "./ui/DiscardPrompt";
 export type { DiscardPromptProps } from "./ui/DiscardPrompt";
 
+export { ConfirmLeaveModal } from "./ui/ConfirmLeaveModal";
+export type { ConfirmLeaveModalProps } from "./ui/ConfirmLeaveModal";
+
 export { BillingRadio } from "./ui/BillingRadio";
 export type { BillingRadioProps, BillingMode, BillingOption } from "./ui/BillingRadio";
 
