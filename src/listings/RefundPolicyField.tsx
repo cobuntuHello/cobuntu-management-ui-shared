@@ -1,5 +1,5 @@
 import * as React from "react";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, MessageCircle } from "lucide-react";
 
 /**
  * The seller's refund choice: two presets, one control.
@@ -46,6 +46,7 @@ export function RefundPolicyField({
       <RefundOption
         selected={!off}
         onClick={() => onChange(REFUND_STANDARD)}
+        icon={<RotateCcw className="h-3 w-3" />}
         title="Standard refunds"
         /*
          * The CONSEQUENCE, in one line.
@@ -61,6 +62,7 @@ export function RefundPolicyField({
       <RefundOption
         selected={off}
         onClick={() => onChange(REFUND_NONE)}
+        icon={<MessageCircle className="h-3 w-3" />}
         title="No self-service refunds"
         subtitle="Buyers ask you instead."
       />
@@ -68,14 +70,24 @@ export function RefundPolicyField({
   );
 }
 
+/**
+ * A bordered selection card, not a radio row: no indicator dot anywhere on
+ * the card, selected state is carried entirely by the border (thicker +
+ * colored) and a tinted background, matching the pricing-preset card pattern
+ * used elsewhere in the create wizard. The whole card is the click target,
+ * and `aria-pressed` carries the selected state for assistive tech now that
+ * there is no `role="radio"` input to carry it.
+ */
 function RefundOption({
   selected,
   onClick,
+  icon,
   title,
   subtitle,
 }: {
   selected: boolean;
   onClick: () => void;
+  icon: React.ReactNode;
   title: string;
   subtitle: string;
 }) {
@@ -84,33 +96,24 @@ function RefundOption({
       type="button"
       onClick={onClick}
       aria-pressed={selected}
-      className={`w-full text-left flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors ${
+      className={`w-full text-left flex items-center gap-3 rounded-lg border-2 px-3 py-2.5 cursor-pointer transition-colors ${
         selected ? "border-zinc-900 bg-zinc-50" : "border-zinc-200 bg-white hover:bg-zinc-50/50"
       }`}
     >
       {/* Same colored-badge language as every other row-item in the create
           wizard (description/tags/category/CTA), so a refund row reads as
-          one more thing you're choosing, not a bare radio pair. */}
-      <span className="flex items-center justify-center w-[22px] h-[22px] rounded-full bg-orange-100 text-orange-600 shrink-0">
-        <RotateCcw className="h-3 w-3" />
+          one more thing you're choosing. Each option gets its own icon,
+          picked for what it means rather than shared between both cards. */}
+      <span
+        className={`flex items-center justify-center w-[22px] h-[22px] rounded-full shrink-0 ${
+          selected ? "bg-orange-100 text-orange-600" : "bg-zinc-100 text-zinc-500"
+        }`}
+      >
+        {icon}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[13px] font-medium text-zinc-900">{title}</span>
         <span className="block text-[12px] text-zinc-500">{subtitle}</span>
-      </span>
-      {/*
-       * The radio indicator moves to the END of the row, not the start.
-       * Every other control in this wizard (toggles in the same "Policies &
-       * access" step, the pricing-preset cards) puts its state indicator on
-       * the trailing edge -- a radio leading the row broke that rhythm and
-       * read like a form checklist dropped into a settings page.
-       */}
-      <span
-        className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
-          selected ? "border-zinc-900" : "border-zinc-300"
-        }`}
-      >
-        {selected && <span className="h-1.5 w-1.5 rounded-full bg-zinc-900" />}
       </span>
     </button>
   );
