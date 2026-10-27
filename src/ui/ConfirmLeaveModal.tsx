@@ -41,15 +41,14 @@ export function ConfirmLeaveModal({
       open
       onClose={onCancel}
       width="sm"
-      hideCloseButton
-      dismissOnBackdrop={false}
+      dismissOnBackdrop
       title={title}
       footer={
         <div className="flex justify-end gap-2">
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 text-[13px] text-zinc-700 rounded-lg hover:bg-zinc-100 cursor-pointer"
+            className="px-4 py-2 text-[13px] font-medium text-zinc-700 bg-zinc-100 rounded-lg hover:bg-zinc-200 cursor-pointer"
           >
             {cancelLabel}
           </button>
