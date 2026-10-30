@@ -1,6 +1,9 @@
 export { ModalShell } from "./ui/ModalShell";
 export type { ModalShellProps, ModalShellWidth } from "./ui/ModalShell";
 
+export { ResponsiveDrawer } from "./ui/ResponsiveDrawer";
+export type { ResponsiveDrawerProps } from "./ui/ResponsiveDrawer";
+
 export { ActionModalShell } from "./ui/ActionModalShell";
 export type { ActionModalShellProps } from "./ui/ActionModalShell";
 
