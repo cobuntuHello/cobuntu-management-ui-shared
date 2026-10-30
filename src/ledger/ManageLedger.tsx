@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import type { ItemLedger, LedgerMovement } from "./types";
 import type { StripeDestination } from "../overview/types";
 import { formatMoney } from "../overview/format";
@@ -69,6 +69,102 @@ function hasBreakdown(m: LedgerMovement): boolean {
         && [m.vat, m.stripeFee, m.cobuntuFee, m.communityFee].some((v) => v !== undefined);
 }
 
+/** Two-letter initials for the row's avatar chip, same logic as the drawer's. */
+function initials(name: string): string {
+    return name.trim().split(/\s+/).slice(0, 2).map((s) => s[0]).join("").toUpperCase() || "?";
+}
+
+/**
+ * A row to render, paired with whether it's a refund nested under its sale.
+ *
+ * ── Why pairing happens here, not in the backend ────────────────────────────
+ *
+ * The admin community ledger pairs a refund directly under its sale rather
+ * than listing it as a separate top-level movement, "same sort date, so they
+ * never drift apart". This view's own backend comment explains the server
+ * deliberately does NOT assemble movements beyond the flat list — "both
+ * endpoints return sales, payouts and a summary, and each frontend page
+ * builds the movement list itself" — so pairing is this page's job, same as
+ * the admin's.
+ */
+interface DisplayRow {
+    m: LedgerMovement;
+    paired: boolean;
+}
+
+function buildDisplayRows(movements: LedgerMovement[]): DisplayRow[] {
+    const saleKeys = new Set(movements.filter((m) => m.kind === "sale").map((m) => m.key));
+    const refundsBySale = new Map<string, LedgerMovement[]>();
+    for (const m of movements) {
+        if (m.kind === "refund" && m.saleKey && saleKeys.has(m.saleKey)) {
+            const arr = refundsBySale.get(m.saleKey) ?? [];
+            arr.push(m);
+            refundsBySale.set(m.saleKey, arr);
+        }
+    }
+    const pairedKeys = new Set(Array.from(refundsBySale.values()).flat().map((r) => r.key));
+
+    const rows: DisplayRow[] = [];
+    for (const m of movements) {
+        if (pairedKeys.has(m.key)) continue; // placed right after its sale below instead
+        rows.push({ m, paired: false });
+        const refunds = m.kind === "sale" ? refundsBySale.get(m.key) : undefined;
+        if (refunds) for (const r of refunds) rows.push({ m: r, paired: true });
+    }
+    return rows;
+}
+
+/**
+ * Rows grouped under their month, newest first — mirroring the admin
+ * ledger's sticky month headers. A paired refund takes its SALE's month
+ * (inherits the sale's group) rather than its own refund date, same
+ * rationale as the admin page: "stays in the sale's month" so a December
+ * sale refunded in January doesn't fracture across two sections.
+ */
+function groupByMonth(
+    rows: DisplayRow[],
+    monthLabel: (d: Date) => string,
+): { key: string; label: string; items: DisplayRow[] }[] {
+    const out: { key: string; label: string; items: DisplayRow[] }[] = [];
+    for (const row of rows) {
+        if (row.paired) {
+            const last = out[out.length - 1];
+            if (last) last.items.push(row);
+            continue;
+        }
+        const d = new Date(row.m.at);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        const last = out[out.length - 1];
+        if (!last || last.key !== key) out.push({ key, label: monthLabel(d), items: [row] });
+        else last.items.push(row);
+    }
+    return out;
+}
+
+type KindFilter = "all" | "sale" | "refund" | "payout" | "dispute";
+type RangeFilter = "all" | "7" | "30" | "90";
+
+function matchesFilters(m: LedgerMovement, kind: KindFilter, range: RangeFilter, query: string): boolean {
+    if (kind !== "all" && m.kind !== kind) return false;
+    if (range !== "all") {
+        const days = Number(range);
+        const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+        if (new Date(m.at).getTime() < cutoff) return false;
+    }
+    if (query.trim()) {
+        const q = query.trim().toLowerCase();
+        const haystack = `${m.buyerName ?? ""} ${m.reason ?? ""}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+    }
+    return true;
+}
+
+/** One cell in a CSV row — quoted, with embedded quotes doubled per RFC 4180. */
+function csvCell(v: string | number): string {
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
 function statusLabel(status: string, t: (key: string) => string): string {
     return TRANSLATED_STATUSES.has(status) ? t(`ledgerStatus_${status}`) : humanise(status);
 }
@@ -120,7 +216,17 @@ export function ManageLedger({
         setPanelVisible(false);
         setTimeout(() => setSelectedMovement(null), 250);
     };
-    const columns = 3 + (showCommunity ? 1 : 0); // movement + gross + [community] + seller
+
+    /* Kind / time-range / search — all client-side. The endpoint already
+       returns the whole item's history in one response (see LedgerService's
+       own doc comment on why this page doesn't paginate: a single item's
+       ledger is nowhere near the size a community-wide one can reach), so
+       filtering what's already in hand needs no round trip. */
+    const [kindFilter, setKindFilter] = useState<KindFilter>("all");
+    const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
+    const [query, setQuery] = useState("");
+
+    const monthLabel = (d: Date) => d.toLocaleDateString(locale, { month: "long", year: "numeric" });
 
     if (movements.length === 0) {
         /*
@@ -138,58 +244,162 @@ export function ManageLedger({
     }
 
     /*
-     * Totals from the SALE rows only.
-     *
-     * Adding payouts in would double-count: a payout is money already counted
-     * when its sale was recorded, moving to a different place. Summing every
-     * signed row would make a fully paid-out product look like it earned
-     * nothing.
+     * Totals from the SALE rows only, and from the FULL set regardless of the
+     * filters above -- a position summary that shrank because someone typed
+     * into the search box would be the one number here that matters and the
+     * one easiest to get wrong. Mirrors the admin ledger's summary tiles
+     * (Balance owed / In escrow / Ready for payout / Paid to you), narrowed
+     * to what a single item's rows can actually support: there is no "ready
+     * for payout vs eligible" distinction surfaced per-row here the way the
+     * admin's dedicated summary endpoint has, so ESCROW and HOLD collapse
+     * into one "in escrow" figure rather than inventing a split the data
+     * doesn't carry.
      */
     const sales = movements.filter((m) => m.kind === "sale");
     const refunded = movements.filter((m) => m.kind === "refund");
     const earned = sales.reduce((n, m) => n + m.sellerNet, 0)
         - refunded.reduce((n, m) => n + m.sellerNet, 0);
+    const inEscrow = sales
+        .filter((m) => m.status === "ESCROW" || m.status === "HOLD")
+        .reduce((n, m) => n + m.sellerNet, 0);
+    const paidOut = sales
+        .filter((m) => m.status === "PAID")
+        .reduce((n, m) => n + m.sellerNet, 0);
+
+    const filtered = movements.filter((m) => matchesFilters(m, kindFilter, rangeFilter, query));
+    const groups = groupByMonth(buildDisplayRows(filtered), monthLabel);
+    const filtersActive = kindFilter !== "all" || rangeFilter !== "all" || query.trim() !== "";
+
+    const KIND_OPTIONS: { key: KindFilter; label: string }[] = [
+        { key: "all", label: t("ledgerFilterAll") },
+        { key: "sale", label: t("ledgerKind_sale") },
+        { key: "refund", label: t("ledgerKind_refund") },
+        { key: "payout", label: t("ledgerKind_payout") },
+        { key: "dispute", label: t("ledgerKind_dispute") },
+    ];
+    const RANGE_OPTIONS: { key: RangeFilter; label: string }[] = [
+        { key: "all", label: t("ledgerRangeAll") },
+        { key: "7", label: t("ledgerRange7") },
+        { key: "30", label: t("ledgerRange30") },
+        { key: "90", label: t("ledgerRange90") },
+    ];
+
+    function exportCsv() {
+        const header = [
+            t("ledgerColMovement"), "Date", "Status", t("ledgerColGross"),
+            ...(showCommunity ? [t("ledgerColCommunity")] : []),
+            t("ledgerColSeller"),
+        ];
+        const lines = [header.map(csvCell).join(",")];
+        for (const m of filtered) {
+            lines.push([
+                t(`ledgerKind_${m.kind}`),
+                day(m.at),
+                statusLabel(m.status, t),
+                m.sign === -1 && !(m.kind === "dispute" && m.status === "DISPUTE_WON") ? -m.gross : m.gross,
+                ...(showCommunity ? [m.communityCut] : []),
+                m.sellerNet,
+            ].map(csvCell).join(","));
+        }
+        const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `ledger-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
 
     return (
         <div className="space-y-4">
             <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
                 <h2 className="text-[16px] font-semibold text-zinc-900">{t("ledgerTitle")}</h2>
-                <p className="text-[13px] text-zinc-500">
-                    {t("ledgerSummary", {
-                        sales: sales.length,
-                        net: cash(earned),
-                    })}
-                </p>
+                <button
+                    type="button"
+                    onClick={exportCsv}
+                    className="cursor-pointer text-[12.5px] font-semibold text-zinc-500 hover:text-zinc-800"
+                >
+                    {t("ledgerExportCsv")}
+                </button>
+            </div>
+
+            {/* Summary band, mirroring the admin ledger's SummaryTile row.
+                Three tiles, not four: no per-row "ready to pay out vs still
+                in escrow" split exists in this item-scoped data the way the
+                admin's own summary endpoint carries it. */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <SummaryTile label={t("ledgerTileEarned")} amount={cash(earned)} highlighted />
+                <SummaryTile label={t("ledgerTileEscrow")} amount={cash(inEscrow)} />
+                <SummaryTile label={t("ledgerTilePaidOut")} amount={cash(paidOut)} />
+            </div>
+
+            {/* Filter bar. Client-side, the same `matchesFilters` the CSV
+                export reads from, so "what's on screen" and "what downloads"
+                can never disagree. */}
+            <div className="flex flex-wrap items-center gap-2">
+                <FilterDropdown value={kindFilter} options={KIND_OPTIONS} onChange={(k) => setKindFilter(k as KindFilter)} />
+                <FilterDropdown value={rangeFilter} options={RANGE_OPTIONS} onChange={(k) => setRangeFilter(k as RangeFilter)} />
+                <input
+                    type="search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={t("ledgerSearchPlaceholder")}
+                    className="min-w-[160px] flex-1 rounded-lg border border-zinc-200 px-3 py-1.5 text-[12.5px] text-zinc-700 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none"
+                />
+                <span className="text-[11px] text-zinc-400 tabular-nums">
+                    {t("ledgerMovementCount", { count: filtered.length })}
+                </span>
             </div>
 
             {/* Wide content scrolls in its own box; the page never does. */}
-            <div className="overflow-x-auto rounded-xl border border-zinc-200/70 bg-white">
-                <table className="w-full min-w-[560px] border-collapse text-left">
-                    <thead>
-                        <tr className="border-b border-zinc-200/70 text-[10.5px] uppercase tracking-[.08em] text-zinc-400">
-                            <th className="px-4 py-2.5 font-bold">{t("ledgerColMovement")}</th>
-                            <th className="px-4 py-2.5 text-right font-bold">{t("ledgerColGross")}</th>
-                            {showCommunity && (
-                                <th className="px-4 py-2.5 text-right font-bold">{t("ledgerColCommunity")}</th>
-                            )}
-                            <th className="px-4 py-2.5 text-right font-bold">{t("ledgerColSeller")}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {movements.map((m) => (
-                            <Row
-                                key={m.key}
-                                m={m}
-                                showCommunity={showCommunity}
-                                cash={cash}
-                                day={day}
-                                t={t}
-                                onOpen={openPanel}
-                            />
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            {groups.length > 0 ? (
+                <div className="overflow-x-auto rounded-xl border border-zinc-200/70 bg-white">
+                    <table className="w-full min-w-[560px] border-collapse text-left">
+                        <thead>
+                            <tr className="border-b border-zinc-200/70 text-[10.5px] uppercase tracking-[.08em] text-zinc-400">
+                                <th className="px-4 py-2.5 font-bold">{t("ledgerColMovement")}</th>
+                                <th className="px-4 py-2.5 text-right font-bold">{t("ledgerColGross")}</th>
+                                {showCommunity && (
+                                    <th className="px-4 py-2.5 text-right font-bold">{t("ledgerColCommunity")}</th>
+                                )}
+                                <th className="px-4 py-2.5 text-right font-bold">{t("ledgerColSeller")}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {groups.map((g) => (
+                                <Fragment key={g.key}>
+                                    <tr>
+                                        <td
+                                            colSpan={showCommunity ? 4 : 3}
+                                            className="bg-zinc-50/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400"
+                                        >
+                                            {g.label}
+                                        </td>
+                                    </tr>
+                                    {g.items.map(({ m, paired }) => (
+                                        <Row
+                                            key={m.key}
+                                            m={m}
+                                            paired={paired}
+                                            showCommunity={showCommunity}
+                                            cash={cash}
+                                            day={day}
+                                            t={t}
+                                            onOpen={openPanel}
+                                        />
+                                    ))}
+                                </Fragment>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            ) : filtersActive ? (
+                <EmptyState
+                    icon={<LedgerIcon />}
+                    title={t("ledgerNoMatchesTitle")}
+                    body={t("ledgerNoMatchesBody")}
+                />
+            ) : null}
 
             {selectedMovement && (
                 <BreakdownPanel
@@ -208,9 +418,12 @@ export function ManageLedger({
 }
 
 function Row({
-    m, showCommunity, cash, day, t, onOpen,
+    m, paired, showCommunity, cash, day, t, onOpen,
 }: {
     m: LedgerMovement;
+    /** A refund rendered directly under its sale — indented, muted background,
+     *  no repeat avatar, same treatment as the admin ledger's paired rows. */
+    paired: boolean;
     showCommunity: boolean;
     cash: (n: number) => string;
     day: (iso: string) => string;
@@ -247,10 +460,19 @@ function Row({
         m.reason,
     ].filter(Boolean).join(" · ");
 
+    const buyerLabel = m.buyerName || (m.kind === "sale" ? t("ledgerGuestBuyer") : null);
+
     return (
-        <tr className="border-b border-zinc-200/70 last:border-b-0 align-top">
-            <td className="px-4 py-3">
+        <tr className={`border-b border-zinc-200/70 last:border-b-0 align-top ${paired ? "bg-zinc-50/50" : ""}`}>
+            <td className={paired ? "py-2.5 pl-10 pr-4" : "px-4 py-3"}>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {/* No repeat avatar on a paired refund — it reads as the
+                        sale's own row's continuation, not a new person. */}
+                    {!paired && buyerLabel && (
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-[10px] font-semibold text-zinc-500">
+                            {initials(buyerLabel)}
+                        </span>
+                    )}
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${TONE[m.kind] ?? "bg-zinc-100 text-zinc-600"}`}>
                         {t(`ledgerKind_${m.kind}`)}
                     </span>
@@ -303,6 +525,60 @@ function Row({
                 {amount(m.sellerNet)}
             </td>
         </tr>
+    );
+}
+
+function SummaryTile({ label, amount, highlighted }: { label: string; amount: string; highlighted?: boolean }) {
+    return (
+        <div className={`rounded-xl border p-4 ${highlighted ? "border-emerald-200 bg-emerald-50" : "border-zinc-200 bg-white"}`}>
+            <p className="text-[11.5px] text-zinc-500">{label}</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-zinc-900">{amount}</p>
+        </div>
+    );
+}
+
+function FilterDropdown({
+    value, options, onChange,
+}: { value: string; options: { key: string; label: string }[]; onChange: (key: string) => void }) {
+    const [open, setOpen] = useState(false);
+    const selected = options.find((o) => o.key === value);
+    const isDefault = value === options[0]?.key;
+
+    return (
+        <div className="relative">
+            <button
+                type="button"
+                onClick={() => setOpen((o) => !o)}
+                onBlur={() => setTimeout(() => setOpen(false), 150)}
+                className={`flex cursor-pointer items-center gap-1.5 rounded-lg border py-1.5 pl-3 pr-2 text-[12px] font-medium transition-colors ${
+                    isDefault
+                        ? "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300"
+                        : "border-zinc-900 bg-zinc-900/5 text-zinc-900"
+                }`}
+            >
+                {selected?.label}
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`text-zinc-400 transition-transform ${open ? "rotate-180" : ""}`}>
+                    <polyline points="6 9 12 15 18 9" />
+                </svg>
+            </button>
+            {open && (
+                <div className="absolute top-full left-0 z-20 mt-1 min-w-[150px] overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 shadow-lg">
+                    {options.map((o) => (
+                        <button
+                            key={o.key}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { onChange(o.key); setOpen(false); }}
+                            className={`w-full cursor-pointer px-3 py-1.5 text-left text-[12px] transition-colors ${
+                                o.key === value ? "bg-zinc-100 font-semibold text-zinc-900" : "text-zinc-600 hover:bg-zinc-50"
+                            }`}
+                        >
+                            {o.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
     );
 }
 
@@ -363,7 +639,7 @@ function BreakdownPanel({
 
                         <div className="flex items-center gap-3 mb-4">
                             <span className="w-10 h-10 rounded-full bg-zinc-100 text-zinc-600 flex items-center justify-center shrink-0 text-sm font-semibold">
-                                {(m.buyerName || t("ledgerGuestBuyer")).trim().split(/\s+/).slice(0, 2).map((s) => s[0]).join("").toUpperCase()}
+                                {initials(m.buyerName || t("ledgerGuestBuyer"))}
                             </span>
                             <div className="min-w-0">
                                 <p className="text-[15px] font-semibold text-zinc-900 truncate">

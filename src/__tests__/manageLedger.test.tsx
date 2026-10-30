@@ -102,11 +102,13 @@ describe("statuses the copy does not know", () => {
 
     it("still translates the ones it knows", () => {
         renderIt([movement({ status: "ESCROW" })]);
-        expect(screen.getByText(/In escrow/)).toBeInTheDocument();
+        // Matches both the row's own status subline and the "In escrow"
+        // summary tile label -- either is fine, the point is no raw key leaks.
+        expect(screen.getAllByText(/In escrow/).length).toBeGreaterThan(0);
     });
 });
 
-describe("the summary line", () => {
+describe("the summary tiles", () => {
     /*
      * Payouts must not enter the total. A payout is money already counted when
      * its sale was recorded, moving somewhere else -- summing every signed row
@@ -119,7 +121,8 @@ describe("the summary line", () => {
             movement({ kind: "payout", sign: -1, gross: 0, sellerNet: 1642, communityCut: 0, payoutLeg: "seller", payoutTotal: 1642 }),
         ]);
         // Two sales, nothing refunded, and the payout does not subtract.
-        expect(screen.getByText(/2 sales · €32\.84 net/)).toBeInTheDocument();
+        const label = screen.getByText("Net earned");
+        expect(label.nextElementSibling).toHaveTextContent("€32.84");
     });
 
     it("subtracts a refund", () => {
@@ -127,7 +130,10 @@ describe("the summary line", () => {
             movement({ sellerNet: 1642 }),
             movement({ kind: "refund", sign: -1, sellerNet: 1642, gross: 1999, communityCut: 2 }),
         ]);
-        expect(screen.getByText(/€0\.00 net/)).toBeInTheDocument();
+        // "Net earned" is the first tile; refund zeroes it out even though
+        // the sale's own ESCROW status still counts the full amount In escrow.
+        const label = screen.getByText("Net earned");
+        expect(label.nextElementSibling).toHaveTextContent("€0.00");
     });
 });
 
@@ -264,5 +270,81 @@ describe("fee lines and payout when/where", () => {
         expect(screen.getByText("-€1.44")).toBeInTheDocument();  // real Stripe
         expect(screen.getByText("-€4.72")).toBeInTheDocument();  // platform fee
         expect(screen.queryByText("Absorbed by Cobuntu")).not.toBeInTheDocument();
+    });
+});
+
+/**
+ * A refund nests directly under its sale rather than appearing as its own
+ * top-level row -- same choice the admin community ledger makes, and for the
+ * same reason: same sort date, so they never drift apart in a long list.
+ */
+describe("pairing a refund under its sale", () => {
+    it("does not list a paired refund as its own top-level row", () => {
+        renderIt([
+            movement({ key: "s1", kind: "sale", buyerName: "Ana Neto" }),
+            movement({ key: "r1", kind: "refund", saleKey: "s1", sign: -1, sellerNet: 1642, gross: 1999, communityCut: 2 }),
+        ]);
+        // One buyer name rendered once: the refund's row doesn't repeat it.
+        expect(screen.getAllByText("Ana Neto")).toHaveLength(1);
+        // Both kind pills are present -- sale AND refund -- just in one group.
+        expect(screen.getByText("Sale")).toBeInTheDocument();
+        expect(screen.getByText("Refund")).toBeInTheDocument();
+    });
+
+    it("leaves a refund with no matching sale as a normal top-level row", () => {
+        renderIt([
+            movement({ key: "r1", kind: "refund", saleKey: "nonexistent", sign: -1, sellerNet: 1642, gross: 1999, communityCut: 2, buyerName: "Bo Silva" }),
+        ]);
+        expect(screen.getByText("Bo Silva")).toBeInTheDocument();
+        expect(screen.getByText("Refund")).toBeInTheDocument();
+    });
+});
+
+describe("month grouping", () => {
+    it("groups rows under a month header", () => {
+        renderIt([
+            movement({ at: "2026-08-12T10:00:00.000Z" }),
+            movement({ at: "2026-07-01T10:00:00.000Z" }),
+        ]);
+        expect(screen.getByText("August 2026")).toBeInTheDocument();
+        expect(screen.getByText("July 2026")).toBeInTheDocument();
+    });
+
+    it("keeps a paired refund in its SALE's month, not its own", () => {
+        renderIt([
+            movement({ key: "s1", kind: "sale", at: "2026-08-12T10:00:00.000Z" }),
+            movement({ key: "r1", kind: "refund", saleKey: "s1", at: "2026-09-02T10:00:00.000Z", sign: -1, sellerNet: 1642, gross: 1999, communityCut: 2 }),
+        ]);
+        expect(screen.getByText("August 2026")).toBeInTheDocument();
+        expect(screen.queryByText("September 2026")).not.toBeInTheDocument();
+    });
+});
+
+describe("filtering", () => {
+    it("hides rows that don't match the search query", () => {
+        renderIt([
+            movement({ buyerName: "Ana Neto" }),
+            movement({ buyerName: "Bo Silva" }),
+        ]);
+        fireEvent.change(screen.getByPlaceholderText(/Search/), { target: { value: "Ana" } });
+        expect(screen.getByText("Ana Neto")).toBeInTheDocument();
+        expect(screen.queryByText("Bo Silva")).not.toBeInTheDocument();
+    });
+
+    it("shows a no-matches state when nothing passes the filter", () => {
+        renderIt([movement({ buyerName: "Ana Neto" })]);
+        fireEvent.change(screen.getByPlaceholderText(/Search/), { target: { value: "nobody-like-this" } });
+        expect(screen.getByText("No movements match")).toBeInTheDocument();
+    });
+
+    it("does not change the summary tiles when a filter hides rows", () => {
+        renderIt([
+            movement({ buyerName: "Ana Neto", sellerNet: 1642 }),
+            movement({ buyerName: "Bo Silva", sellerNet: 1000 }),
+        ]);
+        fireEvent.change(screen.getByPlaceholderText(/Search/), { target: { value: "Ana" } });
+        const label = screen.getByText("Net earned");
+        // Still the sum of BOTH sales, not just the one the filter left visible.
+        expect(label.nextElementSibling).toHaveTextContent("€26.42");
     });
 });
