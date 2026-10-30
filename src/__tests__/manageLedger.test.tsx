@@ -232,24 +232,30 @@ describe("fee lines and payout when/where", () => {
         expect(screen.getByText(/to Revolut ••9931/)).toBeInTheDocument();
     });
 
-    it("expands a member sale into its fee lines with Stripe absorbed", () => {
+    it("expands a member sale into its fee lines, Stripe and Cobuntu shown as two separate real amounts", () => {
         render(
             <ManageLedger
                 ledger={memberLedger([movement({
                     kind: "sale", gross: 4500, communityCut: 328, sellerNet: 3930,
-                    vat: 0, stripeFee: 0, cobuntuFee: 210, communityFee: 360,
+                    // Decomposed the way LedgerService now sends it: stripeFee
+                    // is the real cost Cobuntu funds out of its own fee, and
+                    // cobuntuFee is what's left after funding it -- the two
+                    // are siblings, not one absorbing the other.
+                    vat: 0, stripeFee: 40, cobuntuFee: 170, communityFee: 360,
                 })])}
                 t={defaultTranslate}
             />,
         );
         // Collapsed by default: the fee lines are not shown until asked for.
+        expect(screen.queryByText("-€0.40")).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByText("Sale").closest("tr")!);
+
+        // Never the word "covered" -- a real amount, same as every other line.
         expect(screen.queryByText("Absorbed by Cobuntu")).not.toBeInTheDocument();
-
-        fireEvent.click(screen.getByRole("button", { name: /Fee breakdown/ }));
-
-        expect(screen.getByText("Absorbed by Cobuntu")).toBeInTheDocument();  // Stripe, member
-        expect(screen.getByText("-€2.10")).toBeInTheDocument();               // Cobuntu fee
-        expect(screen.getByText("-€3.60")).toBeInTheDocument();               // community commission
+        expect(screen.getByText("-€0.40")).toBeInTheDocument();   // Stripe, real cost
+        expect(screen.getByText("-€1.70")).toBeInTheDocument();   // Cobuntu's own take
+        expect(screen.getByText("-€3.60")).toBeInTheDocument();   // community commission
     });
 
     it("shows real Stripe on a community sale breakdown", () => {
@@ -266,10 +272,44 @@ describe("fee lines and payout when/where", () => {
                 t={defaultTranslate}
             />,
         );
-        fireEvent.click(screen.getByRole("button", { name: /Fee breakdown/ }));
+        fireEvent.click(screen.getByText("Sale").closest("tr")!);
         expect(screen.getByText("-€1.44")).toBeInTheDocument();  // real Stripe
         expect(screen.getByText("-€4.72")).toBeInTheDocument();  // platform fee
         expect(screen.queryByText("Absorbed by Cobuntu")).not.toBeInTheDocument();
+    });
+
+    it("clicking anywhere in the row opens the drawer, not just a sub-element", () => {
+        render(
+            <ManageLedger
+                ledger={memberLedger([movement({
+                    kind: "sale", gross: 4500, communityCut: 328, sellerNet: 3930, buyerName: "Ana Neto",
+                    vat: 0, stripeFee: 40, cobuntuFee: 170, communityFee: 360,
+                })])}
+                t={defaultTranslate}
+            />,
+        );
+        // Clicking the buyer's name -- not any particular button -- opens it.
+        fireEvent.click(screen.getByText("Ana Neto"));
+        expect(screen.getByText("Breakdown")).toBeInTheDocument();
+    });
+
+    it("does not make a non-expandable row (a payout) clickable", () => {
+        render(
+            <ManageLedger
+                ledger={{
+                    kind: "product", currency: "EUR", ownership: "community",
+                    movements: [movement({
+                        kind: "payout", sign: -1, gross: 0, communityCut: 0, sellerNet: 100,
+                        payoutLeg: "seller", payoutTotal: 100,
+                    })],
+                }}
+                t={defaultTranslate}
+            />,
+        );
+        const row = screen.getByText("Payout").closest("tr")!;
+        expect(row.className).not.toContain("cursor-pointer");
+        fireEvent.click(row);
+        expect(screen.queryByText("Breakdown")).not.toBeInTheDocument();
     });
 });
 
@@ -360,7 +400,7 @@ describe("the payout timeline", () => {
         renderIt([
             movement({ vat: 0, at: "2026-08-12T10:00:00.000Z", escrowEndsAt: farFuture, status: "ESCROW" }),
         ]);
-        fireEvent.click(screen.getByRole("button", { name: /Fee breakdown/ }));
+        fireEvent.click(screen.getByText("Sale").closest("tr")!);
         expect(screen.getByText("Escrow ends")).toBeInTheDocument();
         expect(screen.getByText(/in 5 days/)).toBeInTheDocument();
     });
@@ -368,7 +408,7 @@ describe("the payout timeline", () => {
     it("marks escrow as done once its end date has passed", () => {
         const past = new Date(Date.now() - 86400000).toISOString();
         renderIt([movement({ vat: 0, escrowEndsAt: past, status: "ELIGIBLE" })]);
-        fireEvent.click(screen.getByRole("button", { name: /Fee breakdown/ }));
+        fireEvent.click(screen.getByText("Sale").closest("tr")!);
         expect(screen.getByText("Escrow ended")).toBeInTheDocument();
     });
 
@@ -380,7 +420,7 @@ describe("the payout timeline", () => {
                 paidOutAt: "2026-09-15T10:00:00.000Z",
             }),
         ]);
-        fireEvent.click(screen.getByRole("button", { name: /Fee breakdown/ }));
+        fireEvent.click(screen.getByText("Sale").closest("tr")!);
         // "Paid out" also labels the summary tile -- two matches is correct.
         expect(screen.getAllByText("Paid out").length).toBeGreaterThan(1);
         // en-GB (the component's default locale) abbreviates September "Sept".
@@ -395,7 +435,7 @@ describe("the payout timeline", () => {
                 payoutScheduledFor: "2026-09-20T10:00:00.000Z",
             }),
         ]);
-        fireEvent.click(screen.getByRole("button", { name: /Fee breakdown/ }));
+        fireEvent.click(screen.getByText("Sale").closest("tr")!);
         expect(screen.getByText(/20 Sept 2026/)).toBeInTheDocument();
     });
 
