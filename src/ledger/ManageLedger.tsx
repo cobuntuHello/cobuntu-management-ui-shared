@@ -701,8 +701,145 @@ function BreakdownPanel({
                             </table>
                         </div>
                     </div>
+
+                    {/* Sale only -- a refund/payout/dispute row has no escrow
+                        window of its own to chart. */}
+                    {m.kind === "sale" && <PayoutTimeline m={m} day={day} dayTime={dayTime} t={t} />}
                 </div>
             </div>
         </div>
+    );
+}
+
+/**
+ * Sale completed -> Escrow ends -> Paid out, a 3-step vertical timeline
+ * mirroring the admin community ledger's exact one (same dot/line markup,
+ * same three states). The admin's own comment on why this is NOT a
+ * hardcoded "14-day hold": the window is per-product-type, derived from the
+ * real dates -- `escrowEndsAt` is already a computed, per-sale value by the
+ * time it reaches this component (see LedgerService), not guessed here.
+ */
+function PayoutTimeline({
+    m, day, dayTime, t,
+}: {
+    m: LedgerMovement;
+    day: (iso: string) => string;
+    dayTime: (iso: string) => string;
+    t: (key: string, vars?: Record<string, string | number>) => string;
+}) {
+    const at = (iso: string) => `${day(iso)} ${t("ledgerAtTime", { time: dayTime(iso) })}`;
+    const relativeDays = (iso: string): string => {
+        const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
+        if (days < 0) return t("ledgerReleasingNow");
+        if (days === 0) return t("ledgerReleasingToday");
+        if (days === 1) return t("ledgerReleasingTomorrow");
+        return t("ledgerInNDays", { count: days });
+    };
+
+    const completedAt = m.at;
+    const escrowEndsAt = m.escrowEndsAt;
+    const escrowDone = escrowEndsAt ? new Date(escrowEndsAt).getTime() <= Date.now() : false;
+    /* No real hold: eligible essentially at purchase (an event ticket bought
+       after the event already ended, so its refund window is instantly
+       closed) -- a "releases in N days" note would mislead. */
+    const noHold = !!(escrowEndsAt && new Date(escrowEndsAt).getTime() - new Date(completedAt).getTime() < 60000);
+    const holdDays = escrowEndsAt
+        ? Math.max(1, Math.round((new Date(escrowEndsAt).getTime() - new Date(completedAt).getTime()) / 86400000))
+        : 0;
+
+    /* No "refunded" step here, unlike the admin's timeline: a refund is its
+       own paired row in this view (see buildDisplayRows), never a state the
+       SALE movement itself carries. */
+    const isPaid = m.status === "PAID";
+
+    let step3Title: string;
+    let step3Label: string;
+    let step3State: "done" | "upcoming" | "pending";
+    if (isPaid) {
+        step3Title = t("ledgerPaidOut");
+        step3Label = m.paidOutAt ? at(m.paidOutAt) : (noHold ? t("ledgerEligibleAtPurchase") : t("ledgerPaidOut"));
+        step3State = "done";
+    } else if (m.payoutScheduledFor) {
+        step3Title = t("ledgerPayoutScheduled");
+        step3Label = `${day(m.payoutScheduledFor)} (${t("ledgerNextPayoutCycle")})`;
+        step3State = "upcoming";
+    } else if (escrowDone) {
+        step3Title = t("ledgerPayoutScheduled");
+        step3Label = t("ledgerPayoutNotYetScheduled");
+        step3State = "pending";
+    } else {
+        step3Title = t("ledgerPayoutScheduled");
+        step3Label = t("ledgerAfterEscrowEnds");
+        step3State = "pending";
+    }
+
+    return (
+        <div className="mt-6">
+            <h4 className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider mb-3">{t("ledgerPayoutTimeline")}</h4>
+            <ol className="relative pl-6">
+                <TimelineRow state="done" title={t("ledgerSaleCompleted")} subtitle={at(completedAt)} />
+                <TimelineRow
+                    state={escrowDone ? "done" : "upcoming"}
+                    title={escrowDone ? t("ledgerEscrowEnded") : t("ledgerEscrowEnds")}
+                    subtitle={
+                        escrowEndsAt ? (
+                            <>
+                                {day(escrowEndsAt)}
+                                {!escrowDone && (
+                                    <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
+                                        {relativeDays(escrowEndsAt)}
+                                    </span>
+                                )}
+                                <span className="mt-0.5 block text-[11px] text-zinc-400">
+                                    {noHold ? t("ledgerEligibleAtPurchase") : t("ledgerHoldAfterPurchase", { days: holdDays })}
+                                </span>
+                            </>
+                        ) : (
+                            <span className="text-zinc-400">—</span>
+                        )
+                    }
+                />
+                <TimelineRow state={step3State} title={step3Title} subtitle={step3Label} isLast />
+            </ol>
+        </div>
+    );
+}
+
+function TimelineRow({
+    state, title, subtitle, isLast,
+}: {
+    state: "done" | "upcoming" | "pending";
+    title: string;
+    subtitle: React.ReactNode;
+    isLast?: boolean;
+}) {
+    const dotCls = state === "done"
+        ? "bg-emerald-500 border-emerald-500"
+        : state === "upcoming"
+            ? "bg-white border-amber-500"
+            : "bg-white border-zinc-300";
+    const titleCls = state === "pending" ? "text-zinc-400" : "text-zinc-900";
+
+    return (
+        <li className={`relative ${isLast ? "" : "pb-4"}`}>
+            {!isLast && (
+                <span
+                    aria-hidden="true"
+                    className={`absolute -left-3 top-4 bottom-0 w-0.5 rounded-full ${state === "done" ? "bg-emerald-500" : "bg-zinc-200"}`}
+                />
+            )}
+            <span
+                aria-hidden="true"
+                className={`absolute -left-[18px] top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 bg-white z-10 ${dotCls}`}
+            >
+                {state === "done" && (
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                )}
+            </span>
+            <p className={`text-[12px] font-medium ${titleCls}`}>{title}</p>
+            <div className="text-[12px] text-zinc-600">{subtitle}</div>
+        </li>
     );
 }

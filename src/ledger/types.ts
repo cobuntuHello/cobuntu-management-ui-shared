@@ -52,6 +52,13 @@ export interface LedgerMovement {
     scheduledFor?: string | null;
     /** Payout only: the account it lands in, once one is attached. */
     destination?: StripeDestination | null;
+    /** Sale only: the real date its escrow window ends, for the drawer's
+     *  payout timeline. A per-product-type hold, never a hardcoded day count. */
+    escrowEndsAt?: string | null;
+    /** Sale only: when its payout actually landed, if it has. */
+    paidOutAt?: string | null;
+    /** Sale only: when its payout is scheduled to fire, if not yet paid. */
+    payoutScheduledFor?: string | null;
 }
 
 export interface ItemLedger {

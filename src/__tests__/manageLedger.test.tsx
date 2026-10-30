@@ -348,3 +348,64 @@ describe("filtering", () => {
         expect(label.nextElementSibling).toHaveTextContent("€26.42");
     });
 });
+
+/**
+ * The sale drawer's payout timeline -- Sale completed -> Escrow ends ->
+ * Paid out. Pinning the three real states this reads off the dates the
+ * backend now sends, not a hardcoded hold length.
+ */
+describe("the payout timeline", () => {
+    it("shows escrow as upcoming with a relative countdown before it ends", () => {
+        const farFuture = new Date(Date.now() + 5 * 86400000).toISOString();
+        renderIt([
+            movement({ vat: 0, at: "2026-08-12T10:00:00.000Z", escrowEndsAt: farFuture, status: "ESCROW" }),
+        ]);
+        fireEvent.click(screen.getByRole("button", { name: /Fee breakdown/ }));
+        expect(screen.getByText("Escrow ends")).toBeInTheDocument();
+        expect(screen.getByText(/in 5 days/)).toBeInTheDocument();
+    });
+
+    it("marks escrow as done once its end date has passed", () => {
+        const past = new Date(Date.now() - 86400000).toISOString();
+        renderIt([movement({ vat: 0, escrowEndsAt: past, status: "ELIGIBLE" })]);
+        fireEvent.click(screen.getByRole("button", { name: /Fee breakdown/ }));
+        expect(screen.getByText("Escrow ended")).toBeInTheDocument();
+    });
+
+    it("shows the real paid-out date on a PAID sale, not just the status", () => {
+        renderIt([
+            movement({
+                vat: 0, status: "PAID",
+                escrowEndsAt: new Date(Date.now() - 86400000).toISOString(),
+                paidOutAt: "2026-09-15T10:00:00.000Z",
+            }),
+        ]);
+        fireEvent.click(screen.getByRole("button", { name: /Fee breakdown/ }));
+        // "Paid out" also labels the summary tile -- two matches is correct.
+        expect(screen.getAllByText("Paid out").length).toBeGreaterThan(1);
+        // en-GB (the component's default locale) abbreviates September "Sept".
+        expect(screen.getByText(/15 Sept 2026/)).toBeInTheDocument();
+    });
+
+    it("shows the scheduled payout date once escrow has ended but nothing is paid yet", () => {
+        renderIt([
+            movement({
+                vat: 0, status: "ELIGIBLE",
+                escrowEndsAt: new Date(Date.now() - 86400000).toISOString(),
+                payoutScheduledFor: "2026-09-20T10:00:00.000Z",
+            }),
+        ]);
+        fireEvent.click(screen.getByRole("button", { name: /Fee breakdown/ }));
+        expect(screen.getByText(/20 Sept 2026/)).toBeInTheDocument();
+    });
+
+    it("does not render a timeline for a payout or refund row", () => {
+        renderIt([
+            movement({
+                key: "p1", kind: "payout", sign: -1, gross: 0, sellerNet: 100, communityCut: 0,
+                payoutLeg: "seller", payoutTotal: 100,
+            }),
+        ]);
+        expect(screen.queryByText("Payout timeline")).not.toBeInTheDocument();
+    });
+});
