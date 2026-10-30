@@ -3,6 +3,7 @@ import type { ItemLedger, LedgerMovement } from "./types";
 import type { StripeDestination } from "../overview/types";
 import { formatMoney } from "../overview/format";
 import { EmptyState, LedgerIcon } from "../overview/EmptyState";
+import { LAYERS } from "../ui/layers";
 
 /**
  * Every money movement for one product or event.
@@ -189,7 +190,6 @@ export function ManageLedger({
     t: (key: string, vars?: Record<string, string | number>) => string;
 }) {
     const { movements, currency } = ledger;
-    const isMember = ledger.ownership === "member";
     const cash = (n: number) => formatMoney(n, currency, locale);
     const day = (iso: string) =>
         new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
@@ -405,7 +405,6 @@ export function ManageLedger({
                 <BreakdownPanel
                     m={selectedMovement}
                     visible={panelVisible}
-                    isMember={isMember}
                     cash={cash}
                     day={day}
                     dayTime={dayTime}
@@ -462,8 +461,20 @@ function Row({
 
     const buyerLabel = m.buyerName || (m.kind === "sale" ? t("ledgerGuestBuyer") : null);
 
+    /*
+     * The WHOLE row opens the drawer now, not a "Fee breakdown ›" text
+     * button buried in the middle of it -- same affordance the Buyers tab's
+     * customer rows already use (a hover fill + a trailing chevron), rather
+     * than this being the one clickable-row surface in the app that made you
+     * aim for a small link instead of just clicking the row.
+     */
     return (
-        <tr className={`border-b border-zinc-200/70 last:border-b-0 align-top ${paired ? "bg-zinc-50/50" : ""}`}>
+        <tr
+            onClick={expandable ? () => onOpen(m) : undefined}
+            className={`border-b border-zinc-200/70 last:border-b-0 align-top transition-colors ${
+                paired ? "bg-zinc-50/50" : ""
+            } ${expandable ? `cursor-pointer ${paired ? "hover:bg-zinc-100/70" : "hover:bg-zinc-50"}` : ""}`}
+        >
             <td className={paired ? "py-2.5 pl-10 pr-4" : "px-4 py-3"}>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     {/* No repeat avatar on a paired refund — it reads as the
@@ -495,21 +506,6 @@ function Row({
                             {t(`ledgerLeg_${m.payoutLeg}`)}
                         </span>
                     )}
-                    {/*
-                      * Fee breakdown opens the same side drawer the
-                      * community's own Ledger page uses for a sale's detail
-                      * -- not an inline toggle. A real button (not a row-wide
-                      * click target) so the amounts stay selectable text.
-                      */}
-                    {expandable && (
-                        <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); onOpen(m); }}
-                            className="cursor-pointer text-[11.5px] font-semibold text-zinc-400 hover:text-zinc-700"
-                        >
-                            {t("ledgerShowBreakdown")} ›
-                        </button>
-                    )}
                 </div>
                 <p className="mt-0.5 text-[12px] text-zinc-500">{subline}</p>
             </td>
@@ -522,9 +518,23 @@ function Row({
                 </td>
             )}
             <td className={`px-4 py-3 text-right text-[13.5px] font-semibold tabular-nums ${tone}`}>
-                {amount(m.sellerNet)}
+                <span className="inline-flex items-center gap-1.5">
+                    {amount(m.sellerNet)}
+                    {/* Decorative only -- the whole row is the click target
+                        now, aria-label on the <tr> would be redundant since
+                        the row's own content already reads sensibly. */}
+                    {expandable && <ChevronRightIcon className="text-zinc-300" />}
+                </span>
             </td>
         </tr>
+    );
+}
+
+function ChevronRightIcon({ className = "" }: { className?: string }) {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${className}`}>
+            <path d="m9 6 6 6-6 6" />
+        </svg>
     );
 }
 
@@ -594,11 +604,10 @@ function FilterDropdown({
  * other way round.
  */
 function BreakdownPanel({
-    m, visible, isMember, cash, day, dayTime, t, onClose,
+    m, visible, cash, day, dayTime, t, onClose,
 }: {
     m: LedgerMovement;
     visible: boolean;
-    isMember: boolean;
     cash: (n: number) => string;
     day: (iso: string) => string;
     dayTime: (iso: string) => string;
@@ -609,7 +618,15 @@ function BreakdownPanel({
     const negative = m.sign === -1 && !won;
 
     return (
-        <div className="fixed inset-0 z-50 flex justify-end">
+        <div className="fixed inset-0 flex justify-end" style={{ zIndex: LAYERS.modal }}>
+            {/*
+              * LAYERS.modal (120), not z-50. The community app's left
+              * sidebar sits at z-[52]/[53]/[60] -- at z-50 the backdrop
+              * dimmed the page but the sidebar stayed lit and clickable
+              * above it, the exact bug ModalShell was fixed for. This
+              * drawer is the one view in the app that still had the old
+              * number; every other overlay already takes it from here.
+              */}
             <div
                 className={`absolute inset-0 bg-black transition-opacity duration-250 ${visible ? "opacity-20" : "opacity-0"}`}
                 onClick={onClose}
@@ -673,10 +690,22 @@ function BreakdownPanel({
                                             <td className="px-4 py-2.5 text-red-500 text-right tabular-nums">{`-${cash(m.vat ?? 0)}`}</td>
                                         </tr>
                                     )}
+                                    {/*
+                                      * The real amount, always -- even on a
+                                      * member sale where Cobuntu funds this
+                                      * out of its own fee rather than
+                                      * deducting it from the seller
+                                      * separately. "Who pays it" and "what
+                                      * it cost" are different questions; the
+                                      * backend now decomposes cobuntuFee so
+                                      * the two lines sum correctly instead
+                                      * of this one being hidden behind the
+                                      * word "covered".
+                                      */}
                                     <tr className="border-b border-zinc-100">
                                         <td className="px-4 py-2.5 text-zinc-500">{t("ledgerFeeStripe")}</td>
-                                        <td className={`px-4 py-2.5 text-right tabular-nums ${isMember ? "text-zinc-400" : "text-orange-500"}`}>
-                                            {isMember ? t("ledgerFeeStripeAbsorbed") : `-${cash(m.stripeFee ?? 0)}`}
+                                        <td className="px-4 py-2.5 text-right tabular-nums text-orange-500">
+                                            {`-${cash(m.stripeFee ?? 0)}`}
                                         </td>
                                     </tr>
                                     <tr className="border-b border-zinc-100">

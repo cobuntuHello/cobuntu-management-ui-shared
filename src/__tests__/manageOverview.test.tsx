@@ -603,8 +603,11 @@ describe("the stock position of a capped item", () => {
 
 /*
  * Payouts & fees card. The three questions the tiles do not answer: how much in
- * fees and to whom, where the money lands, and when. Owner perspective, so a
- * member seller sees Stripe as covered rather than as a charge.
+ * fees and to whom, where the money lands, and when. Owner perspective; a
+ * member seller still sees the REAL Stripe cost, decomposed server-side from
+ * the all-in member fee rather than hidden behind the word "covered" -- who
+ * pays it (Cobuntu, out of its own fee) is a different question from what it
+ * cost.
  *
  * The card leads with the net as a headline and shows the split as a bar plus a
  * legend, so these assert on the FIGURES and the words around them rather than
@@ -616,7 +619,11 @@ describe("payouts & fees card", () => {
     const withFees = (over: Partial<OverviewStats> = {}): OverviewStats =>
         stats({
             money: { net: 3930, gross: 4500, held: 1000, due: 0, paid: 0, nextPayoutAt: "2026-09-29T12:00:00.000Z", currency: "EUR",
-                breakdown: { vat: 0, stripe: 0, cobuntu: 210, community: 360, net: 3930 } },
+                // Decomposed the way OverviewService now sends it: stripe is
+                // the real cost, cobuntu is what's left of the all-in member
+                // fee (250) after funding it -- the two sum to the old
+                // single `cobuntu: 210`-ish figure, just split honestly.
+                breakdown: { vat: 0, stripe: 40, cobuntu: 170, community: 360, net: 3930 } },
             ownership: "member",
             rates: { cobuntuPct: null, communityPct: 8 },
             destination: { scope: "user", connected: true, payoutsEnabled: true, bankBrand: "Millennium", last4: "4242", country: "PT", currency: "EUR" },
@@ -631,16 +638,18 @@ describe("payouts & fees card", () => {
         expect(screen.getByText("from €45.00 taken")).toBeInTheDocument();
     });
 
-    it("itemises the member split, with Stripe covered rather than shown as zero", () => {
+    it("itemises the member split with Stripe's real cost, separate from Cobuntu's own take", () => {
         renderIt(withFees());
         expect(screen.getByText("Community commission")).toBeInTheDocument();
         expect(screen.getByText("8%")).toBeInTheDocument();
         expect(screen.getByText("€3.60")).toBeInTheDocument();
         expect(screen.getByText("Cobuntu fee")).toBeInTheDocument();
-        expect(screen.getByText("€2.10")).toBeInTheDocument();
-        // A member never paid Stripe, so it is a word, not an amount.
+        expect(screen.getByText("€1.70")).toBeInTheDocument();
+        // Never the word "covered" -- a real amount, same as every other line,
+        // even though Cobuntu is the one who pays Stripe here.
         expect(screen.getByText("Stripe fee")).toBeInTheDocument();
-        expect(screen.getByText("covered")).toBeInTheDocument();
+        expect(screen.getByText("€0.40")).toBeInTheDocument();
+        expect(screen.queryByText("covered")).not.toBeInTheDocument();
     });
 
     it("says where the money lands and when, as sentences", () => {
@@ -653,7 +662,7 @@ describe("payouts & fees card", () => {
     it("says what is ready when nothing is being held back", () => {
         renderIt(withFees({
             money: { net: 3930, gross: 4500, held: 0, due: 3930, paid: 0, nextPayoutAt: null, currency: "EUR",
-                breakdown: { vat: 0, stripe: 0, cobuntu: 210, community: 360, net: 3930 } },
+                breakdown: { vat: 0, stripe: 40, cobuntu: 170, community: 360, net: 3930 } },
         }));
         expect(screen.getByText("€39.30 ready to pay out")).toBeInTheDocument();
     });

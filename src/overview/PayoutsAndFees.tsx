@@ -204,20 +204,15 @@ export function PayoutsAndFees({
             ? [{ key: "vat", label: t("feesVat"), amount: b.vat, display: cash(b.vat), swatch: "bg-zinc-300" }]
             : []),
         /*
-         * Cobuntu covers Stripe on member sales. Said in words, with a hollow
-         * swatch and no width in the bar, rather than shown as a 0.00 row that
-         * looks like a fee that happened to round to nothing.
+         * The real amount, always -- on a member sale Cobuntu PAYS this out
+         * of the `cobuntu` fee above rather than deducting it from the
+         * seller separately, but that's a question of who settles it, not
+         * whether it happened. `b.stripe`/`b.cobuntu` are already decomposed
+         * server-side (see OverviewService) so the two bars sum back to the
+         * same all-in total either way; showing Stripe as "covered" with no
+         * width hid a real cost rather than explaining who carries it.
          */
-        isMember
-            ? {
-                key: "stripe",
-                label: t("feesStripe"),
-                amount: 0,
-                display: t("feesStripeCovered"),
-                swatch: "bg-transparent",
-                hollow: true,
-            }
-            : { key: "stripe", label: t("feesStripe"), amount: b.stripe, display: cash(b.stripe), swatch: "bg-sky-600" },
+        { key: "stripe", label: t("feesStripe"), amount: b.stripe, display: cash(b.stripe), swatch: "bg-sky-600" },
     ];
 
     const barLabel = slices
