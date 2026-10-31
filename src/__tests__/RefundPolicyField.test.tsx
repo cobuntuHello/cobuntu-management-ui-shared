@@ -189,3 +189,81 @@ describe("refundScheduleProblem", () => {
     expect(refundScheduleProblem(rising, "EVENT_START")).toMatch(/cannot return more/);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────
+// The house policy, stated rather than offered (T-296).
+// ────────────────────────────────────────────────────────────────────────
+
+import { RefundScheduleStatement, describeRefundBand } from "../listings/RefundPolicyField";
+
+describe("describeRefundBand", () => {
+  it("reads an event band as a deadline before the event", () => {
+    expect(describeRefundBand({ days: 14, pct: 75 }, "EVENT_START")).toBe("14 or more days before: 75% back");
+  });
+
+  it("reads a product band as a window after buying", () => {
+    expect(describeRefundBand({ days: 7, pct: 100 }, "PURCHASE")).toBe("Within 7 days of buying: 100% back");
+  });
+
+  it("reads the SAME row in opposite directions per anchor", () => {
+    // The reason this is a shared function: getting it backwards tells a
+    // seller their policy does the reverse of what it does.
+    const band = { days: 7, pct: 50 };
+    expect(describeRefundBand(band, "EVENT_START")).toMatch(/before/);
+    expect(describeRefundBand(band, "PURCHASE")).toMatch(/of buying/);
+  });
+
+  it("says 'nothing back' rather than '0% back'", () => {
+    expect(describeRefundBand({ days: 0, pct: 0 }, "EVENT_START")).toBe("Any time before it starts: nothing back");
+  });
+
+  it("singularises one day", () => {
+    expect(describeRefundBand({ days: 1, pct: 50 }, "PURCHASE")).toBe("Within 1 day of buying: 50% back");
+  });
+});
+
+describe("RefundScheduleStatement", () => {
+  const TEJA = [
+    { days: 7, pct: 50 },
+    { days: 14, pct: 75 },
+    { days: 0, pct: 0 },
+  ];
+
+  it("offers no controls at all, which is the point", () => {
+    // Not a disabled picker: a greyed-out control invites someone to hunt for
+    // the permission that would re-enable it. A statement reads as settled.
+    const { container } = render(<RefundScheduleStatement bands={TEJA} anchor="EVENT_START" />);
+    expect(container.querySelectorAll("button")).toHaveLength(0);
+    expect(container.querySelectorAll("input")).toHaveLength(0);
+  });
+
+  it("orders the rows the way they apply, whatever order they were passed in", () => {
+    render(<RefundScheduleStatement bands={TEJA} anchor="EVENT_START" />);
+    const rows = screen.getAllByText(/back/).map((n) => n.textContent);
+    expect(rows[0]).toMatch(/^14 or more days before/);
+    expect(rows[1]).toMatch(/^7 or more days before/);
+    expect(rows[2]).toMatch(/^Any time before it starts/);
+  });
+
+  it("says what a schedule does NOT cover: the venue cancelling", () => {
+    // A host reading "nothing back" on the last row will reasonably wonder
+    // what happens when the venue cancels, and the answer is the opposite.
+    render(<RefundScheduleStatement bands={TEJA} anchor="EVENT_START" />);
+    expect(screen.getByText(/cancelled by the venue, everyone is refunded in full/)).toBeTruthy();
+  });
+
+  it("uses seller wording on the purchase anchor", () => {
+    render(<RefundScheduleStatement bands={[{ days: 7, pct: 100 }]} anchor="PURCHASE" />);
+    expect(screen.getByText(/cancelled by the seller, you are refunded in full/)).toBeTruthy();
+  });
+
+  it("lets the house name itself", () => {
+    render(<RefundScheduleStatement bands={TEJA} anchor="EVENT_START" title="TEJÁ's cancellation terms" />);
+    expect(screen.getByText("TEJÁ's cancellation terms")).toBeTruthy();
+  });
+
+  it("renders an optional note when one is given", () => {
+    render(<RefundScheduleStatement bands={TEJA} anchor="EVENT_START" note="Write to curation@tejahouse.com." />);
+    expect(screen.getByText("Write to curation@tejahouse.com.")).toBeTruthy();
+  });
+});
