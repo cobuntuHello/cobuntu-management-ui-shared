@@ -449,3 +449,50 @@ describe("the payout timeline", () => {
         expect(screen.queryByText("Payout timeline")).not.toBeInTheDocument();
     });
 });
+
+/**
+ * Invoice / credit note links in the drawer. Shown only when the field is
+ * present -- an empty ledger-wide feature should never render a dead link.
+ */
+describe("invoice and credit note links", () => {
+    it("shows a View invoice link on a sale with an invoice", () => {
+        renderIt([
+            movement({ vat: 0, invoiceUrl: "https://invoice.stripe.com/abc" }),
+        ]);
+        fireEvent.click(screen.getByText("Sale").closest("tr")!);
+        const link = screen.getByText("View invoice").closest("a")!;
+        expect(link).toHaveAttribute("href", "https://invoice.stripe.com/abc");
+        expect(link).toHaveAttribute("target", "_blank");
+    });
+
+    it("renders no documents section on a sale with no invoice yet", () => {
+        renderIt([movement({ vat: 0 })]);
+        fireEvent.click(screen.getByText("Sale").closest("tr")!);
+        expect(screen.queryByText("Documents")).not.toBeInTheDocument();
+        expect(screen.queryByText("View invoice")).not.toBeInTheDocument();
+    });
+
+    it("shows a View credit note link on a refund with a credit note", () => {
+        renderIt([
+            movement({
+                kind: "refund", vat: 0, sign: -1, gross: 500, sellerNet: 412, communityCut: 0,
+                creditNoteUrl: "https://stripe.com/credit-note.pdf",
+            }),
+        ]);
+        fireEvent.click(screen.getByText("Refund").closest("tr")!);
+        const link = screen.getByText("View credit note").closest("a")!;
+        expect(link).toHaveAttribute("href", "https://stripe.com/credit-note.pdf");
+    });
+
+    it("never shows a credit note link on a sale row, or an invoice link on a refund row", () => {
+        renderIt([
+            movement({ vat: 0, invoiceUrl: "https://invoice.stripe.com/abc" }),
+            movement({
+                key: "r1", kind: "refund", vat: 0, sign: -1, gross: 500, sellerNet: 412, communityCut: 0,
+                creditNoteUrl: "https://stripe.com/credit-note.pdf",
+            }),
+        ]);
+        fireEvent.click(screen.getByText("Sale").closest("tr")!);
+        expect(screen.queryByText("View credit note")).not.toBeInTheDocument();
+    });
+});
