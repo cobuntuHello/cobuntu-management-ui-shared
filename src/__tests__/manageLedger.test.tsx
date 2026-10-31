@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ManageLedger } from "../ledger/ManageLedger";
 import type { ItemLedger, LedgerMovement } from "../ledger/types";
 import { defaultTranslate } from "../listings/copy";
@@ -494,5 +494,67 @@ describe("invoice and credit note links", () => {
         ]);
         fireEvent.click(screen.getByText("Sale").closest("tr")!);
         expect(screen.queryByText("View credit note")).not.toBeInTheDocument();
+    });
+});
+
+/**
+ * The host refund action in the drawer. A different feature from the
+ * buyer's own self-service refund flow, which this component has no path to
+ * at all -- there is no `onRefund` call site anywhere a buyer would reach.
+ */
+describe("host refund action", () => {
+    it("is absent with no onRefund prop", () => {
+        renderIt([movement({ key: "s1", vat: 0 })]);
+        fireEvent.click(screen.getByText("Sale").closest("tr")!);
+        expect(screen.queryByText("Refund")).not.toBeInTheDocument();
+    });
+
+    it("is absent on a sale that already has a refund", () => {
+        renderIt(
+            [
+                movement({ key: "s1", vat: 0 }),
+                movement({ key: "r1", kind: "refund", sign: -1, gross: 1999, sellerNet: 1642, communityCut: 200, saleKey: "s1" }),
+            ],
+            { onRefund: async () => ({ ok: true }) },
+        );
+        fireEvent.click(screen.getAllByText("Sale")[0].closest("tr")!);
+        expect(screen.queryByRole("button", { name: "Refund" })).not.toBeInTheDocument();
+    });
+
+    it("collects a required reason, calls onRefund with the sale id, and shows success", async () => {
+        const onRefund = vi.fn(async () => ({ ok: true }));
+        renderIt([movement({ key: "sale:abc123", vat: 0 })], { onRefund });
+        fireEvent.click(screen.getByText("Sale").closest("tr")!);
+        fireEvent.click(screen.getByText("Refund"));
+
+        // Confirm is disabled with no reason typed yet.
+        const confirm = screen.getByText("Confirm refund");
+        expect(confirm).toBeDisabled();
+
+        fireEvent.change(screen.getByPlaceholderText(/why/i), { target: { value: "Buyer changed their mind" } });
+        fireEvent.click(screen.getByText("Confirm refund"));
+
+        await screen.findByText(/refunded/i);
+        expect(onRefund).toHaveBeenCalledWith("abc123", "Buyer changed their mind");
+    });
+
+    it("shows the backend's own eligibility message on refusal", async () => {
+        const onRefund = vi.fn(async () => ({ ok: false, error: "This sale has already been paid out. Contact Cobuntu support." }));
+        renderIt([movement({ key: "sale:abc123", vat: 0 })], { onRefund });
+        fireEvent.click(screen.getByText("Sale").closest("tr")!);
+        fireEvent.click(screen.getByText("Refund"));
+        fireEvent.change(screen.getByPlaceholderText(/why/i), { target: { value: "Testing" } });
+        fireEvent.click(screen.getByText("Confirm refund"));
+
+        await screen.findByText("This sale has already been paid out. Contact Cobuntu support.");
+    });
+
+    it("never appears on a refund, payout or dispute row", () => {
+        renderIt(
+            [movement({ key: "r1", kind: "refund", sign: -1, gross: 500, sellerNet: 412, communityCut: 0 })],
+            { onRefund: async () => ({ ok: true }) },
+        );
+        fireEvent.click(screen.getByText("Refund").closest("tr")!);
+        expect(screen.queryByText("Refund", { selector: "button" })).not.toBeInTheDocument();
     });
 });
