@@ -182,12 +182,30 @@ export function ManageLedger({
     showCommunity = true,
     locale = "en-GB",
     t,
+    onRefund,
 }: {
     ledger: ItemLedger;
     /** Show the community's cut as its own column. */
     showCommunity?: boolean;
     locale?: string;
     t: (key: string, vars?: Record<string, string | number>) => string;
+    /**
+     * Owner-initiated refund for a sale row — distinct from the buyer's own
+     * self-service refund flow, which lives entirely elsewhere and never
+     * touches this component. The host supplies the transport: this package
+     * has no API client of its own (see the module doc above), so which
+     * endpoint gets called — the community path gated on `FINANCIAL_PAYOUTS`
+     * or the member-seller path scoped to `sellerUserId` — is the host's
+     * call to make based on `ledger.ownership`, not this component's.
+     *
+     * Resolve with `{ ok: false, error }` rather than throwing when the
+     * backend's own eligibility gate refuses (already paid out, past the
+     * refund window without the policy's "extended" mode, etc.) — that
+     * message is shown verbatim, since the backend already writes it for a
+     * host reader (e.g. "Contact Cobuntu support to process a refund").
+     * Omit the prop to leave the action out entirely.
+     */
+    onRefund?: (saleId: string, reason: string) => Promise<{ ok: boolean; error?: string }>;
 }) {
     const { movements, currency } = ledger;
     const cash = (n: number) => formatMoney(n, currency, locale);
@@ -257,6 +275,10 @@ export function ManageLedger({
      */
     const sales = movements.filter((m) => m.kind === "sale");
     const refunded = movements.filter((m) => m.kind === "refund");
+    /* Sale keys that already have a refund row — the refund action hides on
+       these rather than ever offering a second refund the backend would
+       just reject (refunds are full-only, never partial; see RefundService). */
+    const refundedSaleKeys = new Set(refunded.map((m) => m.saleKey).filter((k): k is string => !!k));
     const earned = sales.reduce((n, m) => n + m.sellerNet, 0)
         - refunded.reduce((n, m) => n + m.sellerNet, 0);
     const inEscrow = sales
@@ -410,6 +432,8 @@ export function ManageLedger({
                     dayTime={dayTime}
                     t={t}
                     onClose={closePanel}
+                    onRefund={onRefund}
+                    alreadyRefunded={refundedSaleKeys.has(selectedMovement.key)}
                 />
             )}
         </div>
@@ -604,7 +628,7 @@ function FilterDropdown({
  * other way round.
  */
 function BreakdownPanel({
-    m, visible, cash, day, dayTime, t, onClose,
+    m, visible, cash, day, dayTime, t, onClose, onRefund, alreadyRefunded,
 }: {
     m: LedgerMovement;
     visible: boolean;
@@ -613,6 +637,8 @@ function BreakdownPanel({
     dayTime: (iso: string) => string;
     t: (key: string, vars?: Record<string, string | number>) => string;
     onClose: () => void;
+    onRefund?: (saleId: string, reason: string) => Promise<{ ok: boolean; error?: string }>;
+    alreadyRefunded: boolean;
 }) {
     const won = m.kind === "dispute" && m.status === "DISPUTE_WON";
     const negative = m.sign === -1 && !won;
@@ -770,7 +796,125 @@ function BreakdownPanel({
                             </div>
                         </div>
                     )}
+
+                    {/* Owner-initiated refund — a different feature from the
+                        buyer's own self-service refund, which never reaches
+                        this component. Sale rows only, and only while
+                        `onRefund` is wired and this sale has no refund yet
+                        (refunds are full-only; a second one would just be
+                        rejected server-side, see RefundService). */}
+                    {m.kind === "sale" && onRefund && !alreadyRefunded && (
+                        <RefundAction m={m} t={t} onRefund={onRefund} />
+                    )}
                 </div>
+            </div>
+        </div>
+    );
+}
+
+/**
+ * The host-initiated refund control inside the sale drawer.
+ *
+ * Collapsed to a single button until clicked, because most sales in this
+ * drawer are never refunded — showing a reason field and a destructive
+ * button by default on every sale row would make "refund" read as the
+ * default action instead of the exception it is.
+ *
+ * The reason is required and goes straight to `onRefund`, which the host
+ * forwards to the backend's own refund endpoint — the SAME endpoint that
+ * already enforces eligibility (escrow-only by default, "extended" mode
+ * from the item's own refund policy past that, a Cobuntu-support escalation
+ * once a sale has actually been paid out). This component has no opinion on
+ * any of that; it just shows whatever `error` comes back, verbatim, since
+ * the backend already writes that message for a host reader.
+ */
+function RefundAction({
+    m, t, onRefund,
+}: {
+    m: LedgerMovement;
+    t: (key: string, vars?: Record<string, string | number>) => string;
+    onRefund: (saleId: string, reason: string) => Promise<{ ok: boolean; error?: string }>;
+}) {
+    const [open, setOpen] = useState(false);
+    const [reason, setReason] = useState("");
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [done, setDone] = useState(false);
+
+    /* `key` is always "sale:<id>" for a sale row — see LedgerService, which
+       builds it from the same literal. Not a new field only because every
+       other pairing in this view (buildDisplayRows, saleKey) already reads
+       the id out of this same key rather than carrying it twice. */
+    const saleId = m.key.slice("sale:".length);
+
+    async function submit() {
+        if (!reason.trim() || submitting) return;
+        setSubmitting(true);
+        setError(null);
+        const result = await onRefund(saleId, reason.trim());
+        setSubmitting(false);
+        if (result.ok) setDone(true);
+        else setError(result.error || t("ledgerRefundGenericError"));
+    }
+
+    if (done) {
+        return (
+            <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] font-medium text-emerald-700">
+                {t("ledgerRefundSuccess")}
+            </div>
+        );
+    }
+
+    if (!open) {
+        return (
+            <div className="mt-6">
+                <button
+                    type="button"
+                    onClick={() => setOpen(true)}
+                    className="w-full rounded-lg border border-red-200 px-4 py-2.5 text-[13px] font-medium text-red-600 hover:bg-red-50"
+                >
+                    {t("ledgerRefundAction")}
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="mt-6 rounded-lg border border-red-200 bg-red-50/40 p-4">
+            <h4 className="text-[11px] font-medium text-red-600 uppercase tracking-wider mb-3">
+                {t("ledgerRefundAction")}
+            </h4>
+            <label className="block text-[12.5px] font-medium text-zinc-700 mb-1.5">
+                {t("ledgerRefundReasonLabel")}
+            </label>
+            <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder={t("ledgerRefundReasonPlaceholder")}
+                rows={3}
+                disabled={submitting}
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-[13px] text-zinc-900 placeholder:text-zinc-400 focus:border-red-400 focus:outline-none disabled:opacity-60"
+            />
+            {error && (
+                <p className="mt-2 text-[12.5px] text-red-600">{error}</p>
+            )}
+            <div className="mt-3 flex items-center justify-end gap-2">
+                <button
+                    type="button"
+                    onClick={() => { setOpen(false); setReason(""); setError(null); }}
+                    disabled={submitting}
+                    className="rounded-lg px-3 py-1.5 text-[12.5px] font-medium text-zinc-500 hover:bg-zinc-100 disabled:opacity-60"
+                >
+                    {t("ledgerRefundCancel")}
+                </button>
+                <button
+                    type="button"
+                    onClick={submit}
+                    disabled={submitting || !reason.trim()}
+                    className="rounded-lg bg-red-600 px-3 py-1.5 text-[12.5px] font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    {submitting ? t("ledgerRefundSubmitting") : t("ledgerRefundConfirm")}
+                </button>
             </div>
         </div>
     );
