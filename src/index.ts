@@ -123,6 +123,8 @@ export {
   REFUND_STANDARD,
   REFUND_NONE,
   REFUND_SCHEDULE_DEFAULT,
+  RefundScheduleStatement,
+  describeRefundBand,
 } from "./listings/RefundPolicyField";
 export type { RefundPolicyValue, RefundBand, RefundAnchor } from "./listings/RefundPolicyField";
 export type { PolicyRowProps, AudienceLevel } from "./ui/PolicyRow";

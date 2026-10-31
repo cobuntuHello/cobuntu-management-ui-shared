@@ -356,3 +356,77 @@ function RefundOption({
     </button>
   );
 }
+
+/**
+ * One row of a schedule, as a sentence.
+ *
+ * Shared by the editor's helper text and the read-only statement so the two
+ * cannot describe the same rows differently. The wording is the whole reason
+ * this is a function rather than inline JSX: "cancel at least 14 days before"
+ * and "ask within 7 days of buying" are opposite readings of the same number,
+ * and getting that backwards tells a seller their policy does the reverse of
+ * what it does.
+ */
+export function describeRefundBand(band: RefundBand, anchor: RefundAnchor): string {
+  const amount = band.pct === 0 ? "nothing back" : `${band.pct}% back`;
+  if (anchor === "EVENT_START") {
+    return band.days === 0
+      ? `Any time before it starts: ${amount}`
+      : `${band.days} or more days before: ${amount}`;
+  }
+  return `Within ${band.days} day${band.days === 1 ? "" : "s"} of buying: ${amount}`;
+}
+
+/**
+ * The house policy, stated rather than offered.
+ *
+ * Used where the seller does NOT get to choose: a venue publishes one set of
+ * cancellation terms and every event booked there inherits them. Asking a host
+ * hiring a room to pick their own refund rules is the wrong question, so the
+ * wizard shows this instead of {@link RefundPolicyField}.
+ *
+ * Deliberately has no controls at all, not even disabled ones. A greyed-out
+ * picker invites someone to hunt for the permission that would re-enable it;
+ * a statement reads as settled, which it is.
+ */
+export function RefundScheduleStatement({
+  bands,
+  anchor,
+  title = "Cancellation terms",
+  note,
+}: {
+  bands: RefundBand[];
+  anchor: RefundAnchor;
+  /** Name the house if you have it, e.g. "TEJÁ's cancellation terms". */
+  title?: string;
+  /** Optional line underneath, for a "who to contact" or similar. */
+  note?: string;
+}) {
+  const ordered = anchor === "EVENT_START"
+    ? [...bands].sort((a, b) => b.days - a.days)
+    : [...bands].sort((a, b) => a.days - b.days);
+
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-zinc-50/60 px-3 py-2.5">
+      <p className="text-[13px] font-medium text-zinc-900">{title}</p>
+      <ul className="mt-1.5 flex flex-col gap-1">
+        {ordered.map((b, i) => (
+          <li key={i} className="flex items-baseline gap-2 text-[12px] text-zinc-600">
+            <span className="tabular-nums">{describeRefundBand(b, anchor)}</span>
+          </li>
+        ))}
+      </ul>
+      {/*
+        The one thing a schedule does NOT cover, said plainly. A host reading
+        "nothing back" on the last row will reasonably wonder what happens when
+        the venue is the one that cancels, and the answer is the opposite.
+      */}
+      <p className="mt-2 text-[12px] text-zinc-500">
+        {anchor === "EVENT_START"
+          ? "If the event is cancelled by the venue, everyone is refunded in full."
+          : "If the sale is cancelled by the seller, you are refunded in full."}
+      </p>
+      {note && <p className="mt-1 text-[12px] text-zinc-500">{note}</p>}
+    </div>
+  );
+}
