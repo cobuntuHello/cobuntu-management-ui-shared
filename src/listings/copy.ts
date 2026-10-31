@@ -369,6 +369,10 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     ledgerNextPayoutCycle: "next payout cycle",
     ledgerPayoutNotYetScheduled: "Next payout (not yet scheduled)",
     ledgerAfterEscrowEnds: "After escrow ends",
+    /* Invoice/credit-note links in the sale/refund drawer. */
+    ledgerDocumentsTitle: "Documents",
+    ledgerViewInvoice: "View invoice",
+    ledgerViewCreditNote: "View credit note",
     overviewTrendTitle: "Earnings and views",
     overviewTrendWeeks: "last {count} weeks",
     overviewTrendEarnings: "Your earnings",

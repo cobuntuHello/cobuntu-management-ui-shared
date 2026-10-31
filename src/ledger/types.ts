@@ -59,6 +59,14 @@ export interface LedgerMovement {
     paidOutAt?: string | null;
     /** Sale only: when its payout is scheduled to fire, if not yet paid. */
     payoutScheduledFor?: string | null;
+    /** Sale only: the buyer-facing invoice for this sale, if one has been
+     *  issued. Null when no invoice exists yet. */
+    invoiceUrl?: string | null;
+    /** Refund only: the credit note issued for THIS refund, if one exists.
+     *  Unlike the invoice url, this one can rot after ~30 days (Stripe gives
+     *  credit notes no permanent link) -- still worth showing, just don't be
+     *  surprised if an old one 404s. Null when none was issued. */
+    creditNoteUrl?: string | null;
 }
 
 export interface ItemLedger {

@@ -734,6 +734,42 @@ function BreakdownPanel({
                     {/* Sale only -- a refund/payout/dispute row has no escrow
                         window of its own to chart. */}
                     {m.kind === "sale" && <PayoutTimeline m={m} day={day} dayTime={dayTime} t={t} />}
+
+                    {/* Document links, when one has been issued. Sale rows
+                        can show an invoice; refund rows can show the credit
+                        note for that specific refund. Both open in a new
+                        tab -- the url is Stripe-hosted, not ours to render. */}
+                    {(m.invoiceUrl || m.creditNoteUrl) && (
+                        <div className="mt-6">
+                            <h4 className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider mb-3">
+                                {t("ledgerDocumentsTitle")}
+                            </h4>
+                            <div className="flex flex-col gap-2">
+                                {m.invoiceUrl && (
+                                    <a
+                                        href={m.invoiceUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-2.5 text-[13px] font-medium text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50"
+                                    >
+                                        {t("ledgerViewInvoice")}
+                                        <ChevronRightIcon className="text-zinc-300" />
+                                    </a>
+                                )}
+                                {m.creditNoteUrl && (
+                                    <a
+                                        href={m.creditNoteUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-2.5 text-[13px] font-medium text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50"
+                                    >
+                                        {t("ledgerViewCreditNote")}
+                                        <ChevronRightIcon className="text-zinc-300" />
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
