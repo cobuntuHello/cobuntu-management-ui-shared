@@ -234,6 +234,7 @@ export { EmptyState, LedgerIcon, ShelfIcon } from "./overview/EmptyState";
  * open about, and the two would drift on the first copy change.
  */
 export { ManageReferrals, formatPct } from "./referrals/ManageReferrals";
+export { InviteReferrerModal } from "./referrals/InviteReferrerModal";
 export type {
   ArtifactReferralLink, ArtifactReferralOwner, ArtifactReferralCopy,
 } from "./referrals/types";
