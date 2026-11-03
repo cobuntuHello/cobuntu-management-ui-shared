@@ -61,22 +61,24 @@ const PANE_ANIMATION_CSS = `
 export type CreateWizardKind = "product" | "event" | "course";
 
 const LABELS: Record<CreateWizardKind, Record<CreateStepId, string>> = {
-  // "Arrangement", not "Listing".
+  // "Commission", not "Arrangement" or "Listing".
   //
   // "Listing" was apt when this step asked whether a community should carry the
   // item at all. That question is the footer buttons now, and the step decides
-  // ONE thing: the commission the seller goes up under. Its own heading has
-  // said "Your arrangement" since then, so the rail was the last place still
-  // using the old word -- and the resume step, which names the step a draft was
-  // left on, inherited it and showed "Left on Listing" for a screen titled
-  // "Your arrangement".
+  // ONE thing: the commission the seller goes up under. It used to ask that as
+  // a yes/no toggle, titled "Your arrangement" -- it is informational now, so
+  // the word changed with it, to the one thing actually shown: the community's,
+  // Cobuntu's and the processor's cut. The rail was the last place still using
+  // the old word -- and the resume step, which names the step a draft was left
+  // on, inherited it and showed "Left on Arrangement" for a screen titled
+  // "Your commission".
   //
   // The word a step is called has to be the same in the rail, in its heading,
   // and anywhere else that names it. Three surfaces, one name.
   // "Continue", not "Drafts": the rail names what you DO at each step, and the
   // step exists to offer picking work back up rather than to file it.
-  product: { resume: "Continue", ownership: "Who is selling", type: "What you are selling", details: "Details", commerce: "Deliverable Variants & Pricing", content: "Course content", settings: "Policies & access", listing: "Arrangement", access: "Visibility and Access", done: "Done" },
-  event: { resume: "Continue", ownership: "Who is hosting", type: "What you are selling", details: "Details", commerce: "Pricing", content: "Course content", settings: "Policies & access", listing: "Arrangement", access: "Visibility and Access", done: "Done" },
+  product: { resume: "Continue", ownership: "Who is selling", type: "What you are selling", details: "Details", commerce: "Deliverable Variants & Pricing", content: "Course content", settings: "Policies & access", listing: "Commission", access: "Visibility and Access", done: "Done" },
+  event: { resume: "Continue", ownership: "Who is hosting", type: "What you are selling", details: "Details", commerce: "Pricing", content: "Course content", settings: "Policies & access", listing: "Commission", access: "Visibility and Access", done: "Done" },
   /*
    * "Teaching", not "Selling", for ownership: a course's author is the person
    * whose teaching it is, and that is the word a creator uses about it.
@@ -86,7 +88,7 @@ const LABELS: Record<CreateWizardKind, Record<CreateStepId, string>> = {
    * wording rather than a placeholder that would read as a bug if it ever did
    * render.
    */
-  course: { resume: "Continue", ownership: "Who is teaching", type: "What you are selling", details: "Details", commerce: "Pricing", content: "Course content", settings: "Policies & access", listing: "Arrangement", access: "Visibility and Access", done: "Done" },
+  course: { resume: "Continue", ownership: "Who is teaching", type: "What you are selling", details: "Details", commerce: "Pricing", content: "Course content", settings: "Policies & access", listing: "Commission", access: "Visibility and Access", done: "Done" },
 };
 
 /**
