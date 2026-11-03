@@ -8,15 +8,17 @@ import {
 } from "../listings/RefundPolicyField";
 
 /**
- * The one control that sets a refund policy, now that it sets three things.
+ * The one control that sets a refund policy.
  *
  * What is worth pinning here is what the control used to get WRONG, because
  * each is cheap to reintroduce:
  *
- *   - `extended` mode was readable everywhere and writable nowhere. Eligibility
- *     told sellers to "enable extended host refunds in the event settings";
- *     there was no such setting. It must be writable, and it must survive a
- *     change to the buyer-facing choice, since the two are different axes.
+ *   - The schedule used to expand INLINE, pushing every control below it down
+ *     the page on every click, and writing through `onChange` on every single
+ *     keystroke. It opens in a modal now (2026-11-03), same pattern as the
+ *     tier editor: a draft the seller edits and explicitly Saves or Cancels.
+ *     `onChange` fires once, on Save -- never while the modal is open, and
+ *     never at all on Cancel.
  *   - `days` means the opposite thing either side of the anchor. An event
  *     counts down to its date, a product counts up from purchase. Copy that
  *     says "days before" on a product is a lie about what the number does.
@@ -29,6 +31,14 @@ function setup(value: RefundPolicyValue, anchor: "EVENT_START" | "PURCHASE" = "E
   const onChange = vi.fn();
   const r = render(<RefundPolicyField value={value} onChange={onChange} anchor={anchor} />);
   return { onChange, ...r };
+}
+
+function openScheduleModal() {
+  fireEvent.click(screen.getByText("Cancellation schedule"));
+}
+
+function saveSchedule() {
+  fireEvent.click(screen.getByText("Save"));
 }
 
 describe("RefundPolicyField — the three buyer-facing choices", () => {
@@ -44,18 +54,42 @@ describe("RefundPolicyField — the three buyer-facing choices", () => {
     expect(screen.getByText("Standard refunds").closest("button")?.getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("seeds a worked schedule rather than an empty table", () => {
+  it("opens a modal rather than expanding inline, and writes nothing until Save", () => {
+    const { onChange } = setup(null);
+    openScheduleModal();
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("seeds a worked schedule rather than an empty table, written on Save", () => {
     // An empty table asks the seller to invent a format the backend rejects.
     const { onChange } = setup(null);
-    fireEvent.click(screen.getByText("Cancellation schedule"));
+    openScheduleModal();
+    expect((screen.getAllByLabelText("Days before the event")[0] as HTMLInputElement).value).toBe("14");
+    saveSchedule();
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ bands: REFUND_SCHEDULE_DEFAULT }),
     );
   });
 
-  it("recognises a stored schedule and shows its rows", () => {
+  it("Cancel closes the modal without writing anything", () => {
+    const { onChange } = setup(null);
+    openScheduleModal();
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("states a stored schedule on the row itself, without opening the modal", () => {
     setup({ mode: "default", bands: [{ days: 30, pct: 80 }] });
     expect(screen.getByText("Cancellation schedule").closest("button")?.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText(/30 or more days before: 80% back/)).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("re-opening the modal on a stored schedule pre-fills the existing rows, not the default", () => {
+    setup({ mode: "default", bands: [{ days: 30, pct: 80 }] });
+    openScheduleModal();
     expect((screen.getByLabelText("Days before the event") as HTMLInputElement).value).toBe("30");
     expect((screen.getByLabelText("Percent refunded") as HTMLInputElement).value).toBe("80");
   });
@@ -67,13 +101,15 @@ describe("RefundPolicyField — the three buyer-facing choices", () => {
   });
 });
 
-describe("RefundPolicyField — the schedule editor", () => {
+describe("RefundPolicyField — the schedule editor (inside the modal)", () => {
   const BANDS = [{ days: 14, pct: 75 }, { days: 7, pct: 50 }];
 
-  it("edits a row without touching the others", () => {
+  it("edits a row without touching the others, written on Save", () => {
     const { onChange } = setup({ mode: "default", bands: BANDS });
+    openScheduleModal();
     const dayInputs = screen.getAllByLabelText("Days before the event");
     fireEvent.change(dayInputs[0], { target: { value: "21" } });
+    saveSchedule();
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ bands: [{ days: 21, pct: 75 }, { days: 7, pct: 50 }] }),
     );
@@ -81,49 +117,62 @@ describe("RefundPolicyField — the schedule editor", () => {
 
   it("truncates a fractional day rather than sending it to a 400", () => {
     const { onChange } = setup({ mode: "default", bands: BANDS });
-    fireEvent.change(screen.getAllByLabelText("Days before the event")[0], { target: { value: "7.5" } });
+    openScheduleModal();
+    fireEvent.change(screen.getAllByLabelText("Days before the event")[0], { target: { value: "10.9" } });
+    saveSchedule();
     expect(onChange).toHaveBeenCalledWith(
-      expect.objectContaining({ bands: [{ days: 7, pct: 75 }, { days: 7, pct: 50 }] }),
+      expect.objectContaining({ bands: [{ days: 10, pct: 75 }, { days: 7, pct: 50 }] }),
     );
   });
 
   it("adds a row that is already valid", () => {
     // Below the last row on BOTH axes, so pressing the button cannot produce
     // the "later cannot return more" error.
-    const { onChange } = setup({ mode: "default", bands: BANDS });
+    setup({ mode: "default", bands: BANDS });
+    openScheduleModal();
     fireEvent.click(screen.getByText("Add a row"));
-    const next = onChange.mock.calls[0][0].bands;
-    expect(next).toHaveLength(3);
-    expect(next[2].days).toBeLessThan(BANDS[1].days);
-    expect(next[2].pct).toBeLessThan(BANDS[1].pct);
-    expect(refundScheduleProblem(next, "EVENT_START")).toBeNull();
+    const dayInputs = screen.getAllByLabelText("Days before the event");
+    const pctInputs = screen.getAllByLabelText("Percent refunded");
+    expect(dayInputs).toHaveLength(3);
+    const lastDays = Number((dayInputs[2] as HTMLInputElement).value);
+    const lastPct = Number((pctInputs[2] as HTMLInputElement).value);
+    expect(lastDays).toBeLessThan(BANDS[1].days);
+    expect(lastPct).toBeLessThan(BANDS[1].pct);
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("removes a row, but never the last one", () => {
+  it("removes a row, but never the last one, written on Save", () => {
     const { onChange } = setup({ mode: "default", bands: BANDS });
+    openScheduleModal();
     fireEvent.click(screen.getByLabelText("Remove the 7-day row"));
+    saveSchedule();
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ bands: [{ days: 14, pct: 75 }] }));
   });
 
   it("offers no remove control when one row is left", () => {
     setup({ mode: "default", bands: [{ days: 7, pct: 50 }] });
+    openScheduleModal();
     expect(screen.queryByLabelText("Remove the 7-day row")).toBeNull();
   });
 
   it("stops offering rows at the cap the backend enforces", () => {
     const ten = Array.from({ length: 10 }, (_, i) => ({ days: 100 - i * 10, pct: 100 - i * 10 }));
     setup({ mode: "default", bands: ten });
+    openScheduleModal();
     expect(screen.queryByText("Add a row")).toBeNull();
   });
 
-  it("tells the seller at the table when the schedule rises", () => {
+  it("tells the seller at the table when the schedule rises, and disables Save", () => {
     setup({ mode: "default", bands: [{ days: 14, pct: 50 }, { days: 7, pct: 75 }] });
+    openScheduleModal();
     const alert = screen.getByRole("alert");
     expect(alert.textContent).toMatch(/cannot return more/);
+    expect(screen.getByText("Save").closest("button")).toBeDisabled();
   });
 
   it("names a duplicate cutoff instead of saying 'invalid'", () => {
     setup({ mode: "default", bands: [{ days: 7, pct: 50 }, { days: 7, pct: 25 }] });
+    openScheduleModal();
     expect(screen.getByRole("alert").textContent).toMatch(/Two rows both say 7 days/);
   });
 });
@@ -131,45 +180,16 @@ describe("RefundPolicyField — the schedule editor", () => {
 describe("RefundPolicyField — the anchor changes what the number means", () => {
   it("counts down to the event for an event", () => {
     setup({ mode: "default", bands: [{ days: 7, pct: 50 }] }, "EVENT_START");
+    openScheduleModal();
     expect(screen.getByText("days before")).toBeTruthy();
     expect(screen.getByLabelText("Days before the event")).toBeTruthy();
   });
 
   it("counts up from the sale for a product or course", () => {
     setup({ mode: "default", bands: [{ days: 7, pct: 50 }] }, "PURCHASE");
+    openScheduleModal();
     expect(screen.getByText("days after")).toBeTruthy();
     expect(screen.getByLabelText("Days after buying")).toBeTruthy();
-  });
-});
-
-describe("RefundPolicyField — the host lever", () => {
-  it("is writable at all, which was the defect", () => {
-    const { onChange } = setup(null);
-    fireEvent.click(screen.getByLabelText(/Let me refund after the window closes/));
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ mode: "extended" }));
-  });
-
-  it("reflects a stored extended policy", () => {
-    setup({ mode: "extended" });
-    expect((screen.getByLabelText(/Let me refund after the window closes/) as HTMLInputElement).checked).toBe(true);
-  });
-
-  it("survives a change to the buyer-facing choice", () => {
-    // Different axes: one is what the buyer may do, the other what the seller
-    // may still do afterwards. Picking a schedule must not silently revoke it.
-    const { onChange } = setup({ mode: "extended" });
-    fireEvent.click(screen.getByText("Cancellation schedule"));
-    expect(onChange).toHaveBeenCalledWith(
-      expect.objectContaining({ mode: "extended", bands: REFUND_SCHEDULE_DEFAULT }),
-    );
-  });
-
-  it("clears back to a null policy when switched off on standard refunds", () => {
-    // null is how "platform default" is stored; leaving {mode:'default'} behind
-    // would write a policy row that says nothing.
-    const { onChange } = setup({ mode: "extended" });
-    fireEvent.click(screen.getByLabelText(/Let me refund after the window closes/));
-    expect(onChange).toHaveBeenCalledWith(null);
   });
 });
 

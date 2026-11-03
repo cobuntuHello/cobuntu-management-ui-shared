@@ -118,7 +118,6 @@ export {
   RefundPolicyField,
   refundsDisabled,
   hasRefundSchedule,
-  extendedRefundsEnabled,
   refundScheduleProblem,
   REFUND_STANDARD,
   REFUND_NONE,
