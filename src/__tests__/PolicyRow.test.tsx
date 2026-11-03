@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { PolicyRow, AudienceMeter } from "../ui/PolicyRow";
+import { RefundPolicyField } from "../index";
+import { MANAGEMENT_UI_MESSAGES_EN } from "../i18n/messages.en";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -174,18 +176,33 @@ describe("RefundPolicyField", () => {
          * BOTH options, so half the text told you nothing about the choice you
          * were making. What differs is only whether the buyer can do it
          * themselves.
+         *
+         * ASSERTED AGAINST THE COPY, NOT THE SOURCE TEXT. This used to grep
+         * RefundPolicyField.tsx for a literal `subtitle="..."`, and went red
+         * the moment the component was internationalised and the copy moved
+         * into message keys -- while the RULE it defends was never broken.
+         * The strings are what the rule is about, so check the strings where
+         * they now live.
          */
-        const src = readFileSync(resolve(process.cwd(), "src/listings/RefundPolicyField.tsx"), "utf8");
-        expect(src).toContain('subtitle="Buyers can refund themselves within the usual window."');
-        expect(src).toContain('subtitle="Buyers ask you instead."');
-        expect(src).not.toContain("You can always refund a buyer directly");
+        const copy = MANAGEMENT_UI_MESSAGES_EN.shared.managementUi.refundPolicyField;
+        expect(copy.standardSubtitle).toMatch(/buyers can refund themselves/i);
+        expect(copy.noneSubtitle).toMatch(/buyers ask you instead/i);
+
+        // The sentence that was true of both options, and so told the reader
+        // nothing about the choice, must not come back in ANY of these.
+        for (const line of [copy.standardSubtitle, copy.noneSubtitle, copy.scheduleSubtitleEvent, copy.scheduleSubtitlePurchase]) {
+            expect(line).not.toMatch(/you can always refund a buyer directly/i);
+        }
     });
 
     it("is one file, not one per package", () => {
         // It existed twice, in event-management-ui and product-management-ui,
         // each comment claiming to be "ONE shared control" and naming the
         // other as its mirror. Identical markup, nothing keeping them so.
-        const index = readFileSync(resolve(process.cwd(), "src/index.ts"), "utf8");
-        expect(index).toContain('export { RefundPolicyField');
+        //
+        // Asserted by IMPORTING the barrel rather than grepping it: an export
+        // that type-checks but does not resolve would pass a text search and
+        // fail a consumer, which is the failure this is here to prevent.
+        expect(typeof RefundPolicyField).toBe("function");
     });
 });
