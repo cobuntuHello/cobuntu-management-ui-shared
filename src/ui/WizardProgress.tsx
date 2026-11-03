@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSharedT } from "../i18n";
 import { Check } from "lucide-react";
 import { cn } from "../lib/cn";
 
@@ -26,8 +27,9 @@ export function WizardProgress({
   onStepClick,
 }: WizardProgressProps) {
   const completed = new Set(completedIndexes);
+  const tChrome = useSharedT("shared.managementUi.modalChrome");
   return (
-    <ol className="flex items-center gap-1" aria-label="Progress">
+    <ol className="flex items-center gap-1" aria-label={tChrome("progress")}>
       {steps.map((step, i) => {
         const isCurrent = i === currentIndex;
         const isCompleted = completed.has(i) && !isCurrent;

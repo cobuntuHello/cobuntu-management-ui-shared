@@ -128,7 +128,8 @@ describe("CreateStepRail — the Next hint is legible and correctly ranked", () 
   });
 
   it("paints --text-color rather than inheriting an unknown ambient colour", () => {
-    const hint = SRC.match(/className="text-\[12\.5px\][^"]*"[\s\S]{0,160}?Next:/);
+    // The hint's text is a translated message now (t("next")), so match that.
+    const hint = SRC.match(/className="text-\[12\.5px\][^"]*"[\s\S]{0,160}?t\("next"/);
     expect(hint).not.toBeNull();
     expect(hint![0]).toContain('color: "var(--text-color)"');
   });

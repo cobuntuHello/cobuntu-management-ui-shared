@@ -1,5 +1,6 @@
 "use client";
 
+import { useSharedT } from "../i18n";
 import type { ReactNode } from "react";
 import {
   tierIsIncluded,
@@ -60,10 +61,12 @@ export function AccessAxisControl({
   onChange,
   tiers,
   publicLabel,
-  allLabel = "Every tier in this community",
+  allLabel: allLabelProp,
   ceiling,
   disabled = false,
 }: AccessAxisControlProps) {
+  const t = useSharedT("shared.managementUi.accessAxisControl");
+  const allLabel = allLabelProp ?? t("allSubtitle");
   const showPublic = ceiling ? ceiling.allowPublic : true;
   const showAll = ceiling ? ceiling.allowAll : true;
   const choosable = ceiling?.tierIds ? tiers.filter((t) => ceiling.tierIds!.includes(t.id)) : tiers;
@@ -90,14 +93,14 @@ export function AccessAxisControl({
 
       <div className="flex flex-col gap-1">
       <Row
-        title="Public"
+        title={t("public")}
         subtitle={publicLabel}
         selected={value.mode === "public"}
         disabled={disabled || !showPublic}
         onClick={() => onChange({ mode: "public", tierIds: [] })}
       />
       <Row
-        title="All members"
+        title={t("allMembers")}
         subtitle={allLabel}
         selected={value.mode === "all"}
         disabled={disabled || !showAll}
@@ -105,8 +108,8 @@ export function AccessAxisControl({
       />
       {canChooseTiers && (
         <Row
-          title="Specific tiers"
-          subtitle="Choose which ones"
+          title={t("specificTiers")}
+          subtitle={t("specificTiersSubtitle")}
           selected={value.mode === "tiers"}
           disabled={disabled}
           onClick={pickTiers}
@@ -169,7 +172,7 @@ export function AccessAxisControl({
           })}
           {ceiling?.tierIds && ceiling.tierIds.length < tiers.length && (
             <div className="px-3.5 py-1.5 pl-[30px] text-[11px] text-zinc-300">
-              Only tiers that can already find it are listed.
+              {t("ceilingNote")}
             </div>
           )}
         </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { type SharedT, useSharedT } from "../i18n";
 import * as React from "react";
 import { cn } from "../lib/cn";
 
@@ -22,12 +23,15 @@ export interface DiscountModeRadioProps {
   disabled?: boolean;
 }
 
-const DEFAULT_OPTIONS: DiscountOption[] = [
-  { value: "FREE", label: "Free for members", description: "Override the price to 0." },
-  { value: "PERCENT_OFF", label: "Percent off", description: "e.g. 20% off the list price." },
-  { value: "FLAT_OFF", label: "Flat amount off", description: "e.g. €10 off the list price." },
-  { value: "FIXED_PRICE", label: "Fixed price", description: "Members always pay this exact amount." },
-];
+/* Built per render so the labels follow the host's translator. */
+function defaultOptions(t: SharedT): DiscountOption[] {
+  return [
+    { value: "FREE", label: t("free"), description: t("freeDescription") },
+    { value: "PERCENT_OFF", label: t("percentOff"), description: t("percentOffDescription") },
+    { value: "FLAT_OFF", label: t("flatOff"), description: t("flatOffDescription") },
+    { value: "FIXED_PRICE", label: t("fixedPrice"), description: t("fixedPriceDescription") },
+  ];
+}
 
 export function DiscountModeRadio({
   value,
@@ -35,7 +39,8 @@ export function DiscountModeRadio({
   options,
   disabled,
 }: DiscountModeRadioProps) {
-  const opts = options ?? DEFAULT_OPTIONS;
+  const t = useSharedT("shared.managementUi.discountModeRadio");
+  const opts = options ?? defaultOptions(t);
   return (
     <div className="grid grid-cols-2 gap-2" role="radiogroup">
       {opts.map((opt) => {

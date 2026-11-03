@@ -1,5 +1,6 @@
 "use client";
 
+import { type SharedT, useSharedT } from "../i18n";
 import * as React from "react";
 import { cn } from "../lib/cn";
 
@@ -21,23 +22,14 @@ export interface BillingRadioProps {
   disabled?: boolean;
 }
 
-const DEFAULT_OPTIONS: BillingOption[] = [
-  {
-    value: "ONE_TIME",
-    label: "One-time",
-    description: "Single charge at checkout.",
-  },
-  {
-    value: "RECURRING",
-    label: "Recurring",
-    description: "Charges on a fixed interval until cancelled.",
-  },
-  {
-    value: "INSTALLMENT_PLAN",
-    label: "Installment plan",
-    description: "Charges on a fixed schedule, then stops automatically.",
-  },
-];
+/* Built per render so the labels follow the host's translator. */
+function defaultOptions(t: SharedT): BillingOption[] {
+  return [
+    { value: "ONE_TIME", label: t("oneTime"), description: t("oneTimeDescription") },
+    { value: "RECURRING", label: t("recurring"), description: t("recurringDescription") },
+    { value: "INSTALLMENT_PLAN", label: t("installmentPlan"), description: t("installmentPlanDescription") },
+  ];
+}
 
 /**
  * Mutually exclusive billing mode selector. Recurring + installment never
@@ -50,10 +42,11 @@ export function BillingRadio({
   options,
   disabled,
 }: BillingRadioProps) {
-  const visible = (options ?? DEFAULT_OPTIONS).filter((o) => !o.hidden);
+  const t = useSharedT("shared.managementUi.billingRadio");
+  const visible = (options ?? defaultOptions(t)).filter((o) => !o.hidden);
   return (
     <fieldset className="space-y-2" disabled={disabled}>
-      <legend className="sr-only">Billing mode</legend>
+      <legend className="sr-only">{t("legend")}</legend>
       {visible.map((opt) => {
         const checked = value === opt.value;
         return (

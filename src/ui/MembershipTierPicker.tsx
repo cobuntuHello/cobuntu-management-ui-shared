@@ -1,5 +1,6 @@
 "use client";
 
+import { useSharedT } from "../i18n";
 import * as React from "react";
 import {
   type TierAccessValue,
@@ -68,10 +69,12 @@ export function MembershipTierPicker({
   value,
   onChange,
   tiers,
-  publicLabel = "Anyone, including people who are not members",
+  publicLabel: publicLabelProp,
   disabled = false,
   ceiling,
 }: MembershipTierPickerProps) {
+  const t = useSharedT("shared.managementUi.membershipTierPicker");
+  const publicLabel = publicLabelProp ?? t("publicSubtitle");
   const implied = tierRowsImplied(value.mode);
 
   // Only the tiers the ceiling still permits are choosable, and they are also
@@ -94,7 +97,7 @@ export function MembershipTierPicker({
           checked={value.mode === "public"}
           onToggle={() => onChange({ mode: value.mode === "public" ? "all" : "public", tierIds: [] })}
           disabled={disabled}
-          title="Public"
+          title={t("public")}
           subtitle={publicLabel}
         />
       )}
@@ -112,8 +115,8 @@ export function MembershipTierPicker({
           implied={value.mode === "public"}
           onToggle={() => onChange({ mode: "all", tierIds: [] })}
           disabled={disabled}
-          title="All members"
-          subtitle="Every membership tier in this community"
+          title={t("allMembers")}
+          subtitle={t("allMembersSubtitle")}
           divider={showPublic}
         />
       )}
@@ -138,7 +141,7 @@ export function MembershipTierPicker({
         // Nothing to choose between. Saying so beats an empty rail that looks
         // like a failed load.
         <p className="text-[12px] text-zinc-400 px-3 pt-2">
-          This community has no membership tiers yet.
+          {t("noTiers")}
         </p>
       )}
     </div>

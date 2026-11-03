@@ -1,5 +1,6 @@
 "use client";
 
+import { useSharedT } from "../i18n";
 import * as React from "react";
 import { cn } from "../lib/cn";
 
@@ -75,6 +76,7 @@ export function PackagePicker({
   emptyLabel,
   platformFee,
 }: PackagePickerProps) {
+  const t = useSharedT("shared.managementUi.packagePicker");
   const sym = platformFee?.currencySymbol ?? "€";
   /*
    * Cobuntu's share is the all-in charge MINUS what the processor takes, which
@@ -106,9 +108,9 @@ export function PackagePicker({
       <div className="flex flex-col gap-2">
         <p className="m-0 rounded-[11px] border border-amber-200 bg-amber-50 px-3.5 py-3 text-[12.5px] leading-relaxed text-amber-900">
           {emptyLabel ??
-            `${communityName ?? "This community"} hasn't published any arrangements for your membership yet, so listing isn't open to you here.`}
+            t("empty", { community: communityName ?? t("thisCommunity") })}
         </p>
-        <FeeBreakdown feeLine={feeLine} feeSplit={feeSplit} />
+        <FeeBreakdown feeLine={feeLine} feeSplit={feeSplit} t={t} />
       </div>
     );
   }
@@ -141,7 +143,7 @@ export function PackagePicker({
             </p>
           ) : null}
         </div>
-        <FeeBreakdown feeLine={feeLine} feeSplit={feeSplit} />
+        <FeeBreakdown feeLine={feeLine} feeSplit={feeSplit} t={t} />
       </div>
     );
   }
@@ -214,7 +216,7 @@ export function PackagePicker({
         * seller assumes Stripe comes on top, which is what every other platform
         * they have used does.
         */}
-      <FeeBreakdown feeLine={feeLine} feeSplit={feeSplit} />
+      <FeeBreakdown feeLine={feeLine} feeSplit={feeSplit} t={t} />
     </div>
   );
 }
@@ -228,9 +230,11 @@ export function PackagePicker({
 function FeeBreakdown({
   feeLine,
   feeSplit,
+  t,
 }: {
   feeLine: string | null;
   feeSplit: { processing: string; platform: string } | null;
+  t: ReturnType<typeof useSharedT>;
 }) {
   if (!feeLine) return null;
   if (feeSplit) {
@@ -242,11 +246,11 @@ function FeeBreakdown({
     return (
       <div className="mt-1 rounded-[11px] border border-zinc-200 bg-zinc-50/70 px-3.5 py-2.5">
         <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
-          On top of the community&apos;s rate
+          {t("onTopHeading")}
         </p>
         <dl className="m-0 mt-1.5 flex flex-col gap-1">
           <div className="flex items-baseline justify-between gap-3">
-            <dt className="m-0 text-[12px] text-zinc-500">Card processing</dt>
+            <dt className="m-0 text-[12px] text-zinc-500">{t("cardProcessing")}</dt>
             <dd className="m-0 text-[12px] font-semibold tabular-nums text-zinc-700">{feeSplit.processing}</dd>
           </div>
           <div className="flex items-baseline justify-between gap-3">
@@ -259,7 +263,7 @@ function FeeBreakdown({
   }
   return (
     <p className="m-0 mt-1 text-[11.5px] leading-relaxed text-zinc-500">
-      Cobuntu charges {feeLine} of your share on top, card processing included.
+      {t("feeLine", { fee: feeLine })}
     </p>
   );
 }

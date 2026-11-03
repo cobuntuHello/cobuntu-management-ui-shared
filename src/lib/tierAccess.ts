@@ -1,3 +1,4 @@
+import { getSharedT } from "../i18n/core";
 /**
  * Who a listing is open to, as the editor models it.
  *
@@ -192,38 +193,38 @@ export function tierAccessConsequence(
    */
   verb: "buy" | "register" = "buy",
 ): string | null {
-  const V = verb === "register" ? "register" : "buy it";
+  const tx = getSharedT("shared.managementUi.tierAccess");
   const nameOf = (ids: string[]) =>
     tiers.filter((t) => ids.includes(t.id)).map((t) => t.name);
   const list = (names: string[]) =>
     names.length <= 1
       ? names[0] ?? ""
-      : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+      : tx("listAnd", { head: names.slice(0, -1).join(", "), last: names[names.length - 1] });
 
   if (view.mode === "public" && buy.mode === "public") return null;
 
   if (view.mode === "public" && buy.mode === "all") {
-    return `Anyone can find it, but only members can ${V}.`;
+    return tx("publicFindMembersBuy", { verb });
   }
   if (view.mode === "public" && buy.mode === "tiers") {
     const names = list(nameOf(buy.tierIds));
-    return `Anyone can find it. Only ${names} can ${V} — everyone else is offered the tier.`;
+    return tx("publicFindTiersBuy", { names, verb });
   }
   if (view.mode === "all" && buy.mode === "all") {
-    return "Members only, at any tier. Nobody outside the community will find it.";
+    return tx("membersOnly");
   }
   if (view.mode === "all" && buy.mode === "tiers") {
     const buyers = nameOf(buy.tierIds);
     const others = tiers.filter((t) => !buy.tierIds.includes(t.id)).map((t) => t.name);
-    const tail = others.length > 0 ? ` ${list(others)} will see it but not be able to ${verb === "register" ? "register" : "buy"}.` : "";
-    return `Every member can find it. Only ${list(buyers)} can ${V}.${tail}`;
+    const tail = others.length > 0 ? ` ${tx("othersSeeNotBuy", { names: list(others), verb })}` : "";
+    return `${tx("everyMemberFindsTiersBuy", { names: list(buyers), verb })}${tail}`;
   }
   if (view.mode === "tiers") {
     const viewers = list(nameOf(view.tierIds));
     if (buy.mode === "tiers" && buy.tierIds.length < view.tierIds.length) {
-      return `Only ${viewers} can find it, and only ${list(nameOf(buy.tierIds))} can ${V}.`;
+      return tx("tiersFindFewerBuy", { viewers, buyers: list(nameOf(buy.tierIds)), verb });
     }
-    return `Only ${viewers} can find it. Nobody else sees it anywhere in the community.`;
+    return tx("tiersFindOnly", { viewers });
   }
   return null;
 }
@@ -233,12 +234,14 @@ export function tierAccessSummary(
   value: TierAccessValue,
   tiers: Array<{ id: string; name: string }>,
 ): string {
-  if (value.mode === "public") return "Everyone";
-  if (value.mode === "all") return "All members";
+  const tx = getSharedT("shared.managementUi.tierAccess");
+  if (value.mode === "public") return tx("summaryEveryone");
+  if (value.mode === "all") return tx("summaryAllMembers");
   const names = tiers.filter((t) => value.tierIds.includes(t.id)).map((t) => t.name);
-  if (names.length === 0) return "All members";
-  if (names.length <= 2) return names.join(" and ");
-  return `${names.length} membership tiers`;
+  if (names.length === 0) return tx("summaryAllMembers");
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return tx("listAnd", { head: names[0], last: names[1] });
+  return tx("summaryTierCount", { count: names.length });
 }
 
 /**

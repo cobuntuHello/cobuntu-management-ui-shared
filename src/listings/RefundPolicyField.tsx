@@ -1,3 +1,5 @@
+import { useSharedT } from "../i18n";
+import { getSharedT } from "../i18n/core";
 import * as React from "react";
 import { ModalShell } from "../ui/ModalShell";
 
@@ -105,25 +107,26 @@ function ordered(bands: RefundBand[], anchor: RefundAnchor): RefundBand[] {
  * disagreement means this copy is stale.
  */
 export function refundScheduleProblem(bands: RefundBand[], anchor: RefundAnchor): string | null {
-  if (bands.length === 0) return "Add at least one row, or choose standard refunds.";
-  if (bands.length > MAX_BANDS) return `A schedule holds at most ${MAX_BANDS} rows.`;
+  const tr = getSharedT("shared.managementUi.refundPolicyField");
+  if (bands.length === 0) return tr("problemNoRows");
+  if (bands.length > MAX_BANDS) return tr("problemTooMany", { max: MAX_BANDS });
   const seen = new Set<number>();
   for (const b of bands) {
     if (!Number.isInteger(b.days) || b.days < 0 || b.days > 365) {
-      return "Each row needs a whole number of days, from 0 to 365.";
+      return tr("problemDays");
     }
     if (!Number.isInteger(b.pct) || b.pct < 0 || b.pct > 100) {
-      return "Each row needs a whole percentage, from 0 to 100.";
+      return tr("problemPct");
     }
-    if (seen.has(b.days)) return `Two rows both say ${b.days} days. Give each row its own cutoff.`;
+    if (seen.has(b.days)) return tr("problemDuplicate", { days: b.days });
     seen.add(b.days);
   }
   const sorted = ordered(bands, anchor);
   for (let i = 1; i < sorted.length; i++) {
     if (sorted[i].pct > sorted[i - 1].pct) {
       return anchor === "EVENT_START"
-        ? "Cancelling later cannot return more. Check the order of your percentages."
-        : "Refunding later cannot return more. Check the order of your percentages.";
+        ? tr("problemOrderEvent")
+        : tr("problemOrderPurchase");
     }
   }
   return null;
@@ -139,6 +142,7 @@ export function RefundPolicyField({
   /** EVENT_START counts down to the event; PURCHASE counts up from the sale. */
   anchor: RefundAnchor;
 }) {
+  const tr = useSharedT("shared.managementUi.refundPolicyField");
   const choice = choiceOf(value);
   const bands = value?.bands && value.bands.length > 0 ? value.bands : REFUND_SCHEDULE_DEFAULT;
 
@@ -167,15 +171,15 @@ export function RefundPolicyField({
   const scheduleSummary = choice === "schedule"
     ? ordered(bands, anchor).map((b) => describeRefundBand(b, anchor)).join(" · ")
     : anchor === "EVENT_START"
-      ? "Buyers get part of their money back, depending on how late they cancel."
-      : "Buyers get part of their money back, depending on how long they have had it.";
+      ? tr("scheduleSubtitleEvent")
+      : tr("scheduleSubtitlePurchase");
 
   return (
     <div className="flex flex-col gap-2">
       <RefundOption
         selected={choice === "standard"}
         onClick={() => setChoice("standard")}
-        title="Standard refunds"
+        title={tr("standardTitle")}
         /*
          * The CONSEQUENCE, in one line.
          *
@@ -185,12 +189,12 @@ export function RefundPolicyField({
          * choice you were making. What differs between the two presets is
          * only whether the buyer can do it themselves.
          */
-        subtitle="Buyers can refund themselves within the usual window, in full."
+        subtitle={tr("standardSubtitle")}
       />
       <RefundOption
         selected={choice === "schedule"}
         onClick={openScheduleModal}
-        title="Cancellation schedule"
+        title={tr("scheduleTitle")}
         subtitle={scheduleSummary}
         /* A clickable row, same as the tier list -- the chevron is the only
            hint this opens something rather than just selecting a radio. */
@@ -199,18 +203,14 @@ export function RefundPolicyField({
       <RefundOption
         selected={choice === "none"}
         onClick={() => setChoice("none")}
-        title="No self-service refunds"
-        subtitle="Buyers ask you instead."
+        title={tr("noneTitle")}
+        subtitle={tr("noneSubtitle")}
       />
 
       {modalOpen && (
         <ModalShell
-          title="Cancellation schedule"
-          subtitle={
-            anchor === "EVENT_START"
-              ? "Read each row as: cancel at least this many days before the event, get this much back."
-              : "Read each row as: ask within this many days of buying, get this much back."
-          }
+          title={tr("scheduleTitle")}
+          subtitle={anchor === "EVENT_START" ? tr("readRowsEvent") : tr("readRowsPurchase")}
           onClose={() => setModalOpen(false)}
           width="sm"
           footer={
@@ -220,7 +220,7 @@ export function RefundPolicyField({
                 onClick={() => setModalOpen(false)}
                 className="cursor-pointer rounded-lg px-3 py-1.5 text-[13px] font-medium text-zinc-600 hover:bg-zinc-100"
               >
-                Cancel
+                {tr("cancel")}
               </button>
               <button
                 type="button"
@@ -228,7 +228,7 @@ export function RefundPolicyField({
                 disabled={!!problem}
                 className="cursor-pointer rounded-lg bg-zinc-900 px-3.5 py-1.5 text-[13px] font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Save
+                {tr("save")}
               </button>
             </div>
           }
@@ -251,6 +251,7 @@ function ScheduleEditor({
   onChange: (next: RefundBand[]) => void;
   problem: string | null;
 }) {
+  const tr = useSharedT("shared.managementUi.refundPolicyField");
   const update = (i: number, patch: Partial<RefundBand>) =>
     onChange(bands.map((b, j) => (j === i ? { ...b, ...patch } : b)));
 
@@ -279,12 +280,12 @@ function ScheduleEditor({
               max={365}
               step={1}
               value={b.days}
-              aria-label={anchor === "EVENT_START" ? "Days before the event" : "Days after buying"}
+              aria-label={anchor === "EVENT_START" ? tr("daysBeforeEventAria") : tr("daysAfterBuyingAria")}
               onChange={(e) => update(i, { days: Math.trunc(Number(e.target.value)) })}
               className="w-16 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[13px] tabular-nums text-zinc-900"
             />
             <span className="shrink-0 text-[12px] text-zinc-500">
-              {anchor === "EVENT_START" ? "days before" : "days after"}
+              {anchor === "EVENT_START" ? tr("daysBefore") : tr("daysAfter")}
             </span>
             <input
               type="number"
@@ -292,19 +293,19 @@ function ScheduleEditor({
               max={100}
               step={1}
               value={b.pct}
-              aria-label="Percent refunded"
+              aria-label={tr("percentAria")}
               onChange={(e) => update(i, { pct: Math.trunc(Number(e.target.value)) })}
               className="w-16 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[13px] tabular-nums text-zinc-900"
             />
-            <span className="shrink-0 text-[12px] text-zinc-500">% back</span>
+            <span className="shrink-0 text-[12px] text-zinc-500">{tr("pctBack")}</span>
             {bands.length > 1 && (
               <button
                 type="button"
                 onClick={() => remove(i)}
-                aria-label={`Remove the ${b.days}-day row`}
+                aria-label={tr("removeRowAria", { days: b.days })}
                 className="ml-auto cursor-pointer rounded-md bg-zinc-100 px-2 py-1 text-[12px] text-zinc-600 transition-colors hover:bg-zinc-200"
               >
-                Remove
+                {tr("remove")}
               </button>
             )}
           </div>
@@ -316,7 +317,7 @@ function ScheduleEditor({
           onClick={add}
           className="self-start cursor-pointer rounded-md bg-zinc-100 px-2.5 py-1 text-[12px] font-medium text-zinc-700 transition-colors hover:bg-zinc-200"
         >
-          Add a row
+          {tr("addRow")}
         </button>
       )}
       {problem && (
@@ -326,8 +327,8 @@ function ScheduleEditor({
       )}
       <p className="text-[12px] text-zinc-500">
         {anchor === "EVENT_START"
-          ? "Anyone cancelling later than your last row gets nothing back. If you cancel the event yourself, buyers are refunded in full."
-          : "Anyone asking later than your last row gets nothing back. If you cancel the sale yourself, buyers are refunded in full."}
+          ? tr("tailEvent")
+          : tr("tailPurchase")}
       </p>
     </div>
   );
@@ -390,13 +391,14 @@ function ChevronRightIcon() {
  * what it does.
  */
 export function describeRefundBand(band: RefundBand, anchor: RefundAnchor): string {
-  const amount = band.pct === 0 ? "nothing back" : `${band.pct}% back`;
+  const tr = getSharedT("shared.managementUi.refundPolicyField");
+  const amount = band.pct === 0 ? tr("bandNothingBack") : tr("bandPctBack", { pct: band.pct });
   if (anchor === "EVENT_START") {
     return band.days === 0
-      ? `Any time before it starts: ${amount}`
-      : `${band.days} or more days before: ${amount}`;
+      ? tr("bandAnyTimeBefore", { amount })
+      : tr("bandDaysBefore", { days: band.days, amount });
   }
-  return `Within ${band.days} day${band.days === 1 ? "" : "s"} of buying: ${amount}`;
+  return tr("bandWithinDays", { days: band.days, amount });
 }
 
 /**
@@ -414,7 +416,7 @@ export function describeRefundBand(band: RefundBand, anchor: RefundAnchor): stri
 export function RefundScheduleStatement({
   bands,
   anchor,
-  title = "Cancellation terms",
+  title: titleProp,
   note,
 }: {
   bands: RefundBand[];
@@ -424,6 +426,8 @@ export function RefundScheduleStatement({
   /** Optional line underneath, for a "who to contact" or similar. */
   note?: string;
 }) {
+  const tr = useSharedT("shared.managementUi.refundPolicyField");
+  const title = titleProp ?? tr("statementTitle");
   const rows = ordered(bands, anchor);
 
   return (
@@ -443,8 +447,8 @@ export function RefundScheduleStatement({
       */}
       <p className="mt-2 text-[12px] text-zinc-500">
         {anchor === "EVENT_START"
-          ? "If the event is cancelled by the venue, everyone is refunded in full."
-          : "If the sale is cancelled by the seller, you are refunded in full."}
+          ? tr("venueCancelEvent")
+          : tr("venueCancelPurchase")}
       </p>
       {note && <p className="mt-1 text-[12px] text-zinc-500">{note}</p>}
     </div>

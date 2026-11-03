@@ -1,3 +1,4 @@
+import { getSharedT } from "../i18n/core";
 /**
  * Which submit buttons a create form should offer.
  *
@@ -150,9 +151,10 @@ export function resolveSubmitActions(input: SubmitActionsInput): SubmitAction[] 
    * visible only to its owner. A leader's Create and a member's Create do the
    * same thing; being a leader changes what the OTHER button does.
    */
+  const tx = getSharedT("shared.managementUi.submitActions");
   const create: SubmitAction = {
     kind: "create",
-    label: "Create",
+    label: tx("create"),
     // No `publish`: that is a listing's state, and this makes no listing.
     requestListing: false,
     primary: false,
@@ -167,8 +169,8 @@ export function resolveSubmitActions(input: SubmitActionsInput): SubmitAction[] 
    * which is what a listing IS.
    */
   const second: SubmitAction = willAutoApprove(input)
-    ? { kind: "createList", label: "Create & List", publish: true, requestListing: true, primary: true }
-    : { kind: "createRequest", label: "Create & Request Listing", publish: false, requestListing: true, primary: true };
+    ? { kind: "createList", label: tx("createList"), publish: true, requestListing: true, primary: true }
+    : { kind: "createRequest", label: tx("createRequest"), publish: false, requestListing: true, primary: true };
 
   return [create, second];
 }
