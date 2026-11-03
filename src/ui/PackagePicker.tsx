@@ -46,6 +46,20 @@ export interface PackagePickerProps {
      */
     processing?: { rate: number; fixedCents: number } | null;
   } | null;
+  /**
+   * Whether this submission needs a leader's review before it is visible to
+   * anyone else — rendered as a banner ABOVE the packages/fees, so the
+   * process is clear before the member even looks at the numbers. Omit when
+   * the host has not resolved it yet; the banner simply does not render
+   * rather than guessing.
+   */
+  approval?: ListingApprovalStatus;
+}
+
+export interface ListingApprovalStatus {
+  requiresApproval: boolean;
+  /** Who reviews it, if known — e.g. the community's name. Falls back to "a leader". */
+  reviewerLabel?: string;
 }
 
 /**
@@ -75,6 +89,7 @@ export function PackagePicker({
   disabled = false,
   emptyLabel,
   platformFee,
+  approval,
 }: PackagePickerProps) {
   const t = useSharedT("shared.managementUi.packagePicker");
   const sym = platformFee?.currencySymbol ?? "€";
@@ -106,6 +121,7 @@ export function PackagePicker({
   if (packages.length === 0) {
     return (
       <div className="flex flex-col gap-2">
+        <ApprovalBanner approval={approval} t={t} />
         <p className="m-0 rounded-[11px] border border-amber-200 bg-amber-50 px-3.5 py-3 text-[12.5px] leading-relaxed text-amber-900">
           {emptyLabel ??
             t("empty", { community: communityName ?? t("thisCommunity") })}
@@ -130,6 +146,7 @@ export function PackagePicker({
     const only = packages[0];
     return (
       <div className="flex flex-col gap-2">
+        <ApprovalBanner approval={approval} t={t} />
         <div className="rounded-[11px] border border-zinc-200 bg-zinc-50 px-3.5 py-3">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <span className="text-[13.5px] font-semibold text-zinc-900">{only.name}</span>
@@ -143,13 +160,16 @@ export function PackagePicker({
             </p>
           ) : null}
         </div>
-        <FeeBreakdown feeLine={feeLine} feeSplit={feeSplit} t={t} />
+        <FeeBreakdown feeLine={feeLine} feeSplit={feeSplit} t={t} sellerRate={only.rate} platformFeeRate={platformFee?.rate} />
       </div>
     );
   }
 
+  const selectedPkg = packages.find((p) => p.id === value) ?? null;
+
   return (
     <div className="flex flex-col gap-2">
+      <ApprovalBanner approval={approval} t={t} />
       {packages.map((pkg) => {
         const selected = pkg.id === value;
         return (
@@ -216,7 +236,7 @@ export function PackagePicker({
         * seller assumes Stripe comes on top, which is what every other platform
         * they have used does.
         */}
-      <FeeBreakdown feeLine={feeLine} feeSplit={feeSplit} t={t} />
+      <FeeBreakdown feeLine={feeLine} feeSplit={feeSplit} t={t} sellerRate={selectedPkg?.rate} platformFeeRate={platformFee?.rate} />
     </div>
   );
 }
@@ -231,12 +251,30 @@ function FeeBreakdown({
   feeLine,
   feeSplit,
   t,
+  sellerRate,
+  platformFeeRate,
 }: {
   feeLine: string | null;
   feeSplit: { processing: string; platform: string } | null;
   t: ReturnType<typeof useSharedT>;
+  /** The chosen package's own rate — what the COMMUNITY takes, separate from Cobuntu's cut below. Omit when nothing is chosen yet. */
+  sellerRate?: number;
+  /** Cobuntu's all-in rate (processing included) as a plain percent, e.g. 4 for 4%. */
+  platformFeeRate?: number;
 }) {
   if (!feeLine) return null;
+  /*
+   * "You keep ~X%" is the number everyone is actually asking for when they
+   * see a fee breakdown — the two lines below answer "what gets taken" but
+   * not "so what's left", and a seller pricing an item has to do that
+   * subtraction themselves otherwise. Only shown once a rate is on the
+   * table: with `platformFee` alone (no tier rate selected) there is
+   * nothing to total yet. Rounded to one decimal — the inputs are whole
+   * percents, so anything past that is noise, not precision.
+   */
+  const keepsLine = sellerRate !== undefined && platformFeeRate !== undefined
+    ? t("youKeep", { pct: formatRate(Math.round((100 - sellerRate - platformFeeRate) * 10) / 10) })
+    : null;
   if (feeSplit) {
     /*
      * Split, because only one of these two lines is ours and only one of
@@ -258,13 +296,68 @@ function FeeBreakdown({
             <dd className="m-0 text-[12px] font-semibold tabular-nums text-zinc-700">{feeSplit.platform}</dd>
           </div>
         </dl>
+        {keepsLine && (
+          <p className="m-0 mt-2 border-t border-zinc-200 pt-2 text-[12.5px] font-semibold text-zinc-900">
+            {keepsLine}
+          </p>
+        )}
       </div>
     );
   }
   return (
-    <p className="m-0 mt-1 text-[11.5px] leading-relaxed text-zinc-500">
-      {t("feeLine", { fee: feeLine })}
+    <div className="mt-1 flex flex-col gap-0.5">
+      <p className="m-0 text-[11.5px] leading-relaxed text-zinc-500">
+        {t("feeLine", { fee: feeLine })}
+      </p>
+      {keepsLine && (
+        <p className="m-0 text-[12.5px] font-semibold text-zinc-900">{keepsLine}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Whether this submission needs a leader's review, said before the fees so
+ * the whole process reads in order: what happens to my submission, then
+ * what it costs. Amber for "someone has to say yes first", green for "goes
+ * live the moment you submit" — the same color vocabulary this app already
+ * uses for pending vs. live elsewhere, not a new one invented here.
+ */
+function ApprovalBanner({
+  approval,
+  t,
+}: {
+  approval?: ListingApprovalStatus;
+  t: ReturnType<typeof useSharedT>;
+}) {
+  if (!approval) return null;
+  return approval.requiresApproval ? (
+    <p className="m-0 flex items-center gap-2 rounded-[11px] border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12.5px] font-medium leading-relaxed text-amber-900">
+      <ClockIcon />
+      {t("approvalRequired", { reviewer: approval.reviewerLabel ?? t("aLeader") })}
     </p>
+  ) : (
+    <p className="m-0 flex items-center gap-2 rounded-[11px] border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-[12.5px] font-medium leading-relaxed text-emerald-900">
+      <BoltIcon />
+      {t("goesLiveImmediately")}
+    </p>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 3" />
+    </svg>
+  );
+}
+
+function BoltIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" className="shrink-0">
+      <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />
+    </svg>
   );
 }
 

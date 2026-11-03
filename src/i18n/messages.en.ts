@@ -98,6 +98,10 @@ export const MANAGEMENT_UI_MESSAGES_EN = {
         feeLine: "Cobuntu charges {fee} of your share on top, card processing included.",
         onTopHeading: "On top of the community's rate",
         cardProcessing: "Card processing",
+        youKeep: "You keep about {pct}% of each sale",
+        approvalRequired: "{reviewer} reviews this before it goes live.",
+        goesLiveImmediately: "Goes live the moment you submit — no review needed.",
+        aLeader: "A leader",
       },
       packageNegotiation: {
         theCommunity: "the community",
