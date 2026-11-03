@@ -337,3 +337,19 @@ export { buildCategoryFacets, sortProducts, ListingFilterBar } from "./filters";
 export type {
   CategoryOption, FacetOption, Facet, FilterValue, ListingFilterBarProps,
 } from "./filters";
+
+/*
+ * Host translator for the components above that have no copy prop. Mount
+ * <ManagementCopyProvider t={...}> once near the root; with none, English.
+ */
+export {
+  ManagementCopyProvider,
+  useSharedT,
+  getSharedT,
+  createSharedTranslator,
+  type ManagementCopyProviderProps,
+  type SharedTranslate,
+  type SharedTranslateRich,
+  type SharedT,
+} from "./i18n";
+export { MANAGEMENT_UI_MESSAGES_EN, flattenMessageKeys } from "./i18n/messages.en";
