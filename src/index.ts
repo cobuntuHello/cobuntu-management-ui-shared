@@ -224,6 +224,19 @@ export {
 export { ManageLedger } from "./ledger/ManageLedger";
 export type { ItemLedger, LedgerMovement } from "./ledger/types";
 export { EmptyState, LedgerIcon, ShelfIcon } from "./overview/EmptyState";
+
+/*
+ * The manage page's Referrals tab: who promotes this item and what they earn.
+ *
+ * Shared rather than written twice because a course IS a products row and so
+ * already lives on the product manage page, while an event has its own
+ * package. Two hand-mirrored copies of a money view is the pattern T-177 is
+ * open about, and the two would drift on the first copy change.
+ */
+export { ManageReferrals, formatPct } from "./referrals/ManageReferrals";
+export type {
+  ArtifactReferralLink, ArtifactReferralOwner, ArtifactReferralCopy,
+} from "./referrals/types";
 /*
  * TOPIC_LIMITS only. The panel's TextField/TextArea are NOT exported: this
  * package already has a `TextField` in ui/, and adding a second under the same
