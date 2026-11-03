@@ -181,14 +181,14 @@ describe("RefundPolicyField — the anchor changes what the number means", () =>
   it("counts down to the event for an event", () => {
     setup({ mode: "default", bands: [{ days: 7, pct: 50 }] }, "EVENT_START");
     openScheduleModal();
-    expect(screen.getByText("days before")).toBeTruthy();
+    expect(screen.getByText("Days before")).toBeTruthy();
     expect(screen.getByLabelText("Days before the event")).toBeTruthy();
   });
 
   it("counts up from the sale for a product or course", () => {
     setup({ mode: "default", bands: [{ days: 7, pct: 50 }] }, "PURCHASE");
     openScheduleModal();
-    expect(screen.getByText("days after")).toBeTruthy();
+    expect(screen.getByText("Days after")).toBeTruthy();
     expect(screen.getByLabelText("Days after buying")).toBeTruthy();
   });
 });

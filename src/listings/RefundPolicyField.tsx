@@ -271,55 +271,76 @@ function ScheduleEditor({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex flex-col gap-1.5">
-        {bands.map((b, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <input
-              type="number"
-              min={0}
-              max={365}
-              step={1}
-              value={b.days}
-              aria-label={anchor === "EVENT_START" ? tr("daysBeforeEventAria") : tr("daysAfterBuyingAria")}
-              onChange={(e) => update(i, { days: Math.trunc(Number(e.target.value)) })}
-              className="w-16 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[13px] tabular-nums text-zinc-900"
-            />
-            <span className="shrink-0 text-[12px] text-zinc-500">
-              {anchor === "EVENT_START" ? tr("daysBefore") : tr("daysAfter")}
-            </span>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step={1}
-              value={b.pct}
-              aria-label={tr("percentAria")}
-              onChange={(e) => update(i, { pct: Math.trunc(Number(e.target.value)) })}
-              className="w-16 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[13px] tabular-nums text-zinc-900"
-            />
-            <span className="shrink-0 text-[12px] text-zinc-500">{tr("pctBack")}</span>
-            {bands.length > 1 && (
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                aria-label={tr("removeRowAria", { days: b.days })}
-                className="ml-auto cursor-pointer rounded-md bg-zinc-100 px-2 py-1 text-[12px] text-zinc-600 transition-colors hover:bg-zinc-200"
-              >
-                {tr("remove")}
-              </button>
-            )}
-          </div>
-        ))}
+      {/*
+        A bounded table, not a stack of bordered inputs: one outer frame, a
+        header row naming what each column means (every row used to repeat
+        "days before"/"% back" as loose inline text instead), and a divider
+        between rows rather than a border around each one. The delete
+        control is now an icon-only button so a row reads as data with an
+        action attached, not a form field with a text button bolted on.
+      */}
+      <div className="overflow-hidden rounded-lg border border-zinc-200">
+        <div className="flex items-center gap-2 border-b border-zinc-200 bg-zinc-50/80 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide text-zinc-400">
+          <span className="w-16">
+            {anchor === "EVENT_START" ? tr("colDaysEvent") : tr("colDaysPurchase")}
+          </span>
+          <span className="w-16">{tr("colPct")}</span>
+          <span className="flex-1" />
+        </div>
+        <div className="divide-y divide-zinc-100">
+          {bands.map((b, i) => (
+            <div key={i} className="group flex items-center gap-2 px-3 py-1.5">
+              <div className="flex w-16 items-center gap-1">
+                <input
+                  type="number"
+                  min={0}
+                  max={365}
+                  step={1}
+                  value={b.days}
+                  aria-label={anchor === "EVENT_START" ? tr("daysBeforeEventAria") : tr("daysAfterBuyingAria")}
+                  onChange={(e) => update(i, { days: Math.trunc(Number(e.target.value)) })}
+                  className="w-10 rounded-md border-0 bg-transparent px-1 py-1 text-[13px] tabular-nums text-zinc-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+                />
+                <span className="text-[12px] text-zinc-400">{tr("colDaysUnit")}</span>
+              </div>
+              <div className="flex w-16 items-center gap-1">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={b.pct}
+                  aria-label={tr("percentAria")}
+                  onChange={(e) => update(i, { pct: Math.trunc(Number(e.target.value)) })}
+                  className="w-10 rounded-md border-0 bg-transparent px-1 py-1 text-[13px] tabular-nums text-zinc-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+                />
+                <span className="text-[12px] text-zinc-400">{tr("colPctUnit")}</span>
+              </div>
+              <span className="flex-1" />
+              {bands.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => remove(i)}
+                  aria-label={tr("removeRowAria", { days: b.days })}
+                  className="shrink-0 cursor-pointer rounded-md p-1 text-zinc-300 opacity-0 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:opacity-100 group-hover:opacity-100"
+                >
+                  <TrashIcon />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        {bands.length < MAX_BANDS && (
+          <button
+            type="button"
+            onClick={add}
+            className="flex w-full cursor-pointer items-center gap-1.5 border-t border-zinc-100 px-3 py-1.5 text-left text-[12px] font-medium text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-700"
+          >
+            <PlusIcon />
+            {tr("addRow")}
+          </button>
+        )}
       </div>
-      {bands.length < MAX_BANDS && (
-        <button
-          type="button"
-          onClick={add}
-          className="self-start cursor-pointer rounded-md bg-zinc-100 px-2.5 py-1 text-[12px] font-medium text-zinc-700 transition-colors hover:bg-zinc-200"
-        >
-          {tr("addRow")}
-        </button>
-      )}
       {problem && (
         <p role="alert" className="text-[12px] text-red-600">
           {problem}
@@ -376,6 +397,24 @@ function ChevronRightIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="m9 6 6 6-6 6" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 5v14M5 12h14" />
     </svg>
   );
 }
