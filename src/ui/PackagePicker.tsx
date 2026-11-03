@@ -75,16 +75,7 @@ export function PackagePicker({
   emptyLabel,
   platformFee,
 }: PackagePickerProps) {
-  if (packages.length === 0) {
-    return (
-      <p className="m-0 rounded-[11px] border border-amber-200 bg-amber-50 px-3.5 py-3 text-[12.5px] leading-relaxed text-amber-900">
-        {emptyLabel ??
-          `${communityName ?? "This community"} hasn't published any arrangements for your membership yet, so listing isn't open to you here.`}
-      </p>
-    );
-  }
-
-  const sym = platformFee?.currencySymbol ?? "\u20ac";
+  const sym = platformFee?.currencySymbol ?? "€";
   /*
    * Cobuntu's share is the all-in charge MINUS what the processor takes, which
    * is the only figure a premium subscription could ever remove — the processor
@@ -98,8 +89,29 @@ export function PackagePicker({
         }
       : null;
   const feeLine = platformFee
-    ? `${formatRate(platformFee.rate)}% + ${platformFee.currencySymbol ?? "\u20ac"}${(platformFee.fixedCents / 100).toFixed(2)}`
+    ? `${formatRate(platformFee.rate)}% + ${sym}${(platformFee.fixedCents / 100).toFixed(2)}`
     : null;
+
+  /*
+   * Cobuntu's cut (and Stripe's, split out of it) is owed on every sale
+   * REGARDLESS of whether the community has published a package yet — it is
+   * not a property of the community's own arrangement, so a seller must see
+   * it even while there is nothing from the community side to pick. Used to
+   * return before any of this rendered, the moment `packages` was empty: a
+   * seller with no published package saw the "nothing to pick" note and
+   * NOTHING else, as if listing here cost nothing at all.
+   */
+  if (packages.length === 0) {
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="m-0 rounded-[11px] border border-amber-200 bg-amber-50 px-3.5 py-3 text-[12.5px] leading-relaxed text-amber-900">
+          {emptyLabel ??
+            `${communityName ?? "This community"} hasn't published any arrangements for your membership yet, so listing isn't open to you here.`}
+        </p>
+        <FeeBreakdown feeLine={feeLine} feeSplit={feeSplit} />
+      </div>
+    );
+  }
 
   /*
    * ONE package is not a choice.
@@ -129,12 +141,7 @@ export function PackagePicker({
             </p>
           ) : null}
         </div>
-        {feeLine && (
-          <p className="m-0 mt-1 text-[11.5px] leading-relaxed text-zinc-500">
-            Cobuntu charges {feeLine} of your share on top, card processing
-            included.
-          </p>
-        )}
+        <FeeBreakdown feeLine={feeLine} feeSplit={feeSplit} />
       </div>
     );
   }
@@ -207,36 +214,53 @@ export function PackagePicker({
         * seller assumes Stripe comes on top, which is what every other platform
         * they have used does.
         */}
-      {feeLine && (
-        feeSplit ? (
-          /*
-           * Split, because only one of these two lines is ours and only one of
-           * them could ever go away. Lumping them together overstates Cobuntu's
-           * take and makes any future "we waive our fee" claim unreadable.
-           */
-          <div className="mt-2.5 rounded-[11px] border border-zinc-200 bg-zinc-50/70 px-3.5 py-2.5">
-            <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
-              On top of the community&apos;s rate
-            </p>
-            <dl className="m-0 mt-1.5 flex flex-col gap-1">
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="m-0 text-[12px] text-zinc-500">Card processing</dt>
-                <dd className="m-0 text-[12px] font-semibold tabular-nums text-zinc-700">{feeSplit.processing}</dd>
-              </div>
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="m-0 text-[12px] text-zinc-500">Cobuntu</dt>
-                <dd className="m-0 text-[12px] font-semibold tabular-nums text-zinc-700">{feeSplit.platform}</dd>
-              </div>
-            </dl>
-          </div>
-        ) : (
-          <p className="m-0 mt-1 text-[11.5px] leading-relaxed text-zinc-500">
-            Cobuntu charges {feeLine} of your share on top, card processing
-            included.
-          </p>
-        )
-      )}
+      <FeeBreakdown feeLine={feeLine} feeSplit={feeSplit} />
     </div>
+  );
+}
+
+/**
+ * Cobuntu's cut and Stripe's processing fee, split apart when known or
+ * stated as one all-in line otherwise. Shared by every branch of
+ * PackagePicker — including the zero- and one-package cases — so the fee is
+ * never a thing you only see once a community has published a real choice.
+ */
+function FeeBreakdown({
+  feeLine,
+  feeSplit,
+}: {
+  feeLine: string | null;
+  feeSplit: { processing: string; platform: string } | null;
+}) {
+  if (!feeLine) return null;
+  if (feeSplit) {
+    /*
+     * Split, because only one of these two lines is ours and only one of
+     * them could ever go away. Lumping them together overstates Cobuntu's
+     * take and makes any future "we waive our fee" claim unreadable.
+     */
+    return (
+      <div className="mt-1 rounded-[11px] border border-zinc-200 bg-zinc-50/70 px-3.5 py-2.5">
+        <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+          On top of the community&apos;s rate
+        </p>
+        <dl className="m-0 mt-1.5 flex flex-col gap-1">
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="m-0 text-[12px] text-zinc-500">Card processing</dt>
+            <dd className="m-0 text-[12px] font-semibold tabular-nums text-zinc-700">{feeSplit.processing}</dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="m-0 text-[12px] text-zinc-500">Cobuntu</dt>
+            <dd className="m-0 text-[12px] font-semibold tabular-nums text-zinc-700">{feeSplit.platform}</dd>
+          </div>
+        </dl>
+      </div>
+    );
+  }
+  return (
+    <p className="m-0 mt-1 text-[11.5px] leading-relaxed text-zinc-500">
+      Cobuntu charges {feeLine} of your share on top, card processing included.
+    </p>
   );
 }
 
