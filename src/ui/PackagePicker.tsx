@@ -126,7 +126,7 @@ export function PackagePicker({
           {emptyLabel ??
             t("empty", { community: communityName ?? t("thisCommunity") })}
         </p>
-        <FeeBreakdown feeLine={feeLine} feeSplit={feeSplit} t={t} />
+        <CommissionCard packageRow={null} feeLine={feeLine} feeSplit={feeSplit} sellerRate={undefined} platformFeeRate={platformFee?.rate} t={t} />
       </div>
     );
   }
@@ -141,26 +141,26 @@ export function PackagePicker({
    *
    * The value is still reported through onChange on mount by the host, so
    * nothing downstream has to special-case it.
+   *
+   * The name+rate used to sit in its own separate box above a second,
+   * separately-bordered fee box -- two disconnected panels describing one
+   * arrangement. They are now one card: the package is its header row, the
+   * fees and the total are sections of the SAME card, because that is what
+   * they are -- one number broken into where it goes.
    */
   if (packages.length === 1) {
     const only = packages[0];
     return (
       <div className="flex flex-col gap-2">
         <ApprovalBanner approval={approval} t={t} />
-        <div className="rounded-[11px] border border-zinc-200 bg-zinc-50 px-3.5 py-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-            <span className="text-[13.5px] font-semibold text-zinc-900">{only.name}</span>
-            <span className="text-[13.5px] font-bold tabular-nums text-zinc-900">
-              {only.rate}%
-            </span>
-          </div>
-          {only.description ? (
-            <p className="m-0 mt-1 whitespace-pre-wrap text-[12px] leading-relaxed text-zinc-500">
-              {only.description}
-            </p>
-          ) : null}
-        </div>
-        <FeeBreakdown feeLine={feeLine} feeSplit={feeSplit} t={t} sellerRate={only.rate} platformFeeRate={platformFee?.rate} />
+        <CommissionCard
+          packageRow={only}
+          feeLine={feeLine}
+          feeSplit={feeSplit}
+          sellerRate={only.rate}
+          platformFeeRate={platformFee?.rate}
+          t={t}
+        />
       </div>
     );
   }
@@ -236,81 +236,104 @@ export function PackagePicker({
         * seller assumes Stripe comes on top, which is what every other platform
         * they have used does.
         */}
-      <FeeBreakdown feeLine={feeLine} feeSplit={feeSplit} t={t} sellerRate={selectedPkg?.rate} platformFeeRate={platformFee?.rate} />
+      <CommissionCard packageRow={null} feeLine={feeLine} feeSplit={feeSplit} sellerRate={selectedPkg?.rate} platformFeeRate={platformFee?.rate} t={t} />
     </div>
   );
 }
 
 /**
- * Cobuntu's cut and Stripe's processing fee, split apart when known or
- * stated as one all-in line otherwise. Shared by every branch of
- * PackagePicker — including the zero- and one-package cases — so the fee is
- * never a thing you only see once a community has published a real choice.
+ * One card, not a stack of disconnected boxes: the chosen package (when
+ * there is exactly one to show inline), Cobuntu's and Stripe's cuts, and
+ * the total left over are three SECTIONS of one arrangement, not three
+ * separate facts. Shared by every branch of PackagePicker — including the
+ * zero- and one-package cases — so the fee is never a thing you only see
+ * once a community has published a real choice.
  */
-function FeeBreakdown({
+function CommissionCard({
+  packageRow,
   feeLine,
   feeSplit,
-  t,
   sellerRate,
   platformFeeRate,
+  t,
 }: {
+  /** Folded into this same card's header when there is exactly one package to show inline (never for the multi-package radio list, which already shows its own name/rate per option). */
+  packageRow: CommissionPackage | null;
   feeLine: string | null;
   feeSplit: { processing: string; platform: string } | null;
-  t: ReturnType<typeof useSharedT>;
   /** The chosen package's own rate — what the COMMUNITY takes, separate from Cobuntu's cut below. Omit when nothing is chosen yet. */
   sellerRate?: number;
   /** Cobuntu's all-in rate (processing included) as a plain percent, e.g. 4 for 4%. */
   platformFeeRate?: number;
+  t: ReturnType<typeof useSharedT>;
 }) {
-  if (!feeLine) return null;
+  if (!feeLine && !packageRow) return null;
   /*
    * "You keep ~X%" is the number everyone is actually asking for when they
-   * see a fee breakdown — the two lines below answer "what gets taken" but
+   * see a fee breakdown — the two lines above answer "what gets taken" but
    * not "so what's left", and a seller pricing an item has to do that
    * subtraction themselves otherwise. Only shown once a rate is on the
    * table: with `platformFee` alone (no tier rate selected) there is
    * nothing to total yet. Rounded to one decimal — the inputs are whole
    * percents, so anything past that is noise, not precision.
    */
-  const keepsLine = sellerRate !== undefined && platformFeeRate !== undefined
-    ? t("youKeep", { pct: formatRate(Math.round((100 - sellerRate - platformFeeRate) * 10) / 10) })
+  const keepsPct = sellerRate !== undefined && platformFeeRate !== undefined
+    ? formatRate(Math.round((100 - sellerRate - platformFeeRate) * 10) / 10)
     : null;
-  if (feeSplit) {
-    /*
-     * Split, because only one of these two lines is ours and only one of
-     * them could ever go away. Lumping them together overstates Cobuntu's
-     * take and makes any future "we waive our fee" claim unreadable.
-     */
-    return (
-      <div className="mt-1 rounded-[11px] border border-zinc-200 bg-zinc-50/70 px-3.5 py-2.5">
-        <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
-          {t("onTopHeading")}
-        </p>
-        <dl className="m-0 mt-1.5 flex flex-col gap-1">
-          <div className="flex items-baseline justify-between gap-3">
-            <dt className="m-0 text-[12px] text-zinc-500">{t("cardProcessing")}</dt>
-            <dd className="m-0 text-[12px] font-semibold tabular-nums text-zinc-700">{feeSplit.processing}</dd>
-          </div>
-          <div className="flex items-baseline justify-between gap-3">
-            <dt className="m-0 text-[12px] text-zinc-500">Cobuntu</dt>
-            <dd className="m-0 text-[12px] font-semibold tabular-nums text-zinc-700">{feeSplit.platform}</dd>
-          </div>
-        </dl>
-        {keepsLine && (
-          <p className="m-0 mt-2 border-t border-zinc-200 pt-2 text-[12.5px] font-semibold text-zinc-900">
-            {keepsLine}
-          </p>
-        )}
-      </div>
-    );
-  }
+
   return (
-    <div className="mt-1 flex flex-col gap-0.5">
-      <p className="m-0 text-[11.5px] leading-relaxed text-zinc-500">
-        {t("feeLine", { fee: feeLine })}
-      </p>
-      {keepsLine && (
-        <p className="m-0 text-[12.5px] font-semibold text-zinc-900">{keepsLine}</p>
+    <div className="overflow-hidden rounded-[14px] border border-zinc-200 bg-white">
+      {packageRow && (
+        <div className="border-b border-zinc-100 bg-zinc-50/70 px-4 py-3.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <span className="text-[14.5px] font-semibold text-zinc-900">{packageRow.name}</span>
+            <span className="text-[16px] font-bold tabular-nums tracking-tight text-zinc-900">
+              {packageRow.rate}%
+            </span>
+          </div>
+          {packageRow.description ? (
+            <p className="m-0 mt-1 whitespace-pre-wrap text-[12px] leading-relaxed text-zinc-500">
+              {packageRow.description}
+            </p>
+          ) : null}
+        </div>
+      )}
+      {feeLine && (
+        <div className="px-4 py-3">
+          {feeSplit ? (
+            /*
+             * Split, because only one of these two lines is ours and only
+             * one of them could ever go away. Lumping them together
+             * overstates Cobuntu's take and makes any future "we waive our
+             * fee" claim unreadable.
+             */
+            <>
+              <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                {t("onTopHeading")}
+              </p>
+              <dl className="m-0 mt-1.5 flex flex-col gap-1">
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="m-0 text-[12px] text-zinc-500">{t("cardProcessing")}</dt>
+                  <dd className="m-0 text-[12px] font-semibold tabular-nums text-zinc-700">{feeSplit.processing}</dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="m-0 text-[12px] text-zinc-500">Cobuntu</dt>
+                  <dd className="m-0 text-[12px] font-semibold tabular-nums text-zinc-700">{feeSplit.platform}</dd>
+                </div>
+              </dl>
+            </>
+          ) : (
+            <p className="m-0 text-[11.5px] leading-relaxed text-zinc-500">
+              {t("feeLine", { fee: feeLine })}
+            </p>
+          )}
+        </div>
+      )}
+      {keepsPct && (
+        <div className="flex items-baseline justify-between gap-3 border-t border-zinc-100 bg-emerald-50/60 px-4 py-3">
+          <span className="text-[12.5px] font-medium text-emerald-900">{t("youKeepLabel")}</span>
+          <span className="text-[18px] font-bold tabular-nums tracking-tight text-emerald-900">{keepsPct}%</span>
+        </div>
       )}
     </div>
   );

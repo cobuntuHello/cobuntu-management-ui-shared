@@ -99,6 +99,7 @@ export const MANAGEMENT_UI_MESSAGES_EN = {
         onTopHeading: "On top of the community's rate",
         cardProcessing: "Card processing",
         youKeep: "You keep about {pct}% of each sale",
+        youKeepLabel: "You keep, per sale",
         approvalRequired: "{reviewer} reviews this before it goes live.",
         goesLiveImmediately: "Goes live the moment you submit — no review needed.",
         aLeader: "A leader",
