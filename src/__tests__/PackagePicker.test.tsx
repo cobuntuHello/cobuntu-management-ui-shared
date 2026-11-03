@@ -58,7 +58,8 @@ describe("PackagePicker — the seller's actual take", () => {
       />,
     );
     // 100 - 10 (community) - 4 (Cobuntu all-in, processing included) = 86.
-    expect(screen.getByText("You keep about 86% of each sale")).toBeInTheDocument();
+    expect(screen.getByText("You keep, per sale")).toBeInTheDocument();
+    expect(screen.getByText("86%")).toBeInTheDocument();
   });
 
   it("says nothing about what's kept until a rate is actually on the table", () => {
