@@ -1,4 +1,5 @@
 import * as React from "react";
+import { ModalShell } from "../ui/ModalShell";
 
 /**
  * The seller's refund choice: what comes back, and who may ask for it.
@@ -15,21 +16,25 @@ import * as React from "react";
  * It is used in both places the policy is set: inline in the create wizard's
  * "Policies & access" step, and inside the manage page's refund modal.
  *
- * ── What it offers, and what it used to hide ────────────────────────────────
+ * ── Three choices ────────────────────────────────────────────────────────
  *
- * Three choices, where there were two:
  *   - Standard refunds        -> the platform default window (policy = null)
  *   - A cancellation schedule -> percentages by how late the cancellation is
  *   - No self-service refunds -> buyers contact the seller (window 0)
  *
- * Plus the host lever, which this control previously declined to offer at all.
- * The old comment read: "`mode: 'extended'` is a host-side payout power, not a
- * buyer-facing policy, so it is not offered here." That left the product
- * telling sellers to use a setting that did not exist: eligibility returns
- * "Enable extended host refunds in the event settings to refund this sale",
- * the attendees table computes a disabled-policy state only extended clears,
- * and the activity log can render "switched the refund policy to Extended" --
- * a sentence the UI could never produce. It is a checkbox now.
+ * ── The schedule is a modal now, not an inline expansion (2026-11-03) ───────
+ *
+ * Clicking "Cancellation schedule" used to push the rest of the section
+ * down the page -- every other control on the step shifted the moment you
+ * picked it, and the table it revealed was the one piece of this form that
+ * looked nothing like the tier editor a seller had just used two steps
+ * earlier. It now opens in the same ModalShell the tier editor uses: a
+ * draft the seller edits and explicitly Saves or Cancels, never writing
+ * through `onChange` until they commit. Once a schedule exists, the row
+ * itself states it in one line (same wording `describeRefundBand` gives the
+ * read-only house-policy statement) so the choice is legible without
+ * reopening the modal, with a chevron marking it as something you can still
+ * click into.
  *
  * The schedule's `days` means something different either side of the anchor,
  * which is why `anchor` is a required prop rather than a guess: on an EVENT it
@@ -58,16 +63,12 @@ export function hasRefundSchedule(v: RefundPolicyValue): boolean {
   return !!v && Array.isArray(v.bands) && v.bands.length > 0;
 }
 
-/** True when the seller may refund past the standard window. */
-export function extendedRefundsEnabled(v: RefundPolicyValue): boolean {
-  return !!v && v.mode === "extended";
-}
-
 export const REFUND_STANDARD: RefundPolicyValue = null;
 export const REFUND_NONE: RefundPolicyValue = { mode: "default", customBuyerWindowDays: 0 };
 
 /**
- * The schedule a seller gets when they first pick "cancellation schedule".
+ * The schedule a seller gets when they first open the modal with nothing
+ * stored yet.
  *
  * Seeded with TEJÁ's published policy rather than an empty table, because an
  * empty table asks the seller to invent a format and the backend rejects most
@@ -90,6 +91,13 @@ function choiceOf(v: RefundPolicyValue): Choice {
   return "standard";
 }
 
+/** Bands in the order they actually apply, for a stable read. */
+function ordered(bands: RefundBand[], anchor: RefundAnchor): RefundBand[] {
+  return anchor === "EVENT_START"
+    ? [...bands].sort((a, b) => b.days - a.days)
+    : [...bands].sort((a, b) => a.days - b.days);
+}
+
 /**
  * The same rule the backend enforces, checked here so the seller is told at the
  * table rather than by a 400 after saving. Deliberately a MIRROR and not the
@@ -110,9 +118,7 @@ export function refundScheduleProblem(bands: RefundBand[], anchor: RefundAnchor)
     if (seen.has(b.days)) return `Two rows both say ${b.days} days. Give each row its own cutoff.`;
     seen.add(b.days);
   }
-  const sorted = anchor === "EVENT_START"
-    ? [...bands].sort((a, b) => b.days - a.days)
-    : [...bands].sort((a, b) => a.days - b.days);
+  const sorted = ordered(bands, anchor);
   for (let i = 1; i < sorted.length; i++) {
     if (sorted[i].pct > sorted[i - 1].pct) {
       return anchor === "EVENT_START"
@@ -135,24 +141,34 @@ export function RefundPolicyField({
 }) {
   const choice = choiceOf(value);
   const bands = value?.bands && value.bands.length > 0 ? value.bands : REFUND_SCHEDULE_DEFAULT;
-  const extended = extendedRefundsEnabled(value);
 
-  /** Keeps the host lever when the buyer-facing choice changes, and vice versa. */
-  const withMode = (next: RefundPolicyValue): RefundPolicyValue => {
-    if (!extended) return next;
-    return { ...(next ?? {}), mode: "extended" };
+  const [modalOpen, setModalOpen] = React.useState(false);
+  const [draftBands, setDraftBands] = React.useState<RefundBand[]>(bands);
+
+  const openScheduleModal = () => {
+    // Re-seed from whatever is live every time the modal opens, not whatever
+    // was left in the draft from a previous open-then-cancel.
+    setDraftBands(choice === "schedule" ? bands : REFUND_SCHEDULE_DEFAULT);
+    setModalOpen(true);
   };
 
-  const setChoice = (c: Choice) => {
-    if (c === "standard") onChange(withMode(REFUND_STANDARD));
-    else if (c === "none") onChange(withMode(REFUND_NONE));
-    else onChange(withMode({ mode: "default", bands }));
+  const problem = refundScheduleProblem(draftBands, anchor);
+
+  const saveSchedule = () => {
+    if (problem) return;
+    onChange({ ...(value ?? {}), mode: value?.mode ?? "default", bands: draftBands });
+    setModalOpen(false);
   };
 
-  const setBands = (next: RefundBand[]) =>
-    onChange(withMode({ ...(value ?? {}), mode: value?.mode ?? "default", bands: next }));
+  const setChoice = (c: "standard" | "none") => {
+    onChange(c === "standard" ? REFUND_STANDARD : REFUND_NONE);
+  };
 
-  const problem = choice === "schedule" ? refundScheduleProblem(bands, anchor) : null;
+  const scheduleSummary = choice === "schedule"
+    ? ordered(bands, anchor).map((b) => describeRefundBand(b, anchor)).join(" · ")
+    : anchor === "EVENT_START"
+      ? "Buyers get part of their money back, depending on how late they cancel."
+      : "Buyers get part of their money back, depending on how long they have had it.";
 
   return (
     <div className="flex flex-col gap-2">
@@ -173,17 +189,13 @@ export function RefundPolicyField({
       />
       <RefundOption
         selected={choice === "schedule"}
-        onClick={() => setChoice("schedule")}
+        onClick={openScheduleModal}
         title="Cancellation schedule"
-        subtitle={
-          anchor === "EVENT_START"
-            ? "Buyers get part of their money back, depending on how late they cancel."
-            : "Buyers get part of their money back, depending on how long they have had it."
-        }
+        subtitle={scheduleSummary}
+        /* A clickable row, same as the tier list -- the chevron is the only
+           hint this opens something rather than just selecting a radio. */
+        trailing={<ChevronRightIcon />}
       />
-      {choice === "schedule" && (
-        <ScheduleEditor bands={bands} anchor={anchor} onChange={setBands} problem={problem} />
-      )}
       <RefundOption
         selected={choice === "none"}
         onClick={() => setChoice("none")}
@@ -191,35 +203,39 @@ export function RefundPolicyField({
         subtitle="Buyers ask you instead."
       />
 
-      {/*
-        The host lever, on its own axis.
-        Separated by a rule rather than offered as a fourth option, because it
-        answers a different question: the three above are what the BUYER can
-        do, this is what the SELLER can still do afterwards.
-      */}
-      <label className="mt-1 flex cursor-pointer items-start gap-2.5 border-t border-zinc-100 pt-3">
-        <input
-          type="checkbox"
-          id="refund-policy-extended"
-          checked={extended}
-          onChange={(e) => {
-            const base = value ?? {};
-            if (e.target.checked) onChange({ ...base, mode: "extended" });
-            else if (choice === "standard") onChange(REFUND_STANDARD);
-            else onChange({ ...base, mode: "default" });
-          }}
-          className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer accent-zinc-900"
-        />
-        <span className="min-w-0">
-          <span className="block text-[13px] font-medium text-zinc-900">
-            Let me refund after the window closes
-          </span>
-          <span className="block text-[12px] text-zinc-500">
-            You can still refund a sale once its usual window has passed, while the money is with
-            Cobuntu. Once it has been paid out to you, refunds go through support.
-          </span>
-        </span>
-      </label>
+      {modalOpen && (
+        <ModalShell
+          title="Cancellation schedule"
+          subtitle={
+            anchor === "EVENT_START"
+              ? "Read each row as: cancel at least this many days before the event, get this much back."
+              : "Read each row as: ask within this many days of buying, get this much back."
+          }
+          onClose={() => setModalOpen(false)}
+          width="sm"
+          footer={
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="cursor-pointer rounded-lg px-3 py-1.5 text-[13px] font-medium text-zinc-600 hover:bg-zinc-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveSchedule}
+                disabled={!!problem}
+                className="cursor-pointer rounded-lg bg-zinc-900 px-3.5 py-1.5 text-[13px] font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Save
+              </button>
+            </div>
+          }
+        >
+          <ScheduleEditor bands={draftBands} anchor={anchor} onChange={setDraftBands} problem={problem} />
+        </ModalShell>
+      )}
     </div>
   );
 }
@@ -253,12 +269,7 @@ function ScheduleEditor({
   };
 
   return (
-    <div className="ml-7 flex flex-col gap-2 rounded-lg border border-zinc-200 bg-zinc-50/60 p-3">
-      <p className="text-[12px] text-zinc-500">
-        {anchor === "EVENT_START"
-          ? "Read each row as: cancel at least this many days before the event, get this much back."
-          : "Read each row as: ask within this many days of buying, get this much back."}
-      </p>
+    <div className="flex flex-col gap-2">
       <div className="flex flex-col gap-1.5">
         {bands.map((b, i) => (
           <div key={i} className="flex items-center gap-2">
@@ -327,11 +338,13 @@ function RefundOption({
   onClick,
   title,
   subtitle,
+  trailing,
 }: {
   selected: boolean;
   onClick: () => void;
   title: string;
   subtitle: string;
+  trailing?: React.ReactNode;
 }) {
   return (
     <button
@@ -349,11 +362,20 @@ function RefundOption({
       >
         {selected && <span className="h-1.5 w-1.5 rounded-full bg-zinc-900" />}
       </span>
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <span className="block text-[13px] font-medium text-zinc-900">{title}</span>
         <span className="block text-[12px] text-zinc-500">{subtitle}</span>
       </span>
+      {trailing && <span className="mt-0.5 shrink-0 text-zinc-300">{trailing}</span>}
     </button>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m9 6 6 6-6 6" />
+    </svg>
   );
 }
 
@@ -402,15 +424,13 @@ export function RefundScheduleStatement({
   /** Optional line underneath, for a "who to contact" or similar. */
   note?: string;
 }) {
-  const ordered = anchor === "EVENT_START"
-    ? [...bands].sort((a, b) => b.days - a.days)
-    : [...bands].sort((a, b) => a.days - b.days);
+  const rows = ordered(bands, anchor);
 
   return (
     <div className="rounded-lg border border-zinc-200 bg-zinc-50/60 px-3 py-2.5">
       <p className="text-[13px] font-medium text-zinc-900">{title}</p>
       <ul className="mt-1.5 flex flex-col gap-1">
-        {ordered.map((b, i) => (
+        {rows.map((b, i) => (
           <li key={i} className="flex items-baseline gap-2 text-[12px] text-zinc-600">
             <span className="tabular-nums">{describeRefundBand(b, anchor)}</span>
           </li>
