@@ -102,7 +102,7 @@ export { fetchMembershipTiers } from "./lib/fetchMembershipTiers";
 export type { MembershipTierOption } from "./lib/fetchMembershipTiers";
 
 export { PackagePicker } from "./ui/PackagePicker";
-export type { PackagePickerProps, CommissionPackage } from "./ui/PackagePicker";
+export type { PackagePickerProps, CommissionPackage, ListingApprovalStatus } from "./ui/PackagePicker";
 
 export { PackageNegotiation } from "./ui/PackageNegotiation";
 export type {
