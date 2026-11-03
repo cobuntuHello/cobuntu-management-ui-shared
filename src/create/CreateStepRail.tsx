@@ -1,5 +1,7 @@
 "use client";
 
+import { useSharedT } from "../i18n";
+import { getSharedT, type SharedT } from "../i18n/core";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { CreateStepId } from "./createWizard";
 
@@ -105,7 +107,19 @@ const LABELS: Record<CreateWizardKind, Record<CreateStepId, string>> = {
  */
 export function stepLabel(kind: CreateWizardKind, step: CreateStepId): string | null {
   if (step === "resume" || step === "done") return null;
-  return LABELS[kind][step] ?? null;
+  return translatedLabels(kind, getSharedT(RAIL_NS))[step] ?? null;
+}
+
+/*
+ * LABELS stays the English source of truth (and what the keys are named
+ * after); what renders is each entry resolved through the host translator, at
+ * shared.managementUi.createStepRail.<kind>.<step>.
+ */
+const RAIL_NS = "shared.managementUi.createStepRail";
+function translatedLabels(kind: CreateWizardKind, t: SharedT): Record<CreateStepId, string> {
+  const out = {} as Record<CreateStepId, string>;
+  for (const step of Object.keys(LABELS[kind]) as CreateStepId[]) out[step] = t(`${kind}.${step}`);
+  return out;
 }
 
 export function CreateStepRail({
@@ -127,10 +141,11 @@ export function CreateStepRail({
   /** Accepted for call-site compatibility; the bar is not a navigation control. */
   onStepClick?: (step: CreateStepId) => void;
 }) {
+  const t = useSharedT(RAIL_NS);
   if (steps.length < 2) return null;
 
   const index = steps.indexOf(current);
-  const labels: Record<string, string> = { ...(extraLabels ?? {}), ...LABELS[kind] };
+  const labels: Record<string, string> = { ...(extraLabels ?? {}), ...translatedLabels(kind, t) };
   const next = steps[index + 1];
   /*
    * Fill measures the steps BEHIND you, not the one you are standing on.
@@ -155,7 +170,7 @@ export function CreateStepRail({
       <div className="flex items-baseline justify-between gap-4">
         <p className="text-[13.5px] font-semibold" style={{ color: "var(--text-color)" }}>
           <span className="opacity-50 font-medium">
-            Step {index + 1} of {steps.length}
+            {t("stepOf", { n: index + 1, total: steps.length })}
           </span>
           <span className="mx-2 opacity-25">·</span>
           {labels[current]}
@@ -179,7 +194,7 @@ export function CreateStepRail({
             className="text-[12.5px] opacity-60 whitespace-nowrap"
             style={{ color: "var(--text-color)" }}
           >
-            Next: {labels[next]}
+            {t("next", { label: labels[next] })}
           </p>
         )}
       </div>
@@ -212,7 +227,7 @@ export function CreateStepRail({
         aria-valuenow={index + 1}
         aria-valuemin={1}
         aria-valuemax={steps.length}
-        aria-label={`Step ${index + 1} of ${steps.length}`}
+        aria-label={t("stepOf", { n: index + 1, total: steps.length })}
       >
         <div
           className="h-full rounded-full"

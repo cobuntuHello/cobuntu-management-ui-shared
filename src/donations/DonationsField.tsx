@@ -1,5 +1,6 @@
 "use client";
 
+import { type SharedT, useSharedT } from "../i18n";
 import * as React from "react";
 import { useState } from "react";
 import { HandCoins, ChevronRight } from "lucide-react";
@@ -46,14 +47,14 @@ export interface DonationsFieldProps {
  * its neighbours ("Require approval", "Can be bought more than once") all
  * describe what they currently do.
  */
-function summarize(d: DonationDraft, sym: string): string {
-  if (!d.enabled) return "Off · buyers can add a contribution at checkout";
+function summarize(d: DonationDraft, sym: string, t: SharedT): string {
+  if (!d.enabled) return t("summaryOff");
   if (d.mode === "pwyw") {
     const min = (d.minAmount || "").trim();
-    return min ? `Any amount · min ${sym}${min}` : "Any amount";
+    return min ? t("summaryAnyMin", { min: `${sym}${min}` }) : t("anyAmount");
   }
   const amounts = d.amounts.filter((a) => a.trim());
-  return amounts.length ? amounts.map((a) => `${sym}${a}`).join(" · ") : "Suggested amounts";
+  return amounts.length ? amounts.map((a) => `${sym}${a}`).join(" · ") : t("suggestedAmounts");
 }
 
 /**
@@ -93,6 +94,7 @@ export function DonationsField({
   donation, onUpdate, defaultCurrency, symbolFor, tierNoun, modalShell: ModalShell,
 }: DonationsFieldProps) {
   const [open, setOpen] = useState(false);
+  const t = useSharedT("shared.managementUi.donations");
   const sym = symbolFor(donation.currency || defaultCurrency);
 
   /*
@@ -121,8 +123,8 @@ export function DonationsField({
         </div>
 
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-medium text-zinc-800">Donations</p>
-          <p className="text-[11px] text-zinc-400 truncate">{summarize(donation, sym)}</p>
+          <p className="text-[13px] font-medium text-zinc-800">{t("title")}</p>
+          <p className="text-[11px] text-zinc-400 truncate">{summarize(donation, sym, t)}</p>
         </div>
 
         {/* Edit is its own target, and only exists when enabled. */}
@@ -130,15 +132,15 @@ export function DonationsField({
           <button
             type="button"
             onClick={() => setOpen(true)}
-            aria-label="Edit donation settings"
+            aria-label={t("editSettings")}
             className="flex items-center gap-1 pl-2 pr-1 py-1 rounded-lg text-[12px] font-medium text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors cursor-pointer"
           >
-            Edit
+            {t("edit")}
             <ChevronRight className="h-4 w-4 shrink-0 text-zinc-300 transition-transform duration-150 group-hover:translate-x-0.5" />
           </button>
         )}
 
-        <Switch checked={donation.enabled} onChange={setEnabled} label="Enable donations" />
+        <Switch checked={donation.enabled} onChange={setEnabled} label={t("enable")} />
       </div>
 
       {open && (
@@ -147,9 +149,9 @@ export function DonationsField({
               suppressed — otherwise the dialog opens with a copy of the row
               that opened it. */}
           <div className="px-1">
-            <p className="text-[14px] font-semibold text-zinc-900">Donations</p>
+            <p className="text-[14px] font-semibold text-zinc-900">{t("title")}</p>
             <p className="text-[12px] text-zinc-500 mt-0.5 leading-snug">
-              An optional contribution at checkout, on top of any price. The same prompt shows for every {tierNoun}.
+              {t("modalIntro", { tierNoun })}
             </p>
           </div>
 
@@ -178,7 +180,7 @@ export function DonationsField({
             onClick={() => setOpen(false)}
             className="mt-6 -mx-5 -mb-5 w-[calc(100%+2.5rem)] border-t border-zinc-200/70 bg-zinc-50 py-3 text-[13px] font-semibold text-zinc-700 hover:bg-zinc-100 transition-colors cursor-pointer rounded-b-2xl"
           >
-            Close
+            {t("close")}
           </button>
         </ModalShell>
       )}

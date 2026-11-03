@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSharedT } from "../i18n";
 import { createPortal } from "react-dom";
 import { usePortalTarget } from "./portalContainer";
 
@@ -64,8 +65,9 @@ export interface ActionModalShellProps {
 const REDUCED_MOTION = typeof window !== "undefined"
     && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-function defaultUnsavedMessage(count: number): string {
-    return `You have ${count} recipient${count === 1 ? "" : "s"} staged. Discard and close?`;
+/* The default text; the host can still replace it with `unsavedMessage`. */
+function defaultUnsavedMessage(count: number, tChrome: (k: string, v?: Record<string, number>) => string): string {
+    return tChrome("unsavedRecipients", { count });
 }
 
 export function ActionModalShell({
@@ -73,13 +75,15 @@ export function ActionModalShell({
     subtitle,
     isOpen,
     unsavedCount = 0,
-    unsavedMessage = defaultUnsavedMessage,
+    unsavedMessage: unsavedMessageProp,
     onClose,
     footer,
     children,
 }: ActionModalShellProps) {
     const [mounted, setMounted] = React.useState(false);
     const portalTarget = usePortalTarget();
+    const tChrome = useSharedT("shared.managementUi.modalChrome");
+    const unsavedMessage = unsavedMessageProp ?? ((count: number) => defaultUnsavedMessage(count, tChrome));
     const [animating, setAnimating] = React.useState(false);
     const cardRef = React.useRef<HTMLDivElement>(null);
     // Mobile swipe-to-dismiss tracking. Touch start Y is captured at
@@ -199,7 +203,7 @@ export function ActionModalShell({
                     </div>
                     <button
                         onClick={requestClose}
-                        aria-label="Close"
+                        aria-label={tChrome("close")}
                         /*
                          * A CIRCULAR muted button, matching the close on the
                          * account and notifications drawers. It was a square

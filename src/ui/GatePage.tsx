@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSharedT, type SharedT } from "../i18n";
 
 /**
  * Discriminated reason for why the visitor can't see the content.
@@ -119,7 +120,7 @@ interface CopyVariant {
   showTierList?: boolean;
 }
 
-function buildCopy(props: GatePageProps): CopyVariant {
+function buildCopy(props: GatePageProps, t: SharedT): CopyVariant {
   const {
     gate,
     returnTo,
@@ -142,13 +143,14 @@ function buildCopy(props: GatePageProps): CopyVariant {
   // Only, where /apply rejects them too (assertJoinable blocks the APPLY
   // intent server-side), so there is genuinely nothing self-serve to offer.
   // Primary CTA falls back to "Sign in", the least-wrong option left.
+  const community = gate.communityName;
   const primaryAuthLabel = !viewerLoggedIn
-    ? "Sign in"
+    ? t("signIn")
     : inviteOnly
-      ? "Sign in"
+      ? t("signIn")
       : open
-        ? `Join ${gate.communityName}`
-        : `Apply to join ${gate.communityName}`;
+        ? t("joinCommunity", { community })
+        : t("applyToJoinCommunity", { community });
   const primaryAuthHref = viewerLoggedIn && !inviteOnly ? applyUrl : signInUrl;
 
   // The secondary self-serve CTA below the primary. Invite Only has none to
@@ -156,55 +158,56 @@ function buildCopy(props: GatePageProps): CopyVariant {
   // it, since there's no review step to "apply" into.
   const secondaryCta = viewerLoggedIn || inviteOnly
     ? undefined
-    : { label: open ? "Join now" : "Apply to join", href: applyUrl };
+    : { label: open ? t("joinNow") : t("applyToJoin"), href: applyUrl };
 
   switch (gate.kind) {
     case "community_private":
       return {
-        headline: `${gate.communityName} is a private community`,
+        headline: t("privateHeadline", { community }),
         subhead: inviteOnly
-          ? "Sign in to access content for members — you'll need an invite from an existing member to join."
-          : `Sign in to access content for members, or ${open ? "join instantly" : "apply to join"}.`,
+          ? t("privateSubheadInviteOnly")
+          : open
+            ? t("privateSubheadOpen")
+            : t("privateSubheadApply"),
         primaryCtaLabel: primaryAuthLabel,
         primaryCtaHref: primaryAuthHref,
         secondaryCta,
       };
     case "page_members_only":
       return {
-        headline: `${gate.pageName} is for members`,
-        subhead: `Sign in or join ${gate.communityName} to see ${gate.pageName}.`,
+        headline: t("forMembersHeadline", { name: gate.pageName }),
+        subhead: t("pageSubhead", { community, page: gate.pageName }),
         primaryCtaLabel: primaryAuthLabel,
         primaryCtaHref: primaryAuthHref,
         secondaryCta,
       };
     case "entity_members_only":
       return {
-        headline: `${gate.entityName} is for members`,
-        subhead: `Sign in or join ${gate.communityName} to see this ${gate.entityType}.`,
+        headline: t("forMembersHeadline", { name: gate.entityName }),
+        subhead: t("entitySubhead", { community, entityType: gate.entityType }),
         primaryCtaLabel: primaryAuthLabel,
         primaryCtaHref: primaryAuthHref,
         secondaryCta,
       };
     case "channel_members_only":
       return {
-        headline: `${gate.channelName} is for members`,
-        subhead: `Sign in or join ${gate.communityName} to read ${gate.channelName}.`,
+        headline: t("forMembersHeadline", { name: gate.channelName }),
+        subhead: t("channelSubhead", { community, channel: gate.channelName }),
         primaryCtaLabel: primaryAuthLabel,
         primaryCtaHref: primaryAuthHref,
         secondaryCta,
       };
     case "wrong_tier": {
-      const target = gate.channelName ?? "this content";
+      const target = gate.channelName ?? t("thisContent");
       const tierCount = gate.requiredTiers.length;
-      const tierSummary = tierCount === 1
-        ? `the ${gate.requiredTiers[0].name} tier`
-        : "a higher membership tier";
       return {
-        headline: `${target} is for ${tierSummary}`,
+        headline: tierCount === 1
+          ? t("wrongTierHeadlineOne", { target, tier: gate.requiredTiers[0].name })
+          : t("wrongTierHeadlineMany", { target }),
         subhead: tierCount === 1
-          ? `Upgrade your membership to access ${target}.`
-          : `Upgrade to one of the membership tiers below to access ${target}.`,
-        primaryCtaLabel: "Upgrade now",
+          ? t("wrongTierSubheadOne", { target })
+          : t("wrongTierSubheadMany", { target }),
+        primaryCtaLabel: t("upgradeNow"),
         primaryCtaHref: upgradeUrl,
         showTierList: tierCount > 0,
         // Wrong-tier viewers are already members — no apply secondary CTA.
@@ -226,7 +229,8 @@ function buildCopy(props: GatePageProps): CopyVariant {
  */
 export function GatePage(props: GatePageProps) {
   const { gate, communityLogoUrl, brandColor, homeHref = "/hub", bgColor, textColor, headingFont, brandTextColor } = props;
-  const copy = buildCopy(props);
+  const t = useSharedT("shared.managementUi.gatePage");
+  const copy = buildCopy(props, t);
   const accent = brandColor ?? "#18181b"; // zinc-900 default
 
   // Theme-aware surface. When a community theme is passed, the surface bg +
@@ -248,10 +252,10 @@ export function GatePage(props: GatePageProps) {
     >
       <div className="w-full max-w-md">
         {communityLogoUrl && (
-          <a href={homeHref} className="block w-fit mx-auto mb-6" aria-label={`Back to ${gate.communityName}`}>
+          <a href={homeHref} className="block w-fit mx-auto mb-6" aria-label={t("backTo", { community: gate.communityName })}>
             <img
               src={communityLogoUrl}
-              alt={`${gate.communityName} logo`}
+              alt={t("logoAlt", { community: gate.communityName })}
               className="h-12 w-12 rounded-xl object-cover"
             />
           </a>
@@ -312,12 +316,12 @@ export function GatePage(props: GatePageProps) {
             href={homeHref}
             className="block w-full text-center px-4 py-2.5 rounded-lg text-[13px] font-medium opacity-55 hover:opacity-100 transition-opacity cursor-pointer"
           >
-            Back to {gate.communityName}
+            {t("backTo", { community: gate.communityName })}
           </a>
         </div>
 
         <p className="mt-6 text-center text-[11px] opacity-45">
-          You&apos;re seeing this because you don&apos;t have access to this content yet.
+          {t("noAccessFootnote")}
         </p>
       </div>
     </div>

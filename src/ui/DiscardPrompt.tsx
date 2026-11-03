@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSharedT } from "../i18n";
 import { ModalShell } from "./ModalShell";
 
 export interface DiscardPromptProps {
@@ -22,11 +23,16 @@ export function DiscardPrompt({
   open,
   onCancel,
   onConfirm,
-  title = "Discard changes?",
-  message = "Your edits will be lost.",
-  confirmLabel = "Discard",
-  cancelLabel = "Keep editing",
+  title: titleProp,
+  message: messageProp,
+  confirmLabel: confirmLabelProp,
+  cancelLabel: cancelLabelProp,
 }: DiscardPromptProps) {
+  const t = useSharedT("shared.managementUi.discardPrompt");
+  const title = titleProp ?? t("title");
+  const message = messageProp ?? t("message");
+  const confirmLabel = confirmLabelProp ?? t("confirmLabel");
+  const cancelLabel = cancelLabelProp ?? t("cancelLabel");
   if (!open) return null;
   return (
     <ModalShell

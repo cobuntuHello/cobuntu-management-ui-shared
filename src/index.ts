@@ -342,14 +342,13 @@ export type {
  * Host translator for the components above that have no copy prop. Mount
  * <ManagementCopyProvider t={...}> once near the root; with none, English.
  */
+export { ManagementCopyProvider, useSharedT, type ManagementCopyProviderProps } from "./i18n";
+// From the server-safe core (no "use client"), so server code may call them.
 export {
-  ManagementCopyProvider,
-  useSharedT,
   getSharedT,
   createSharedTranslator,
-  type ManagementCopyProviderProps,
   type SharedTranslate,
   type SharedTranslateRich,
   type SharedT,
-} from "./i18n";
+} from "./i18n/core";
 export { MANAGEMENT_UI_MESSAGES_EN, flattenMessageKeys } from "./i18n/messages.en";

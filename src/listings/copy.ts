@@ -176,6 +176,10 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
      * conversations, not form fields.
      */
     cancel: "Cancel",
+    /* The two handshake lights on a topic row: the viewer's, and their tooltips. */
+    topicsLampYou: "YOU",
+    topicsLampAgreed: "agreed",
+    topicsLampNotYet: "not yet",
     topicsTitle: "Topics raised",
     topicsSubtitle: "Anything about this listing that is not the rate. Each one closes when you both agree it is done.",
     topicsComposerPlaceholder: "Raise something with {other}...",

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSharedT } from "../i18n";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "../lib/cn";
@@ -68,6 +69,7 @@ export function ResponsiveDrawer({
   className,
 }: ResponsiveDrawerProps) {
   const portalTarget = usePortalTarget();
+  const tChrome = useSharedT("shared.managementUi.modalChrome");
 
   /*
    * Mount/unmount is staggered from `open` by one transition, the same
@@ -128,7 +130,7 @@ export function ResponsiveDrawer({
       <button
         type="button"
         onClick={handleClose}
-        aria-label="Close"
+        aria-label={tChrome("close")}
         className="shrink-0 -mr-1 -mt-1 p-1.5 rounded-lg cursor-pointer transition-colors"
         style={{ color: "color-mix(in srgb, var(--text-color, #18181b) 45%, transparent)" }}
       >
