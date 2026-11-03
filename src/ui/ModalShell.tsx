@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSharedT } from "../i18n";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "../lib/cn";
@@ -60,6 +61,7 @@ export function ModalShell({
 }: ModalShellProps) {
   // Inside an embedding host's themed wrapper when it provides one.
   const portalTarget = usePortalTarget();
+  const tChrome = useSharedT("shared.managementUi.modalChrome");
   // SSR guard: createPortal needs document.
   if (typeof document === "undefined" || !open || !portalTarget) return null;
 
@@ -126,7 +128,7 @@ export function ModalShell({
               <button
                 type="button"
                 onClick={onClose}
-                aria-label="Close"
+                aria-label={tChrome("close")}
                 // Muted circular chip, matching every other dismissible
                 // surface's close control (ActionModalShell, the wizard's
                 // tip banner) -- this shell's own X used to be a bare

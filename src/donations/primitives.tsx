@@ -1,5 +1,6 @@
 "use client";
 
+import { useSharedT } from "../i18n";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { Info } from "lucide-react";
@@ -44,6 +45,7 @@ import { usePortalTarget } from "../ui/portalContainer";
  *     matters because the position is captured once, not tracked.
  */
 export function HelpTip({ text, label }: { text: string; label?: string }) {
+  const t = useSharedT("shared.managementUi.donations");
   const [open, setOpen] = React.useState(false);
   const [rect, setRect] = React.useState<DOMRect | null>(null);
   const portalTarget = usePortalTarget();
@@ -91,7 +93,7 @@ export function HelpTip({ text, label }: { text: string; label?: string }) {
       <button
         ref={triggerRef}
         type="button"
-        aria-label={label ? `Help: ${label}` : "Help"}
+        aria-label={label ? t("helpLabel", { label }) : t("help")}
         aria-expanded={open}
         onClick={toggle}
         className="inline-flex items-center justify-center text-zinc-300 hover:text-zinc-500 transition-colors cursor-pointer align-middle"

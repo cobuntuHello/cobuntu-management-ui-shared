@@ -1,5 +1,6 @@
 "use client";
 
+import { useSharedT } from "../i18n";
 import { HandCoins, Plus, X } from "lucide-react";
 import type { DonationDraft, SymbolFor } from "./types";
 import { Collapse, Eyebrow, Switch } from "./primitives";
@@ -57,6 +58,7 @@ export interface DonationsSectionProps {
 export function DonationsSection({
   donation, onUpdate, defaultCurrency, symbolFor, tierNoun, hideHeader = false,
 }: DonationsSectionProps) {
+  const t = useSharedT("shared.managementUi.donations");
   const sym = symbolFor(donation.currency || defaultCurrency);
 
   const addAmount = () => onUpdate({ amounts: [...donation.amounts, ""] });
@@ -78,13 +80,13 @@ export function DonationsSection({
           <HandCoins className="h-[18px] w-[18px]" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[14px] font-semibold text-zinc-900">Donations</p>
+          <p className="text-[14px] font-semibold text-zinc-900">{t("title")}</p>
           <p className="text-[12px] text-zinc-500 mt-0.5 leading-snug">
-            Let buyers add an optional contribution at checkout, on top of any price. The same prompt shows no matter which {tierNoun} they pick.
+            {t("sectionIntro", { tierNoun })}
           </p>
         </div>
         <div className="pt-0.5">
-          <Switch checked={donation.enabled} onChange={(v) => onUpdate({ enabled: v })} label="Enable donations" />
+          <Switch checked={donation.enabled} onChange={(v) => onUpdate({ enabled: v })} label={t("enable")} />
         </div>
       </div>
       )}
@@ -98,9 +100,9 @@ export function DonationsSection({
         <div className={`${hideHeader ? "" : "mt-5"} space-y-5`}>
           {/* Mode — segmented control */}
           <div>
-            <Eyebrow>How buyers give</Eyebrow>
+            <Eyebrow>{t("howBuyersGive")}</Eyebrow>
             <div className="mt-1.5 grid grid-cols-2 gap-1 p-1 rounded-xl bg-zinc-100">
-              {([["fixed", "Suggested amounts"], ["pwyw", "Any amount"]] as const).map(([m, label]) => (
+              {([["fixed", t("suggestedAmounts")], ["pwyw", t("anyAmount")]] as const).map(([m, label]) => (
                 <button
                   key={m}
                   type="button"
@@ -120,7 +122,7 @@ export function DonationsSection({
           {/* Suggested amounts — chips */}
           <Collapse open={donation.mode === "fixed"}>
             <div>
-              <Eyebrow help="Buyers tap one of these, or type their own amount.">Suggested amounts</Eyebrow>
+              <Eyebrow help={t("suggestedAmountsHelp")}>{t("suggestedAmounts")}</Eyebrow>
               <div className="mt-1.5 flex flex-wrap gap-2">
                 {donation.amounts.map((a, i) => (
                   <div key={i} className="relative">
@@ -135,7 +137,7 @@ export function DonationsSection({
                       <button
                         type="button"
                         onClick={() => removeAmount(i)}
-                        aria-label="Remove amount"
+                        aria-label={t("removeAmount")}
                         className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded-md text-zinc-300 hover:text-red-500 hover:bg-red-50 cursor-pointer transition-colors"
                       >
                         <X className="h-3.5 w-3.5" />
@@ -149,7 +151,7 @@ export function DonationsSection({
                     onClick={addAmount}
                     className="inline-flex items-center gap-1 px-3 py-2 text-[12px] font-medium text-zinc-500 border border-dashed border-zinc-300 rounded-xl hover:border-zinc-400 hover:text-zinc-700 hover:bg-zinc-50 transition-colors cursor-pointer"
                   >
-                    <Plus className="h-3.5 w-3.5" /> Add
+                    <Plus className="h-3.5 w-3.5" /> {t("add")}
                   </button>
                 )}
               </div>
@@ -159,13 +161,13 @@ export function DonationsSection({
           {/* Any amount — optional minimum */}
           <Collapse open={donation.mode === "pwyw"}>
             <div>
-              <Eyebrow help="The smallest a buyer can give. Leave empty for no floor.">Minimum (optional)</Eyebrow>
+              <Eyebrow help={t("minimumHelp")}>{t("minimum")}</Eyebrow>
               <div className="relative mt-1.5 max-w-[220px]">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-zinc-400 pointer-events-none">{sym}</span>
                 <input
                   type="number" min="0" step="0.01" value={donation.minAmount}
                   onChange={(e) => onUpdate({ minAmount: e.target.value })}
-                  placeholder="No minimum"
+                  placeholder={t("noMinimum")}
                   className={`w-full ${amountInputCls}`}
                 />
               </div>
@@ -174,12 +176,12 @@ export function DonationsSection({
 
           {/* Checkout label */}
           <div>
-            <Eyebrow help="The text on the button buyers tap at checkout.">Checkout label (optional)</Eyebrow>
+            <Eyebrow help={t("checkoutLabelHelp")}>{t("checkoutLabel")}</Eyebrow>
             <input
               type="text"
               value={donation.label}
               onChange={(e) => onUpdate({ label: e.target.value })}
-              placeholder={'Defaults to "Add a donation"'}
+              placeholder={t("checkoutLabelPlaceholder")}
               maxLength={100}
               className="w-full mt-1.5 px-3 py-2 text-[13px] text-zinc-900 placeholder:text-zinc-400 border border-zinc-200 rounded-xl focus:outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-900/5"
             />

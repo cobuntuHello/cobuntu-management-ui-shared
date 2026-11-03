@@ -1,5 +1,6 @@
 "use client";
 
+import { useSharedT } from "../i18n";
 import * as React from "react";
 import { cn } from "../lib/cn";
 import { PackagePicker, type CommissionPackage } from "./PackagePicker";
@@ -74,8 +75,9 @@ export function PackageNegotiation({
   const [countering, setCountering] = React.useState(false);
   const [choice, setChoice] = React.useState<string | null>(null);
   const [note, setNote] = React.useState("");
+  const t = useSharedT("shared.managementUi.packageNegotiation");
 
-  const other = counterpartName ?? (role === "member" ? communityName ?? "the community" : "the member");
+  const other = counterpartName ?? (role === "member" ? communityName ?? t("theCommunity") : t("theMember"));
   const agreed = agreedPackageId
     ? packages.find((p) => p.id === agreedPackageId) ?? null
     : null;
@@ -99,22 +101,22 @@ export function PackageNegotiation({
         <h3 className="m-0 text-[14.5px] font-semibold tracking-[-0.01em] text-zinc-900">
           {pending
             ? pending.proposedByMe
-              ? `Waiting on ${other}`
-              : `${pending.proposedByName ?? other} suggested different terms`
+              ? t("waitingOn", { other })
+              : t("suggestedDifferent", { name: pending.proposedByName ?? other })
             : agreed
-              ? "Agreed terms"
-              : "Choose how this is listed"}
+              ? t("agreedTerms")
+              : t("chooseHow")}
         </h3>
         <p className="m-0 mt-1 max-w-[58ch] text-[12.5px] leading-relaxed text-zinc-500">
           {pending
             ? pending.proposedByMe
-              ? "They can accept it, or suggest another arrangement."
-              : "Accept it, or suggest a different one. Neither side can change what a package costs."
+              ? t("pendingMineBody")
+              : t("pendingTheirsBody")
             : agreed
-              ? "This is what every sale under this listing pays."
+              ? t("agreedBody")
               : role === "member"
-                ? `Pick the arrangement you want. ${communityName ?? "The community"} reviews it before it goes live.`
-                : "Nothing has been agreed yet."}
+                ? t("memberPickBody", { community: communityName ?? t("theCommunityCapital") })
+                : t("nothingAgreed")}
         </p>
       </header>
 
@@ -131,7 +133,7 @@ export function PackageNegotiation({
           >
             <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
               <span className="text-[14px] font-semibold text-zinc-900">
-                {pending.packageName ?? "Proposed terms"}
+                {pending.packageName ?? t("proposedTerms")}
               </span>
               <span className="text-[16px] font-bold tabular-nums tracking-tight text-zinc-900">
                 {pending.rate}%
@@ -144,7 +146,7 @@ export function PackageNegotiation({
             ) : null}
             {agreed && agreed.id !== pending.packageId ? (
               <p className="m-0 mt-2 text-[11.5px] text-zinc-400">
-                Currently {agreed.name} · {agreed.rate}%
+                {t("currently", { name: agreed.name, rate: agreed.rate })}
               </p>
             ) : null}
           </div>
@@ -177,7 +179,7 @@ export function PackageNegotiation({
       {countering ? (
         <div className="border-t border-zinc-100 bg-[#fbfaf9] px-5 py-4">
           <p className="m-0 mb-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-500">
-            Suggest a different package
+            {t("suggestDifferentPackage")}
           </p>
           <PackagePicker
             packages={packages}
@@ -192,17 +194,17 @@ export function PackageNegotiation({
             rows={2}
             placeholder={
               role === "leader"
-                ? "This doesn't need us running it, so Co-run fits better."
-                : "I'd rather handle this one myself."
+                ? t("notePlaceholderLeader")
+                : t("notePlaceholderMember")
             }
             className="mt-2.5 w-full resize-y rounded-[9px] border border-zinc-200 bg-white px-3 py-2 text-[12.5px] leading-relaxed text-zinc-900 outline-none transition-colors placeholder:text-zinc-300 focus:border-zinc-400 focus:ring-[3px] focus:ring-zinc-900/[0.06]"
           />
           <div className="mt-2.5 flex justify-end gap-2">
             <Button onClick={() => setCountering(false)} disabled={busy}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button primary onClick={submitCounter} disabled={busy || !choice}>
-              Send suggestion
+              {t("sendSuggestion")}
             </Button>
           </div>
         </div>
@@ -211,22 +213,22 @@ export function PackageNegotiation({
           {pending && !pending.proposedByMe ? (
             <>
               <Button onClick={() => onRespond(pending.id, "REJECTED")} disabled={busy}>
-                Decline
+                {t("decline")}
               </Button>
               <Button onClick={startCounter} disabled={busy || packages.length === 0}>
-                Suggest another
+                {t("suggestAnother")}
               </Button>
               <Button primary onClick={() => onRespond(pending.id, "ACCEPTED")} disabled={busy}>
-                Accept {pending.packageName ? `${pending.packageName}` : "these terms"}
+                {pending.packageName ? t("acceptNamed", { name: pending.packageName }) : t("acceptTerms")}
               </Button>
             </>
           ) : pending && pending.proposedByMe ? (
             <Button onClick={startCounter} disabled={busy || packages.length === 0}>
-              Change my suggestion
+              {t("changeSuggestion")}
             </Button>
           ) : agreed ? (
             <Button onClick={startCounter} disabled={busy || packages.length === 0}>
-              Suggest a different package
+              {t("suggestDifferentPackage")}
             </Button>
           ) : (
             <Button
@@ -234,7 +236,7 @@ export function PackageNegotiation({
               onClick={() => choice && onPropose(choice)}
               disabled={busy || !choice}
             >
-              {role === "member" ? "Request this listing" : "Offer these terms"}
+              {role === "member" ? t("requestListing") : t("offerTerms")}
             </Button>
           )}
         </footer>

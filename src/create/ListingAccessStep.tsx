@@ -1,5 +1,6 @@
 "use client";
 
+import { useSharedT } from "../i18n";
 import { AccessAxisControl } from "../ui/AccessAxisControl";
 import {
   ceilingFor,
@@ -69,6 +70,7 @@ export function ListingAccessStep({
   kind,
   disabled = false,
 }: ListingAccessStepProps) {
+  const t = useSharedT("shared.managementUi.listingAccessStep");
   const isEvent = kind === "event";
   const verb = isEvent ? "register" : "buy";
   const buyCeiling = ceilingFor(viewAccess);
@@ -96,26 +98,26 @@ export function ListingAccessStep({
           </svg>
         </span>
         <p className="pt-0.5 text-[13.5px] font-semibold leading-relaxed text-blue-900">
-          {consequence ?? `Anyone can find and ${verb} this — fully open.`}
+          {consequence ?? t("fullyOpen", { verb })}
         </p>
       </div>
 
       <div className="flex flex-col gap-3">
         <AccessAxisControl
-          label="Who can find this"
+          label={t("whoCanFind")}
           value={viewAccess}
           onChange={changeView}
           tiers={tiers}
-          publicLabel="Anyone, including people who are not members"
+          publicLabel={t("publicFind")}
           disabled={disabled}
         />
 
         <AccessAxisControl
-          label={isEvent ? "Who can register" : "Who can buy it"}
+          label={isEvent ? t("whoCanRegister") : t("whoCanBuy")}
           value={buyAccess}
           onChange={(next) => onChange({ viewAccess, buyAccess: next })}
           tiers={tiers}
-          publicLabel={isEvent ? "Anyone can register, members or not" : "Anyone can buy it, members or not"}
+          publicLabel={isEvent ? t("publicRegister") : t("publicBuy")}
           disabled={disabled}
           ceiling={buyCeiling}
         />

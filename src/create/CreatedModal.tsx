@@ -1,5 +1,6 @@
 "use client";
 
+import { useSharedT } from "../i18n";
 import {
   type CreateOutcome,
   primaryDestination,
@@ -106,28 +107,30 @@ export function CreatedModal({
   reviewHref,
   onNavigate = browserNavigate,
 }: CreatedModalProps) {
+  const t = useSharedT("shared.managementUi.createdModal");
   if (!open) return null;
 
   const isEvent = kind === "event";
-  const noun = isEvent ? "event" : "product";
+  // Passed to ICU `select`, so each locale can inflect the noun itself.
+  const k = { kind: isEvent ? "event" : "product" };
   const primary = primaryDestination(outcome);
   const isPending = outcome === "pending";
 
 
   const COPY: Record<CreateOutcome, { title: string; body: string }> = {
     published: {
-      title: `Your ${noun} is live`,
+      title: t("publishedTitle", k),
       body: isEvent
-        ? "People can find it and register now."
-        : "People can find it and buy it now.",
+        ? t("publishedBodyEvent")
+        : t("publishedBodyProduct"),
     },
     saved: {
-      title: "Saved as a draft",
-      body: `Nobody can see this ${noun} yet. Publish it from the manage page when you are ready.`,
+      title: t("savedTitle"),
+      body: t("savedBody", k),
     },
     pending: {
-      title: "It's with the leaders",
-      body: `A leader reviews this ${noun} before it goes live. You can follow the review, and settle the terms, from the thread.`,
+      title: t("pendingTitle"),
+      body: t("pendingBody", k),
     },
     /*
      * Deliberately not "saved" and not "hidden".
@@ -139,8 +142,8 @@ export function CreatedModal({
      * shelf is waiting.
      */
     unlisted: {
-      title: `Your ${noun} is ready`,
-      body: `Only you can see it. Ask a community to carry it from the manage page whenever you want, or leave it as it is.`,
+      title: t("unlistedTitle", k),
+      body: t("unlistedBody"),
     },
   };
   const copy = COPY[outcome];
@@ -183,15 +186,15 @@ export function CreatedModal({
   const actions: { label: string; href: string; key: string }[] = [];
 
   if (isPending && reviewHref) {
-    actions.push({ label: "Follow the review", href: reviewHref, key: "review" });
+    actions.push({ label: t("followReview"), href: reviewHref, key: "review" });
   }
   // A draft has no public page worth opening — the view link would show the
   // author a page nobody else can reach, which reads as broken rather than
   // private.
   if (outcome !== "saved") {
-    actions.push({ label: `View ${noun}`, href: viewHref, key: "view" });
+    actions.push({ label: t("view", k), href: viewHref, key: "view" });
   }
-  actions.push({ label: `Manage ${noun}`, href: manageHref, key: "manage" });
+  actions.push({ label: t("manage", k), href: manageHref, key: "manage" });
 
   /*
    * When nothing outranks it, the outcome's own primary keeps the emphasis —
@@ -262,7 +265,7 @@ export function CreatedModal({
         onClick={() => onNavigate(createAnotherHref)}
         className="mt-5 text-[13px] font-medium cursor-pointer opacity-55 transition-opacity hover:opacity-100"
       >
-        Create another {noun}
+        {t("createAnother", k)}
       </button>
     </div>
   );

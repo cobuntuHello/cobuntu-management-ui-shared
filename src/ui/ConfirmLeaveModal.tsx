@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSharedT } from "../i18n";
 import { ModalShell } from "./ModalShell";
 
 export interface ConfirmLeaveModalProps {
@@ -30,11 +31,16 @@ export function ConfirmLeaveModal({
   open,
   onCancel,
   onConfirm,
-  title = "Leave this page?",
-  message = "You'll be taken to another site. You can come back and finish afterward.",
-  confirmLabel = "Continue",
-  cancelLabel = "Not now",
+  title: titleProp,
+  message: messageProp,
+  confirmLabel: confirmLabelProp,
+  cancelLabel: cancelLabelProp,
 }: ConfirmLeaveModalProps) {
+  const t = useSharedT("shared.managementUi.confirmLeaveModal");
+  const title = titleProp ?? t("title");
+  const message = messageProp ?? t("message");
+  const confirmLabel = confirmLabelProp ?? t("confirmLabel");
+  const cancelLabel = cancelLabelProp ?? t("cancelLabel");
   if (!open) return null;
   return (
     <ModalShell

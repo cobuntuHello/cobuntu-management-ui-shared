@@ -419,7 +419,7 @@ function Ask({
                       */}
                     {topic.status === "OPEN" && (
                         <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-[var(--line-soft)] pt-3">
-                            <Shake mine={mine} theirs={theirs} viewer={viewer} otherPartyName={otherPartyName} />
+                            <Shake mine={mine} theirs={theirs} viewer={viewer} otherPartyName={otherPartyName} t={t} />
                             <p className="min-w-0 flex-1 text-[12px] text-[var(--ink-3)]">
                                 {mine ? t("topicsWaitingOnThem", { other: otherPartyName }) : t("topicsClosesWhenBoth")}
                             </p>
@@ -449,25 +449,28 @@ function Shake({
     theirs,
     viewer,
     otherPartyName,
+    t,
 }: {
     mine: boolean;
     theirs: boolean;
     viewer: Viewer;
     otherPartyName: string;
+    t: T;
 }) {
     const other = otherPartyName.slice(0, 3).toUpperCase();
+    const titles = { on: t("topicsLampAgreed"), off: t("topicsLampNotYet") };
     return (
         <span className="flex shrink-0 items-center gap-1">
-            <Lamp on={mine} label="YOU" />
-            <Lamp on={theirs} label={other} square={viewer === "owner"} />
+            <Lamp on={mine} label={t("topicsLampYou")} titles={titles} />
+            <Lamp on={theirs} label={other} square={viewer === "owner"} titles={titles} />
         </span>
     );
 }
 
-function Lamp({ on, label, square }: { on: boolean; label: string; square?: boolean }) {
+function Lamp({ on, label, square, titles }: { on: boolean; label: string; square?: boolean; titles: { on: string; off: string } }) {
     return (
         <span
-            title={on ? "agreed" : "not yet"}
+            title={on ? titles.on : titles.off}
             className={`grid h-6 min-w-6 place-items-center px-1.5 text-[9px] font-bold transition-colors duration-300 ${
                 square ? "rounded-[7px]" : "rounded-full"
             } ${on ? "bg-[var(--good)] text-white" : "bg-zinc-100 text-zinc-400 ring-1 ring-zinc-200"}`}

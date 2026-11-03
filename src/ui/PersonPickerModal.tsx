@@ -1,5 +1,6 @@
 "use client";
 
+import { useSharedT } from "../i18n";
 import * as React from "react";
 import { ActionModalShell } from "./ActionModalShell";
 import { searchPeople, minQueryLength, type PersonSearchResult } from "../lib/searchPeople";
@@ -231,6 +232,7 @@ export function PersonPickerModal({
     currentUserId, UserAvatar, multiple = false, copy, stepTwo, emails, suggestions,
     tierStep, onConfirm, onAdded,
 }: PersonPickerModalProps) {
+    const tChrome = useSharedT("shared.managementUi.modalChrome");
     /*
      * The steps, derived from the props rather than hard-coded.
      *
@@ -473,7 +475,7 @@ export function PersonPickerModal({
             onAdded?.(finalRecipients);
             onClose();
         } catch (e: any) {
-            setError(e?.message || "Something went wrong.");
+            setError(e?.message || tChrome("somethingWentWrong"));
         } finally {
             setSubmitting(false);
         }
