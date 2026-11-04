@@ -106,6 +106,10 @@ export const MANAGEMENT_UI_MESSAGES_EN = {
         approvalRequired: "{reviewer} reviews this before it goes live.",
         goesLiveImmediately: "Goes live the moment you submit — no review needed.",
         aLeader: "A leader",
+        flowSubmit: "Submit your listing",
+        flowReviewed: "{reviewer} reviews it",
+        flowApprovedAutomatically: "Automatically approved",
+        flowLive: "Sell on the marketplace",
       },
       packageNegotiation: {
         theCommunity: "the community",

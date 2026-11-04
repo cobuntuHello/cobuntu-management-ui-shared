@@ -120,8 +120,9 @@ export function PackagePicker({
    */
   if (packages.length === 0) {
     return (
-      <div className="flex flex-col gap-2">
-        <CommissionCard packageRow={null} feeLine={feeLine} feeSplit={feeSplit} sellerRate={undefined} platformFeeRate={platformFee?.rate} approval={approval} t={t} />
+      <div className="flex flex-col gap-3">
+        <SubmissionFlowExplainer approval={approval} t={t} />
+        <CommissionCard packageRow={null} feeLine={feeLine} feeSplit={feeSplit} sellerRate={undefined} platformFeeRate={platformFee?.rate} t={t} />
         <p className="m-0 rounded-[11px] border border-amber-200 bg-amber-50 px-3.5 py-3 text-[12.5px] leading-relaxed text-amber-900">
           {emptyLabel ??
             t("empty", { community: communityName ?? t("thisCommunity") })}
@@ -150,14 +151,14 @@ export function PackagePicker({
   if (packages.length === 1) {
     const only = packages[0];
     return (
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
+        <SubmissionFlowExplainer approval={approval} t={t} />
         <CommissionCard
           packageRow={only}
           feeLine={feeLine}
           feeSplit={feeSplit}
           sellerRate={only.rate}
           platformFeeRate={platformFee?.rate}
-          approval={approval}
           t={t}
         />
       </div>
@@ -167,8 +168,8 @@ export function PackagePicker({
   const selectedPkg = packages.find((p) => p.id === value) ?? null;
 
   return (
-    <div className="flex flex-col gap-2">
-      <ApprovalStrip approval={approval} t={t} />
+    <div className="flex flex-col gap-3">
+      <SubmissionFlowExplainer approval={approval} t={t} />
       {packages.map((pkg) => {
         const selected = pkg.id === value;
         return (
@@ -235,7 +236,7 @@ export function PackagePicker({
         * seller assumes Stripe comes on top, which is what every other platform
         * they have used does.
         */}
-      <CommissionCard packageRow={null} feeLine={feeLine} feeSplit={feeSplit} sellerRate={selectedPkg?.rate} platformFeeRate={platformFee?.rate} approval={undefined} t={t} />
+      <CommissionCard packageRow={null} feeLine={feeLine} feeSplit={feeSplit} sellerRate={selectedPkg?.rate} platformFeeRate={platformFee?.rate} t={t} />
     </div>
   );
 }
@@ -254,7 +255,6 @@ function CommissionCard({
   feeSplit,
   sellerRate,
   platformFeeRate,
-  approval,
   t,
 }: {
   /** Folded into this same card's header when there is exactly one package to show inline (never for the multi-package radio list, which already shows its own name/rate per option). */
@@ -265,11 +265,9 @@ function CommissionCard({
   sellerRate?: number;
   /** Cobuntu's all-in rate (processing included) as a plain percent, e.g. 4 for 4%. */
   platformFeeRate?: number;
-  /** Rendered as the card's own top section -- see ApprovalContent's comment for why this moved off a separate banner. Omitted for the multi-package list, which uses the standalone ApprovalStrip instead. */
-  approval?: ListingApprovalStatus;
   t: ReturnType<typeof useSharedT>;
 }) {
-  if (!feeLine && !packageRow && !approval) return null;
+  if (!feeLine && !packageRow) return null;
   /*
    * "You keep ~X%" is the number everyone is actually asking for when they
    * see a fee breakdown — the lines below answer "what gets taken" but not
@@ -296,18 +294,6 @@ function CommissionCard({
 
   return (
     <div className="overflow-hidden rounded-[14px] border border-zinc-200 bg-white">
-      {approval && (
-        <p
-          className={cn(
-            "m-0 flex items-center gap-2 border-b px-4 py-2.5 text-[12.5px] font-medium leading-relaxed",
-            approval.requiresApproval
-              ? "border-amber-100 bg-amber-50 text-amber-900"
-              : "border-emerald-100 bg-emerald-50 text-emerald-900",
-          )}
-        >
-          <ApprovalContent approval={approval} t={t} />
-        </p>
-      )}
       {keepsPct && (
         <div className="border-b border-zinc-100 px-4 pb-4 pt-4">
           <span className="block text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
@@ -399,29 +385,16 @@ function LegendDot({ colorClass, label }: { colorClass: string; label: string })
  * uses for pending vs. live elsewhere, not a new one invented here.
  */
 /**
- * "What happens to this submission" and "what it costs" used to be two
- * unrelated facts -- a colored banner floating above an unrelated card.
- * They are the same decision: whether you're comfortable with the terms
- * depends partly on whether a leader gets to veto them first. `CommissionCard`
- * renders this as its own top section now; `ApprovalStrip` exists only for
- * the multi-package list, which has no single card to attach it to (the
- * breakdown card sits below several options, not one).
+ * "What happens to my submission" used to be a single banner sentence
+ * ("goes live immediately" / "a leader reviews this") -- true, but it
+ * answered only the LAST step of a process nobody had been shown the rest
+ * of. Submit, then [approved automatically | reviewed by a leader], then
+ * live on the marketplace is three steps whichever branch you're on; the
+ * only thing that differs is the middle one. Laid out as three cards so
+ * the whole path reads in one glance, instead of a single fact dropped
+ * with no before or after.
  */
-function ApprovalContent({ approval, t }: { approval: ListingApprovalStatus; t: ReturnType<typeof useSharedT> }) {
-  return approval.requiresApproval ? (
-    <>
-      <ClockIcon />
-      {t("approvalRequired", { reviewer: approval.reviewerLabel ?? t("aLeader") })}
-    </>
-  ) : (
-    <>
-      <BoltIcon />
-      {t("goesLiveImmediately")}
-    </>
-  );
-}
-
-function ApprovalStrip({
+function SubmissionFlowExplainer({
   approval,
   t,
 }: {
@@ -429,33 +402,73 @@ function ApprovalStrip({
   t: ReturnType<typeof useSharedT>;
 }) {
   if (!approval) return null;
+  const steps = approval.requiresApproval
+    ? [
+        { Icon: SendIcon, label: t("flowSubmit") },
+        { Icon: EyeIcon, label: t("flowReviewed", { reviewer: approval.reviewerLabel ?? t("aLeader") }) },
+        { Icon: StorefrontIcon, label: t("flowLive") },
+      ]
+    : [
+        { Icon: SendIcon, label: t("flowSubmit") },
+        { Icon: CheckIcon, label: t("flowApprovedAutomatically") },
+        { Icon: StorefrontIcon, label: t("flowLive") },
+      ];
   return (
-    <p
-      className={cn(
-        "m-0 flex items-center gap-2 rounded-[11px] border px-3.5 py-2.5 text-[12.5px] font-medium leading-relaxed",
-        approval.requiresApproval
-          ? "border-amber-200 bg-amber-50 text-amber-900"
-          : "border-emerald-200 bg-emerald-50 text-emerald-900",
-      )}
-    >
-      <ApprovalContent approval={approval} t={t} />
-    </p>
+    <div className="grid grid-cols-3 gap-2.5">
+      {steps.map(({ Icon, label }, i) => (
+        <div
+          key={i}
+          className="flex flex-col items-center gap-2 rounded-[14px] border border-zinc-200 bg-white px-3 py-4 text-center"
+        >
+          <span
+            className={cn(
+              "grid h-9 w-9 shrink-0 place-items-center rounded-full",
+              i === 1
+                ? approval.requiresApproval ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+                : "bg-zinc-100 text-zinc-500",
+            )}
+          >
+            <Icon />
+          </span>
+          <span className="text-[12px] font-medium leading-tight text-zinc-700">{label}</span>
+        </div>
+      ))}
+    </div>
   );
 }
 
-function ClockIcon() {
+function SendIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 3" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m22 2-7 20-4-9-9-4Z" />
+      <path d="M22 2 11 13" />
     </svg>
   );
 }
 
-function BoltIcon() {
+function EyeIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" className="shrink-0">
-      <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+function StorefrontIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9h18l-1.5-5a1 1 0 0 0-1-.75H5.5a1 1 0 0 0-1 .75L3 9Z" />
+      <path d="M3 9v10a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9" />
+      <path d="M9 20v-6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6" />
     </svg>
   );
 }
