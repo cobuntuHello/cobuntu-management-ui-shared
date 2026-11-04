@@ -414,24 +414,31 @@ function SubmissionFlowExplainer({
         { Icon: StorefrontIcon, label: t("flowLive") },
       ];
   return (
-    <div className="grid grid-cols-3 gap-2.5">
+    <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-1.5">
       {steps.map(({ Icon, label }, i) => (
-        <div
-          key={i}
-          className="flex flex-col items-center gap-2 rounded-[14px] border border-zinc-200 bg-white px-3 py-4 text-center"
-        >
-          <span
-            className={cn(
-              "grid h-9 w-9 shrink-0 place-items-center rounded-full",
-              i === 1
-                ? approval.requiresApproval ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
-                : "bg-zinc-100 text-zinc-500",
-            )}
-          >
-            <Icon />
-          </span>
-          <span className="text-[12px] font-medium leading-tight text-zinc-700">{label}</span>
-        </div>
+        <React.Fragment key={i}>
+          {i > 0 && (
+            <div className="flex items-center justify-center text-zinc-300" aria-hidden="true">
+              <ArrowIcon />
+            </div>
+          )}
+          <div className="relative flex flex-col items-center gap-2 rounded-[14px] border border-zinc-200 bg-white px-2.5 py-4 text-center shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <span className="absolute left-2.5 top-2.5 text-[10px] font-semibold tabular-nums text-zinc-300">
+              {i + 1}
+            </span>
+            <span
+              className={cn(
+                "grid h-10 w-10 shrink-0 place-items-center rounded-full",
+                i === 1
+                  ? approval.requiresApproval ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+                  : "bg-zinc-900 text-white",
+              )}
+            >
+              <Icon />
+            </span>
+            <span className="text-[12.5px] font-semibold leading-tight text-zinc-800">{label}</span>
+          </div>
+        </React.Fragment>
       ))}
     </div>
   );
@@ -469,6 +476,15 @@ function StorefrontIcon() {
       <path d="M3 9h18l-1.5-5a1 1 0 0 0-1-.75H5.5a1 1 0 0 0-1 .75L3 9Z" />
       <path d="M3 9v10a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9" />
       <path d="M9 20v-6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6" />
+    </svg>
+  );
+}
+
+function ArrowIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12h14" />
+      <path d="m13 6 6 6-6 6" />
     </svg>
   );
 }
