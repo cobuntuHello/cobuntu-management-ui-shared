@@ -34,7 +34,9 @@ describe("PackagePicker — the platform fee is never conditional on a community
 
     expect(screen.getByText("Standard")).toBeInTheDocument();
     expect(screen.getByText("Card processing")).toBeInTheDocument();
-    expect(screen.getByText("Cobuntu")).toBeInTheDocument();
+    // "Cobuntu" now legitimately appears twice: once in the split legend,
+    // once in the itemized breakdown row.
+    expect(screen.getAllByText("Cobuntu").length).toBeGreaterThan(0);
   });
 
   it("renders nothing fee-related when platformFee is omitted — an un-updated caller stays unchanged", () => {
