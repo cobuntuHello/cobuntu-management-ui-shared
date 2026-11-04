@@ -121,12 +121,11 @@ export function PackagePicker({
   if (packages.length === 0) {
     return (
       <div className="flex flex-col gap-2">
-        <ApprovalBanner approval={approval} t={t} />
+        <CommissionCard packageRow={null} feeLine={feeLine} feeSplit={feeSplit} sellerRate={undefined} platformFeeRate={platformFee?.rate} approval={approval} t={t} />
         <p className="m-0 rounded-[11px] border border-amber-200 bg-amber-50 px-3.5 py-3 text-[12.5px] leading-relaxed text-amber-900">
           {emptyLabel ??
             t("empty", { community: communityName ?? t("thisCommunity") })}
         </p>
-        <CommissionCard packageRow={null} feeLine={feeLine} feeSplit={feeSplit} sellerRate={undefined} platformFeeRate={platformFee?.rate} t={t} />
       </div>
     );
   }
@@ -152,13 +151,13 @@ export function PackagePicker({
     const only = packages[0];
     return (
       <div className="flex flex-col gap-2">
-        <ApprovalBanner approval={approval} t={t} />
         <CommissionCard
           packageRow={only}
           feeLine={feeLine}
           feeSplit={feeSplit}
           sellerRate={only.rate}
           platformFeeRate={platformFee?.rate}
+          approval={approval}
           t={t}
         />
       </div>
@@ -169,7 +168,7 @@ export function PackagePicker({
 
   return (
     <div className="flex flex-col gap-2">
-      <ApprovalBanner approval={approval} t={t} />
+      <ApprovalStrip approval={approval} t={t} />
       {packages.map((pkg) => {
         const selected = pkg.id === value;
         return (
@@ -236,7 +235,7 @@ export function PackagePicker({
         * seller assumes Stripe comes on top, which is what every other platform
         * they have used does.
         */}
-      <CommissionCard packageRow={null} feeLine={feeLine} feeSplit={feeSplit} sellerRate={selectedPkg?.rate} platformFeeRate={platformFee?.rate} t={t} />
+      <CommissionCard packageRow={null} feeLine={feeLine} feeSplit={feeSplit} sellerRate={selectedPkg?.rate} platformFeeRate={platformFee?.rate} approval={undefined} t={t} />
     </div>
   );
 }
@@ -255,6 +254,7 @@ function CommissionCard({
   feeSplit,
   sellerRate,
   platformFeeRate,
+  approval,
   t,
 }: {
   /** Folded into this same card's header when there is exactly one package to show inline (never for the multi-package radio list, which already shows its own name/rate per option). */
@@ -265,29 +265,78 @@ function CommissionCard({
   sellerRate?: number;
   /** Cobuntu's all-in rate (processing included) as a plain percent, e.g. 4 for 4%. */
   platformFeeRate?: number;
+  /** Rendered as the card's own top section -- see ApprovalContent's comment for why this moved off a separate banner. Omitted for the multi-package list, which uses the standalone ApprovalStrip instead. */
+  approval?: ListingApprovalStatus;
   t: ReturnType<typeof useSharedT>;
 }) {
-  if (!feeLine && !packageRow) return null;
+  if (!feeLine && !packageRow && !approval) return null;
   /*
    * "You keep ~X%" is the number everyone is actually asking for when they
-   * see a fee breakdown — the two lines above answer "what gets taken" but
-   * not "so what's left", and a seller pricing an item has to do that
-   * subtraction themselves otherwise. Only shown once a rate is on the
+   * see a fee breakdown — the lines below answer "what gets taken" but not
+   * "so what's left", and a seller pricing an item has to do that
+   * subtraction themselves otherwise. Only known once a rate is on the
    * table: with `platformFee` alone (no tier rate selected) there is
-   * nothing to total yet. Rounded to one decimal — the inputs are whole
-   * percents, so anything past that is noise, not precision.
+   * nothing to total yet.
    */
-  const keepsPct = sellerRate !== undefined && platformFeeRate !== undefined
-    ? formatRate(Math.round((100 - sellerRate - platformFeeRate) * 10) / 10)
+  const keepsRaw = sellerRate !== undefined && platformFeeRate !== undefined
+    ? Math.round((100 - sellerRate - platformFeeRate) * 10) / 10
+    : null;
+  const keepsPct = keepsRaw !== null ? formatRate(keepsRaw) : null;
+
+  /*
+   * The number alone answers "what's left"; the bar answers "where did the
+   * rest go" in the same glance, without reading three separate percent
+   * signs to add them up. Three segments, not two — the community's cut
+   * and Cobuntu's are different parties and a seller comparing tiers needs
+   * to see which one moved.
+   */
+  const split = keepsRaw !== null && sellerRate !== undefined && platformFeeRate !== undefined
+    ? { you: Math.max(keepsRaw, 0), community: sellerRate, platform: platformFeeRate }
     : null;
 
   return (
     <div className="overflow-hidden rounded-[14px] border border-zinc-200 bg-white">
+      {approval && (
+        <p
+          className={cn(
+            "m-0 flex items-center gap-2 border-b px-4 py-2.5 text-[12.5px] font-medium leading-relaxed",
+            approval.requiresApproval
+              ? "border-amber-100 bg-amber-50 text-amber-900"
+              : "border-emerald-100 bg-emerald-50 text-emerald-900",
+          )}
+        >
+          <ApprovalContent approval={approval} t={t} />
+        </p>
+      )}
+      {keepsPct && (
+        <div className="border-b border-zinc-100 px-4 pb-4 pt-4">
+          <span className="block text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+            {t("youKeepLabel")}
+          </span>
+          <span className="mt-0.5 block text-[32px] font-bold leading-none tabular-nums tracking-tight text-emerald-700">
+            {keepsPct}%
+          </span>
+          {split && (
+            <>
+              <div className="mt-3 flex h-[7px] w-full overflow-hidden rounded-full bg-zinc-100" role="img" aria-label={t("splitAriaLabel")}>
+                <div className="h-full bg-emerald-500" style={{ width: `${split.you}%` }} />
+                <div className="h-full bg-zinc-400" style={{ width: `${split.community}%` }} />
+                <div className="h-full bg-zinc-700" style={{ width: `${split.platform}%` }} />
+              </div>
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-zinc-500">
+                <LegendDot colorClass="bg-emerald-500" label={t("legendYou")} />
+                <LegendDot colorClass="bg-zinc-400" label={t("legendCommunity")} />
+                <LegendDot colorClass="bg-zinc-700" label="Cobuntu" />
+              </div>
+            </>
+          )}
+        </div>
+      )}
       {packageRow && (
-        <div className="border-b border-zinc-100 bg-zinc-50/70 px-4 py-3.5">
+        <div className="border-b border-zinc-100 px-4 py-3">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-            <span className="text-[14.5px] font-semibold text-zinc-900">{packageRow.name}</span>
-            <span className="text-[16px] font-bold tabular-nums tracking-tight text-zinc-900">
+            <span className="text-[13px] font-medium text-zinc-700">{packageRow.name}</span>
+            <span className="text-[13px] font-semibold tabular-nums text-zinc-900">
               {packageRow.rate}%
             </span>
           </div>
@@ -329,13 +378,16 @@ function CommissionCard({
           )}
         </div>
       )}
-      {keepsPct && (
-        <div className="flex items-baseline justify-between gap-3 border-t border-zinc-100 bg-emerald-50/60 px-4 py-3">
-          <span className="text-[12.5px] font-medium text-emerald-900">{t("youKeepLabel")}</span>
-          <span className="text-[18px] font-bold tabular-nums tracking-tight text-emerald-900">{keepsPct}%</span>
-        </div>
-      )}
     </div>
+  );
+}
+
+function LegendDot({ colorClass, label }: { colorClass: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className={`inline-block h-[7px] w-[7px] shrink-0 rounded-full ${colorClass}`} aria-hidden="true" />
+      {label}
+    </span>
   );
 }
 
@@ -346,7 +398,30 @@ function CommissionCard({
  * live the moment you submit" — the same color vocabulary this app already
  * uses for pending vs. live elsewhere, not a new one invented here.
  */
-function ApprovalBanner({
+/**
+ * "What happens to this submission" and "what it costs" used to be two
+ * unrelated facts -- a colored banner floating above an unrelated card.
+ * They are the same decision: whether you're comfortable with the terms
+ * depends partly on whether a leader gets to veto them first. `CommissionCard`
+ * renders this as its own top section now; `ApprovalStrip` exists only for
+ * the multi-package list, which has no single card to attach it to (the
+ * breakdown card sits below several options, not one).
+ */
+function ApprovalContent({ approval, t }: { approval: ListingApprovalStatus; t: ReturnType<typeof useSharedT> }) {
+  return approval.requiresApproval ? (
+    <>
+      <ClockIcon />
+      {t("approvalRequired", { reviewer: approval.reviewerLabel ?? t("aLeader") })}
+    </>
+  ) : (
+    <>
+      <BoltIcon />
+      {t("goesLiveImmediately")}
+    </>
+  );
+}
+
+function ApprovalStrip({
   approval,
   t,
 }: {
@@ -354,15 +429,16 @@ function ApprovalBanner({
   t: ReturnType<typeof useSharedT>;
 }) {
   if (!approval) return null;
-  return approval.requiresApproval ? (
-    <p className="m-0 flex items-center gap-2 rounded-[11px] border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12.5px] font-medium leading-relaxed text-amber-900">
-      <ClockIcon />
-      {t("approvalRequired", { reviewer: approval.reviewerLabel ?? t("aLeader") })}
-    </p>
-  ) : (
-    <p className="m-0 flex items-center gap-2 rounded-[11px] border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-[12.5px] font-medium leading-relaxed text-emerald-900">
-      <BoltIcon />
-      {t("goesLiveImmediately")}
+  return (
+    <p
+      className={cn(
+        "m-0 flex items-center gap-2 rounded-[11px] border px-3.5 py-2.5 text-[12.5px] font-medium leading-relaxed",
+        approval.requiresApproval
+          ? "border-amber-200 bg-amber-50 text-amber-900"
+          : "border-emerald-200 bg-emerald-50 text-emerald-900",
+      )}
+    >
+      <ApprovalContent approval={approval} t={t} />
     </p>
   );
 }
