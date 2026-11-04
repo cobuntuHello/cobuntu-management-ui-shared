@@ -75,8 +75,9 @@ describe("PackagePicker — approval status, shown before the fees", () => {
 
   it("renders nothing when approval status is unresolved", () => {
     render(<PackagePicker packages={[]} value={null} onChange={vi.fn()} platformFee={platformFee} />);
-    expect(screen.queryByText(/reviews this/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Goes live/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Submit your listing")).not.toBeInTheDocument();
+    expect(screen.queryByText(/reviews it/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Automatically approved")).not.toBeInTheDocument();
   });
 
   it("names the reviewer when approval is required", () => {
@@ -89,7 +90,7 @@ describe("PackagePicker — approval status, shown before the fees", () => {
         approval={{ requiresApproval: true, reviewerLabel: "Orbis" }}
       />,
     );
-    expect(screen.getByText("Orbis reviews this before it goes live.")).toBeInTheDocument();
+    expect(screen.getByText("Orbis reviews it")).toBeInTheDocument();
   });
 
   it("falls back to 'a leader' when no reviewer is named", () => {
@@ -102,10 +103,10 @@ describe("PackagePicker — approval status, shown before the fees", () => {
         approval={{ requiresApproval: true }}
       />,
     );
-    expect(screen.getByText("A leader reviews this before it goes live.")).toBeInTheDocument();
+    expect(screen.getByText("A leader reviews it")).toBeInTheDocument();
   });
 
-  it("says it goes live immediately when no approval is needed", () => {
+  it("says it's approved automatically when no approval is needed", () => {
     render(
       <PackagePicker
         packages={[]}
@@ -115,6 +116,21 @@ describe("PackagePicker — approval status, shown before the fees", () => {
         approval={{ requiresApproval: false }}
       />,
     );
-    expect(screen.getByText(/Goes live the moment you submit/)).toBeInTheDocument();
+    expect(screen.getByText("Automatically approved")).toBeInTheDocument();
+  });
+
+  it("always shows the three-step flow: submit, decision, live", () => {
+    render(
+      <PackagePicker
+        packages={[]}
+        value={null}
+        onChange={vi.fn()}
+        platformFee={platformFee}
+        approval={{ requiresApproval: true, reviewerLabel: "Orbis" }}
+      />,
+    );
+    expect(screen.getByText("Submit your listing")).toBeInTheDocument();
+    expect(screen.getByText("Orbis reviews it")).toBeInTheDocument();
+    expect(screen.getByText("Sell on the marketplace")).toBeInTheDocument();
   });
 });
