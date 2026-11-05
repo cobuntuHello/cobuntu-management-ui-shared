@@ -40,6 +40,7 @@ export function ManageReferrals({
     busyId,
     onInvite,
     onDisable,
+    onEnable,
     onCopyLink,
 }: {
     links: ArtifactReferralLink[];
@@ -47,10 +48,12 @@ export function ManageReferrals({
     currency?: string;
     /** False for a viewer who may read the tab but not hand out links. */
     canManage: boolean;
-    /** The link currently being disabled, so only its own row goes quiet. */
+    /** The link currently busy (disabling or re-enabling), so only its own row goes quiet. */
     busyId?: string | null;
     onInvite?: () => void;
     onDisable?: (linkId: string) => void;
+    /** Turn a DISABLED link back on. Absent hides the action, same as onDisable. */
+    onEnable?: (linkId: string) => void;
     /** Given the full share URL. The host owns clipboard + toast. */
     onCopyLink?: (link: ArtifactReferralLink) => void;
 }) {
@@ -161,6 +164,20 @@ export function ManageReferrals({
                                                 Turn off
                                             </button>
                                         )
+                                    ) : null}
+
+                                    {/*
+                                      * Re-enabling keeps the same row -- its rate and
+                                      * earnings history, not a fresh invite -- so this is
+                                      * a plain action, no confirm step (unlike Turn off,
+                                      * which stops something currently earning).
+                                      */}
+                                    {canManage && disabled && onEnable ? (
+                                        <button type="button" className="mui-btn mui-btn--secondary mui-btn--sm"
+                                                disabled={busyId === l.id}
+                                                onClick={() => onEnable(l.id)}>
+                                            {busyId === l.id ? "Turning on…" : "Turn back on"}
+                                        </button>
                                     ) : null}
                                 </div>
                             </div>
