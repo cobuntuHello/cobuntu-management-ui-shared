@@ -62,6 +62,8 @@ export function ModalShell({
   // Inside an embedding host's themed wrapper when it provides one.
   const portalTarget = usePortalTarget();
   const tChrome = useSharedT("shared.managementUi.modalChrome");
+  // Did the current press START on the backdrop? See the backdrop's onClick.
+  const downOnBackdrop = React.useRef(false);
   // SSR guard: createPortal needs document.
   if (typeof document === "undefined" || !open || !portalTarget) return null;
 
@@ -92,7 +94,26 @@ export function ModalShell({
        * this one, LAYERS.popoverInModal is what a calendar takes.
        */
       className="fixed inset-0 bg-black/40 flex items-center justify-center z-[120] p-4"
-      onClick={dismissOnBackdrop ? onClose : undefined}
+      data-testid="modal-backdrop"
+      /*
+       * Dismiss only on a click that STARTED and ended on the backdrop.
+       *
+       * The browser fires "click" on the nearest common ancestor of the
+       * mousedown and mouseup targets. Press inside the panel and release
+       * outside it (overshooting a text selection, or the panel shrinking under
+       * the cursor as a sub-step swaps) and that ancestor is this backdrop, so a
+       * plain onClick closed the modal and discarded whatever was being typed.
+       * Impact Hub Porto's host lost every registration-form question she wrote
+       * in the tier modal this way (2026-11-06). Verified in headless Chrome on
+       * production: a press in the question's Label input released over the
+       * backdrop closed the modal.
+       */
+      onMouseDown={(e) => { downOnBackdrop.current = e.target === e.currentTarget; }}
+      onClick={(e) => {
+        const startedHere = downOnBackdrop.current;
+        downOnBackdrop.current = false;
+        if (dismissOnBackdrop && startedHere && e.target === e.currentTarget) onClose();
+      }}
     >
       <div
         className={cn(
