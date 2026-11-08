@@ -11,4 +11,5 @@ export { DonationsField } from "./DonationsField";
 export type { DonationsFieldProps, DonationsModalShell } from "./DonationsField";
 export { DonationsSection } from "./DonationsSection";
 export type { DonationsSectionProps } from "./DonationsSection";
-export type { DonationDraft, SymbolFor } from "./types";
+export type { DonationDraft, DonationMoments, DonationReceive, SymbolFor } from "./types";
+export { resolveMoments } from "./types";

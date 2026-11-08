@@ -2,7 +2,7 @@
 
 import { useSharedT } from "../i18n";
 import { HandCoins, Plus, X } from "lucide-react";
-import type { DonationDraft, SymbolFor } from "./types";
+import { resolveMoments, type DonationDraft, type DonationMoments, type SymbolFor } from "./types";
 import { Collapse, Eyebrow, Switch } from "./primitives";
 
 export interface DonationsSectionProps {
@@ -34,6 +34,13 @@ export interface DonationsSectionProps {
    * inline Collapse it has always had.
    */
   hideHeader?: boolean;
+  /**
+   * EVENTS: show "When to ask" (at sign-up / after the event). An event's
+   * donations are ONE setting with two moments; before this choice existed
+   * the one switch silently powered both, while the copy only mentioned
+   * checkout. Products leave it off: they have no "after".
+   */
+  showMoments?: boolean;
 }
 
 /**
@@ -56,10 +63,20 @@ export interface DonationsSectionProps {
  * product/event donations endpoint. Currency follows the tier currency.
  */
 export function DonationsSection({
-  donation, onUpdate, defaultCurrency, symbolFor, tierNoun, hideHeader = false,
+  donation, onUpdate, defaultCurrency, symbolFor, tierNoun, hideHeader = false, showMoments = false,
 }: DonationsSectionProps) {
   const t = useSharedT("shared.managementUi.donations");
   const sym = symbolFor(donation.currency || defaultCurrency);
+  const moments = resolveMoments(donation.moments);
+  /* At least one moment stays ticked: donations switched on that never ask
+     are a contradiction (the server refuses it too). The last ticked box is
+     disabled rather than letting the host save a dead setting. */
+  const setMoment = (key: keyof DonationMoments, value: boolean) => {
+    const next = { ...moments, [key]: value };
+    if (!next.checkout && !next.afterEvent) return;
+    onUpdate({ moments: next });
+  };
+  const onlyOne = moments.checkout !== moments.afterEvent;
 
   const addAmount = () => onUpdate({ amounts: [...donation.amounts, ""] });
   const updateAmount = (idx: number, value: string) =>
@@ -82,7 +99,7 @@ export function DonationsSection({
         <div className="flex-1 min-w-0">
           <p className="text-[14px] font-semibold text-zinc-900">{t("title")}</p>
           <p className="text-[12px] text-zinc-500 mt-0.5 leading-snug">
-            {t("sectionIntro", { tierNoun })}
+            {showMoments ? t("eventIntro") : t("sectionIntro", { tierNoun })}
           </p>
         </div>
         <div className="pt-0.5">
@@ -98,6 +115,43 @@ export function DonationsSection({
         {/* The top margin separates the body from the header; with no header
             the caller owns that spacing, so don't add it twice. */}
         <div className={`${hideHeader ? "" : "mt-5"} space-y-5`}>
+          {/* When to ask (events): the two moments, each a plain checkbox
+              row saying what the attendee will see. */}
+          {showMoments && (
+            <div>
+              <Eyebrow>{t("whenToAsk")}</Eyebrow>
+              <div className="mt-1.5 space-y-1.5">
+                {([
+                  ["checkout", t("momentCheckout"), t("momentCheckoutHelp")],
+                  ["afterEvent", t("momentAfterEvent"), t("momentAfterEventHelp")],
+                ] as const).map(([key, label, help]) => {
+                  const checked = moments[key];
+                  const locked = checked && onlyOne;
+                  return (
+                    <label
+                      key={key}
+                      className={`flex items-start gap-3 px-3 py-2.5 rounded-xl border transition-colors ${
+                        checked ? "border-zinc-300 bg-white" : "border-zinc-200 bg-zinc-50"
+                      } ${locked ? "cursor-default" : "cursor-pointer"}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={locked}
+                        onChange={(e) => setMoment(key, e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-zinc-900"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-[13px] font-medium text-zinc-900">{label}</span>
+                        <span className="block text-[12px] text-zinc-500 leading-snug">{help}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Mode — segmented control */}
           <div>
             <Eyebrow>{t("howBuyersGive")}</Eyebrow>

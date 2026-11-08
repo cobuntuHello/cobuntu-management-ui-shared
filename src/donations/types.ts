@@ -16,6 +16,37 @@ export interface DonationDraft {
   minAmount: string;
   currency: string;
   label: string;
+  /**
+   * EVENTS only: WHEN the event asks. `checkout` = an optional extra when
+   * someone signs up or buys a ticket; `afterEvent` = on the "How was it?"
+   * review screen and its email link, for 30 days after the event. Absent =
+   * both, which is how an event's donations behaved before this choice
+   * existed (one switch powered both asks). Products have no "after".
+   */
+  moments?: DonationMoments;
+}
+
+export interface DonationMoments {
+  checkout: boolean;
+  afterEvent: boolean;
+}
+
+/** Absent or partial moments mean "ask": both default to true. */
+export function resolveMoments(m: Partial<DonationMoments> | null | undefined): DonationMoments {
+  return { checkout: m?.checkout !== false, afterEvent: m?.afterEvent !== false };
+}
+
+/**
+ * Can the host receive a donation right now (a connected Stripe account that
+ * takes charges)? Passed by the calling package, which already knows. When
+ * not, the editor offers "Connect Stripe" instead of a switch that would only
+ * fail on save, because asking people for money that has nowhere to land is
+ * the one thing donations must never do.
+ */
+export interface DonationReceive {
+  ready: boolean;
+  /** Takes the host to connect Stripe. Without it, the row only explains. */
+  onConnect?: () => void;
 }
 
 /**
