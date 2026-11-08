@@ -4,7 +4,7 @@ import { type SharedT, useSharedT } from "../i18n";
 import * as React from "react";
 import { useState } from "react";
 import { HandCoins, ChevronRight } from "lucide-react";
-import type { DonationDraft, SymbolFor } from "./types";
+import { resolveMoments, type DonationDraft, type DonationReceive, type SymbolFor } from "./types";
 import { DonationsSection } from "./DonationsSection";
 import { Switch } from "./primitives";
 
@@ -36,6 +36,15 @@ export interface DonationsFieldProps {
   tierNoun: string;
   /** The calling package's own responsive shell. */
   modalShell: DonationsModalShell;
+  /** EVENTS: offer "When to ask" (sign-up / after the event). See DonationsSection. */
+  showMoments?: boolean;
+  /**
+   * Can the host receive money right now? When not, the row offers "Connect
+   * Stripe" instead of a switch, and an event that already takes donations
+   * says it is not asking. Omitted = the caller does not know; the row
+   * behaves as before.
+   */
+  receive?: DonationReceive;
 }
 
 /**
@@ -47,14 +56,22 @@ export interface DonationsFieldProps {
  * its neighbours ("Require approval", "Can be bought more than once") all
  * describe what they currently do.
  */
-function summarize(d: DonationDraft, sym: string, t: SharedT): string {
-  if (!d.enabled) return t("summaryOff");
+function summarize(d: DonationDraft, sym: string, t: SharedT, showMoments: boolean): string {
+  if (!d.enabled) return showMoments ? t("summaryOffEvent") : t("summaryOff");
+  let amounts: string;
   if (d.mode === "pwyw") {
     const min = (d.minAmount || "").trim();
-    return min ? t("summaryAnyMin", { min: `${sym}${min}` }) : t("anyAmount");
+    amounts = min ? t("summaryAnyMin", { min: `${sym}${min}` }) : t("anyAmount");
+  } else {
+    const list = d.amounts.filter((a) => a.trim());
+    amounts = list.length ? list.map((a) => `${sym}${a}`).join(" · ") : t("suggestedAmounts");
   }
-  const amounts = d.amounts.filter((a) => a.trim());
-  return amounts.length ? amounts.map((a) => `${sym}${a}`).join(" · ") : t("suggestedAmounts");
+  if (!showMoments) return amounts;
+  // Say WHEN, so the host never has to open the dialog to learn that their
+  // donations also ask after the event.
+  const m = resolveMoments(d.moments);
+  const when = m.checkout && m.afterEvent ? t("summaryMomentsBoth") : m.checkout ? t("summaryMomentsCheckout") : t("summaryMomentsAfter");
+  return `${when} · ${amounts}`;
 }
 
 /**
@@ -91,7 +108,7 @@ function summarize(d: DonationDraft, sym: string, t: SharedT): string {
  * (`hideHeader`) so the modal does not repeat the row you opened it from.
  */
 export function DonationsField({
-  donation, onUpdate, defaultCurrency, symbolFor, tierNoun, modalShell: ModalShell,
+  donation, onUpdate, defaultCurrency, symbolFor, tierNoun, modalShell: ModalShell, showMoments = false, receive,
 }: DonationsFieldProps) {
   const [open, setOpen] = useState(false);
   const t = useSharedT("shared.managementUi.donations");
@@ -106,6 +123,21 @@ export function DonationsField({
     onUpdate({ enabled: next });
     if (!next) setOpen(false);
   };
+
+  /*
+   * No Stripe that takes charges: a host cannot switch donations on (the
+   * server refuses it), so the row says why and offers the one step that
+   * fixes it, instead of a switch that only fails on save. A host who
+   * already takes donations and lost Stripe keeps the switch (to turn it
+   * off) and is told the event is not asking.
+   */
+  const needsStripe = !!receive && !receive.ready;
+  const offerConnect = needsStripe && !donation.enabled;
+  const summary = offerConnect
+    ? t("needsStripe")
+    : needsStripe
+      ? t("needsStripeEnabled")
+      : summarize(donation, sym, t, showMoments);
 
   return (
     <>
@@ -124,7 +156,7 @@ export function DonationsField({
 
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-medium text-zinc-800">{t("title")}</p>
-          <p className="text-[11px] text-zinc-400 truncate">{summarize(donation, sym, t)}</p>
+          <p className={`text-[11px] truncate ${needsStripe && donation.enabled ? "text-amber-600" : "text-zinc-400"}`}>{summary}</p>
         </div>
 
         {/* Edit is its own target, and only exists when enabled. */}
@@ -140,7 +172,19 @@ export function DonationsField({
           </button>
         )}
 
-        <Switch checked={donation.enabled} onChange={setEnabled} label={t("enable")} />
+        {offerConnect ? (
+          receive?.onConnect ? (
+            <button
+              type="button"
+              onClick={receive.onConnect}
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-zinc-200/70 text-[12px] font-semibold text-zinc-700 hover:bg-zinc-200 transition-colors cursor-pointer"
+            >
+              {t("connectStripe")}
+            </button>
+          ) : null
+        ) : (
+          <Switch checked={donation.enabled} onChange={setEnabled} label={t("enable")} />
+        )}
       </div>
 
       {open && (
@@ -151,7 +195,7 @@ export function DonationsField({
           <div className="px-1">
             <p className="text-[14px] font-semibold text-zinc-900">{t("title")}</p>
             <p className="text-[12px] text-zinc-500 mt-0.5 leading-snug">
-              {t("modalIntro", { tierNoun })}
+              {showMoments ? t("eventIntro") : t("modalIntro", { tierNoun })}
             </p>
           </div>
 
@@ -163,6 +207,7 @@ export function DonationsField({
               symbolFor={symbolFor}
               tierNoun={tierNoun}
               hideHeader
+              showMoments={showMoments}
             />
           </div>
 
