@@ -126,6 +126,15 @@ export {
   describeRefundBand,
 } from "./listings/RefundPolicyField";
 export type { RefundPolicyValue, RefundBand, RefundAnchor } from "./listings/RefundPolicyField";
+// What buyers get, each line with a value (PBN feedback L2): the editor, shared
+// by the product and event packages, plus the helpers the pages use.
+export { ValueLinesModal } from "./listings/ValueLinesModal";
+export type { ValueLinesModalProps } from "./listings/ValueLinesModal";
+export {
+  MAX_VALUE_LINES, MAX_VALUE_LINE_LABEL,
+  amountToCents, centsToAmount, sumValueLines, sameValueLines,
+} from "./lib/valueLines";
+export type { ValueLine } from "./lib/valueLines";
 export type { PolicyRowProps, AudienceLevel } from "./ui/PolicyRow";
 
 /*
