@@ -99,6 +99,23 @@ describe("RefundPolicyField — the three buyer-facing choices", () => {
     fireEvent.click(screen.getByText("No self-service refunds"));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ customBuyerWindowDays: 0 }));
   });
+
+  it("switching from No self-service to a schedule turns self-service back on", () => {
+    // The 0 window used to ride along, so the save came back as None.
+    const { onChange } = setup({ mode: "default", customBuyerWindowDays: 0 });
+    openScheduleModal();
+    saveSchedule();
+    const saved = onChange.mock.calls[0][0];
+    expect(saved.bands).toEqual(REFUND_SCHEDULE_DEFAULT);
+    expect(saved).not.toHaveProperty("customBuyerWindowDays");
+  });
+
+  it("a schedule keeps a shortened (non-zero) window", () => {
+    const { onChange } = setup({ mode: "default", customBuyerWindowDays: 7 });
+    openScheduleModal();
+    saveSchedule();
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ customBuyerWindowDays: 7 }));
+  });
 });
 
 describe("RefundPolicyField — the schedule editor (inside the modal)", () => {
