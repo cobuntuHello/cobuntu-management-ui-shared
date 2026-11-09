@@ -160,7 +160,16 @@ export function RefundPolicyField({
 
   const saveSchedule = () => {
     if (problem) return;
-    onChange({ ...(value ?? {}), mode: value?.mode ?? "default", bands: draftBands });
+    // A 0 window is "No self-service refunds", which choiceOf ranks above a
+    // schedule: carried over from that choice, the seller's switch to a
+    // schedule saved as None and the picker stayed on None.
+    const { customBuyerWindowDays, ...rest }: NonNullable<RefundPolicyValue> = value ?? {};
+    onChange({
+      ...rest,
+      ...(customBuyerWindowDays ? { customBuyerWindowDays } : {}),
+      mode: value?.mode ?? "default",
+      bands: draftBands,
+    });
     setModalOpen(false);
   };
 
