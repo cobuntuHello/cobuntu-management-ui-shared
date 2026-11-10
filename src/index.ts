@@ -374,3 +374,28 @@ export {
   type SharedT,
 } from "./i18n/core";
 export { MANAGEMENT_UI_MESSAGES_EN, flattenMessageKeys } from "./i18n/messages.en";
+
+// ─── Description editor (T-321) ─────────────────────────────
+// The one markdown editor for event / product / course descriptions, with
+// @mentions and images when the host mounts RichTextServicesProvider, plus the
+// text conventions a renderer needs to show them.
+export { MarkdownEditor, renderEditorOverlay } from "./editor/MarkdownEditor";
+export type { MarkdownEditorProps } from "./editor/MarkdownEditor";
+export {
+  RichTextServicesProvider,
+  useRichTextServices,
+  createRichTextServices,
+  ImageUploadError,
+  type RichTextServices,
+} from "./editor/RichTextServices";
+export {
+  MENTION_PATTERN,
+  IMAGE_PATTERN,
+  mentionQueryAt,
+  mentionToken,
+  insertMention,
+  insertImage,
+  mentionHref,
+  mentionUrlTransform,
+  type MentionPerson,
+} from "./editor/richText";
