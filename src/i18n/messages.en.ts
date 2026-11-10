@@ -16,6 +16,16 @@
 export const MANAGEMENT_UI_MESSAGES_EN = {
   shared: {
     managementUi: {
+      // T-321: the description editor's @mentions and images.
+      markdownEditor: {
+        addImage: "Add image",
+        uploadingImage: "Uploading image",
+        imageFailed: "The image could not be added. Try again.",
+        unsupportedImage: "Use a JPEG, PNG, WebP or GIF image.",
+        noRoomForImage: "The description is too long to add another image.",
+        mentionSomeone: "Mention someone",
+        noPeopleFound: "No one found",
+      },
       modalChrome: {
         close: "Close",
         progress: "Progress",
