@@ -399,5 +399,6 @@ export {
   insertImage,
   mentionHref,
   mentionUrlTransform,
+  richTextToPlain,
   type MentionPerson,
 } from "./editor/richText";
