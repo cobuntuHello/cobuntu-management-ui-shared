@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef, useLayoutEffect, useState, useCallback, useEffect } from "react";
+import { useRef, useLayoutEffect, useState, useCallback, useEffect, useMemo } from "react";
 import { Image as ImageIcon } from "lucide-react";
 import { useSharedT } from "../i18n";
 import type { PersonSearchResult } from "../lib/searchPeople";
 import { useRichTextServices, ImageUploadError } from "./RichTextServices";
-import { mentionQueryAt, insertMention, insertImage } from "./richText";
+import {
+  mentionQueryAt, mentionLabel, insertImage, mentionsToDisplay, displayToMentions, displayMentionPattern,
+} from "./richText";
 
 export interface MarkdownEditorProps {
   value: string;
@@ -66,7 +68,7 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function formatLine(raw: string): string {
+function formatLine(raw: string, mentionPattern: RegExp | null): string {
   let line = escapeHtml(raw);
 
   // Every multi-character delimiter (code/bold/strike, and now mentions and
@@ -87,6 +89,14 @@ function formatLine(raw: string): string {
   line = line.replace(/@\[([^\]]{1,80})\]\((user:[A-Za-z0-9_-]{1,64})\)/g, (_, label, target) =>
     mask(`<span style="color: var(--brand-color, #2563eb)">@[${label}]</span><span class="text-zinc-300">(${target})</span>`),
   );
+  // A mention as the editor shows it: `@Label`, coloured. Same characters as
+  // the textarea underneath, so the caret stays aligned.
+  if (mentionPattern) {
+    mentionPattern.lastIndex = 0;
+    line = line.replace(mentionPattern, (_, lead: string, label: string) =>
+      `${lead}${mask(`<span style="color: var(--brand-color, #2563eb)">@${label}</span>`)}`,
+    );
+  }
   line = line.replace(/`([^`\n]+)`/g, (_, inner) =>
     mask(`<span class="text-zinc-300">\`</span><code class="font-mono text-[0.9em] bg-zinc-900/5 rounded px-1">${inner}</code><span class="text-zinc-300">\`</span>`),
   );
@@ -127,9 +137,15 @@ function formatLine(raw: string): string {
   return line;
 }
 
-/** Exported for tests: the overlay HTML for a whole value. */
-export function renderEditorOverlay(value: string): string {
-  return value.length ? value.split("\n").map(formatLine).join("\n") : "";
+/**
+ * Exported for tests: the overlay HTML for the text the editor shows.
+ * `mentionLabels` are the labels of the mentions in it, which render as a
+ * coloured `@Label`.
+ */
+export function renderEditorOverlay(value: string, mentionLabels: string[] = []): string {
+  // The pattern is matched against HTML-escaped text, so the labels are escaped too.
+  const pattern = displayMentionPattern(mentionLabels.map(escapeHtml));
+  return value.length ? value.split("\n").map((l) => formatLine(l, pattern)).join("\n") : "";
 }
 
 export function MarkdownEditor({
@@ -153,8 +169,30 @@ export function MarkdownEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const caretRef = useRef(value.length);
   const [focused, setFocused] = useState(false);
+
+  // ── Shown text vs stored text ──
+  // `value` is the stored markdown, where a mention is `@[Label](user:<id>)`.
+  // The textarea shows `display`, where it is just `@Label`: the id is for
+  // storage and links, never for the person writing. Every edit is turned
+  // back into markdown with the label → id pairs seen so far (kept across
+  // renders, so undoing a deleted mention brings its link back too).
+  const knownMentions = useRef(new Map<string, string>());
+  const { display, mentionLabels } = useMemo(() => {
+    const parsed = mentionsToDisplay(value);
+    parsed.labels.forEach((id, label) => knownMentions.current.set(label, id));
+    return { display: parsed.display, mentionLabels: [...parsed.labels.keys()] };
+  }, [value]);
+  const caretRef = useRef(display.length);
+
+  /** Store an edit of the shown text. False when it would pass the limit. */
+  const commit = (nextDisplay: string, extra?: [string, string]): boolean => {
+    if (extra) knownMentions.current.set(extra[0], extra[1]);
+    const markdown = displayToMentions(nextDisplay, knownMentions.current);
+    if (markdown.length > maxLength) return false;
+    onChange(markdown);
+    return true;
+  };
 
   // ── Mention picker state ──
   const [mentionAt, setMentionAt] = useState<{ start: number; query: string } | null>(null);
@@ -238,12 +276,13 @@ export function MarkdownEditor({
 
   const pick = (person: PersonSearchResult) => {
     if (!mentionAt) return;
-    const next = insertMention(value, mentionAt.start, caretRef.current, person);
-    if (next.text.length > maxLength) return;
-    onChange(next.text);
+    const label = mentionLabel(person);
+    const shown = `@${label} `;
+    const text = display.slice(0, mentionAt.start) + shown + display.slice(caretRef.current);
+    if (!commit(text, [label, person.id])) return;
     setMentionAt(null);
     setPeople([]);
-    placeCaret(next.caret);
+    placeCaret(mentionAt.start + shown.length);
   };
 
   const pickerOpen = canMention && !!mentionAt && mentionAt.query.length >= 2 && (people.length > 0 || searched);
@@ -267,12 +306,11 @@ export function MarkdownEditor({
     setUploading(true);
     try {
       const url = await services.uploadImage!(file);
-      const next = insertImage(value, caretRef.current, url);
-      if (next.text.length > maxLength) {
+      const next = insertImage(display, caretRef.current, url);
+      if (!commit(next.text)) {
         setImageError(t("noRoomForImage"));
         return;
       }
-      onChange(next.text);
       placeCaret(next.caret);
     } catch (err) {
       setImageError(err instanceof ImageUploadError && err.message ? err.message : t("imageFailed"));
@@ -287,7 +325,7 @@ export function MarkdownEditor({
     return null;
   };
 
-  const html = renderEditorOverlay(value);
+  const html = renderEditorOverlay(display, mentionLabels);
   const atLimit = value.length >= maxLength;
 
   // Fill mode is a flat sheet of paper: white, a hairline edge, no grey fill.
@@ -330,8 +368,14 @@ export function MarkdownEditor({
         />
         <textarea
           ref={textareaRef}
-          value={value}
-          onChange={(e) => { onChange(e.target.value); syncCaret(e.target.value, e.target.selectionStart ?? e.target.value.length); }}
+          value={display}
+          onChange={(e) => {
+            // Over the limit: nothing is stored, so the controlled textarea
+            // stays as it was (the same effect as the old maxLength attribute,
+            // which can no longer be used: it would count the shown text, not
+            // the stored one with its mention ids).
+            if (commit(e.target.value)) syncCaret(e.target.value, e.target.selectionStart ?? e.target.value.length);
+          }}
           onSelect={(e) => syncCaret(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)}
           onKeyDown={onKeyDown}
           onScroll={handleScroll}
@@ -350,7 +394,6 @@ export function MarkdownEditor({
           disabled={disabled}
           autoFocus={autoFocus}
           rows={minRows}
-          maxLength={maxLength}
           spellCheck
           aria-autocomplete={canMention ? "list" : undefined}
           aria-expanded={canMention ? pickerOpen : undefined}

@@ -12,6 +12,7 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { useState } from "react";
 import {
   mentionQueryAt, mentionToken, insertMention, insertImage, mentionUrlTransform, MENTION_PATTERN,
+  mentionsToDisplay, displayToMentions,
 } from "../editor/richText";
 import { MarkdownEditor, renderEditorOverlay } from "../editor/MarkdownEditor";
 import { RichTextServicesProvider, ImageUploadError, type RichTextServices } from "../editor/RichTextServices";
@@ -83,6 +84,30 @@ function Harness({ services, initial = "" }: { services?: RichTextServices; init
   );
 }
 
+describe("shown text vs stored text", () => {
+  it("round-trips: stored → shown → stored", () => {
+    const md = "Hi @[Ana Costa](user:u_ana-1) and @[Ana](user:u_2), see ana@cobuntu.com";
+    const { display, labels } = mentionsToDisplay(md);
+    expect(display).toBe("Hi @Ana Costa and @Ana, see ana@cobuntu.com");
+    expect(displayToMentions(display, labels)).toBe(md);
+  });
+
+  it("only a whole label is a mention", () => {
+    const labels = new Map([["Ana Costa", "u_ana-1"]]);
+    expect(displayToMentions("@Ana Costas", labels)).toBe("@Ana Costas");
+    expect(displayToMentions("x@Ana Costa", labels)).toBe("x@Ana Costa");
+    expect(displayToMentions("(@Ana Costa)", labels)).toBe("(@[Ana Costa](user:u_ana-1))");
+  });
+
+  it("colours a shown mention without changing a character", () => {
+    const html = renderEditorOverlay("Hi @Ana Costa", ["Ana Costa"]);
+    expect(html).toContain("@Ana Costa</span>");
+    const d = document.createElement("div");
+    d.innerHTML = html;
+    expect(d.textContent).toBe("Hi @Ana Costa");
+  });
+});
+
 describe("MarkdownEditor without services", () => {
   it("is the plain editor it always was: no image button, no picker", () => {
     render(<Harness />);
@@ -104,7 +129,37 @@ describe("MarkdownEditor with services", () => {
 
     fireEvent.keyDown(box, { key: "Enter" });
     expect(screen.getByTestId("value").textContent).toBe("Meet @[Ana Costa](user:u_ana-1) ");
+    // Stored with the id, shown without it.
+    expect(box.value).toBe("Meet @Ana Costa ");
     expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("shows a saved mention as @Label and keeps it linked while you type around it", () => {
+    render(<Harness services={{ searchPeople: vi.fn(async () => []) }} initial="Hi @[Ana Costa](user:u_ana-1)" />);
+    const box = screen.getByRole("textbox") as HTMLTextAreaElement;
+    expect(box.value).toBe("Hi @Ana Costa");
+    fireEvent.change(box, { target: { value: "Hi @Ana Costa, welcome", selectionStart: 22 } });
+    expect(screen.getByTestId("value").textContent).toBe("Hi @[Ana Costa](user:u_ana-1), welcome");
+  });
+
+  it("deleting into a mention turns it back into plain text", () => {
+    render(<Harness services={{ searchPeople: vi.fn(async () => []) }} initial="Hi @[Ana Costa](user:u_ana-1)" />);
+    const box = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: "Hi @Ana Cost", selectionStart: 12 } });
+    expect(screen.getByTestId("value").textContent).toBe("Hi @Ana Cost");
+  });
+
+  it("enforces the limit on the STORED text, ids included", () => {
+    function Small() {
+      const [v, setV] = useState("@[Ana Costa](user:u_ana-1)");
+      return (<><RichTextServicesProvider value={{ searchPeople: vi.fn(async () => []) }}><MarkdownEditor value={v} onChange={setV} maxLength={30} /></RichTextServicesProvider><output data-testid="value">{v}</output></>);
+    }
+    render(<Small />);
+    const box = screen.getByRole("textbox") as HTMLTextAreaElement;
+    // 26 stored characters; five more would make 31.
+    fireEvent.change(box, { target: { value: "@Ana Costa hello", selectionStart: 16 } });
+    expect(screen.getByTestId("value").textContent).toBe("@[Ana Costa](user:u_ana-1)");
+    expect(screen.getByText("26 / 30")).toBeTruthy();
   });
 
   it("says so when nobody matches, and Escape closes the list", async () => {
