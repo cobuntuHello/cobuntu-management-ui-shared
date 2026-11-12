@@ -279,8 +279,10 @@ export const MANAGEMENT_UI_MESSAGES_EN = {
        * translations cannot drift apart. {tier} is a membership tier's name.
        */
       memberPricesStep: {
-        introSeller: "Optional. Give this community's members a lower price than everyone else. The community approves it along with your listing.",
-        introCommunity: "Optional. Give members of your tiers a lower price than everyone else.",
+        // Shown under the page heading for a seller's own item only: the heading
+        // already says it is optional and what it does (2026-11-12). A
+        // community's own item needs no line here.
+        introSeller: "The community approves your member prices along with your listing.",
         loading: "Loading membership tiers…",
         loadFailed: "The membership tiers didn't load.",
         retry: "Try again",
