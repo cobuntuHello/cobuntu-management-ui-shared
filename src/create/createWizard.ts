@@ -63,7 +63,7 @@
  * what the seller is PAID in the middle of the flow rather than at the end.
  */
 export type CreateStepId =
-    | "resume" | "ownership" | "type" | "details" | "commerce" | "content" | "settings" | "listing" | "access" | "done";
+    | "resume" | "ownership" | "type" | "details" | "commerce" | "members" | "content" | "settings" | "listing" | "access" | "done";
 
 export interface CreateStepsInput {
     /** Does this person have a real ownership choice? Leaders only. */
@@ -146,6 +146,25 @@ export interface CreateStepsInput {
      * unchanged.
      */
     withSettingsStep?: boolean;
+    /**
+     * Add the "Member prices" step right after commerce. SELLABLE FLOWS.
+     *
+     * Member pricing used to live inside each ticket's or variant's editor,
+     * then (2026-11-10) as a row under the prices on the commerce step. Both
+     * were missed: sellers kept reporting there was no way to give members a
+     * discount (Pathseekers, again on 2026-11-12). A step cannot be missed, and
+     * the rail then tells everyone, including those who skip it, that member
+     * prices exist.
+     *
+     * After commerce because a member price is a discount on a price, so the
+     * prices must exist first; before content/settings because it is still
+     * part of deciding what the item costs.
+     *
+     * Opt-in like the others: a caller that has not wired the step's page
+     * would otherwise render an empty screen in the middle of its flow.
+     * Default false keeps non-adopting callers (the admin app) unchanged.
+     */
+    withMembersStep?: boolean;
 }
 
 export function resolveCreateSteps({
@@ -158,6 +177,7 @@ export function resolveCreateSteps({
     withCommerceStep = false,
     withContentStep = false,
     withSettingsStep = false,
+    withMembersStep = false,
 }: CreateStepsInput): CreateStepId[] {
     const steps: CreateStepId[] = [];
     /*
@@ -207,6 +227,14 @@ export function resolveCreateSteps({
      * listing half on `details` and this commerce half here (see `page`).
      */
     if (withCommerceStep) steps.push("commerce");
+    /*
+     * Member prices: a lower price per membership tier, on the prices just
+     * set. Its own step for the reason given on `withMembersStep`. Shown even
+     * when nothing can be priced yet (free item, no published tiers): the step
+     * then says why, which is what a seller looking for member discounts needs
+     * to read, rather than finding nothing at all.
+     */
+    if (withMembersStep) steps.push("members");
     /*
      * The syllabus, for a course.
      *
@@ -386,6 +414,7 @@ export function stepHeaderKeys(step: CreateStepId): { title: string; subtitle: s
         type: "Type",
         details: "Details",
         commerce: "Commerce",
+        members: "Members",
         content: "Content",
         settings: "Settings",
         listing: "Listing",

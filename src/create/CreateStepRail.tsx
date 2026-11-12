@@ -79,8 +79,8 @@ const LABELS: Record<CreateWizardKind, Record<CreateStepId, string>> = {
   // and anywhere else that names it. Three surfaces, one name.
   // "Continue", not "Drafts": the rail names what you DO at each step, and the
   // step exists to offer picking work back up rather than to file it.
-  product: { resume: "Continue", ownership: "Who is selling", type: "What you are selling", details: "Details", commerce: "Deliverable Variants & Pricing", content: "Course content", settings: "Policies & access", listing: "Commission", access: "Visibility and Access", done: "Done" },
-  event: { resume: "Continue", ownership: "Who is hosting", type: "What you are selling", details: "Details", commerce: "Pricing", content: "Course content", settings: "Policies & access", listing: "Commission", access: "Visibility and Access", done: "Done" },
+  product: { resume: "Continue", ownership: "Who is selling", type: "What you are selling", details: "Details", commerce: "Deliverable Variants & Pricing", members: "Member prices", content: "Course content", settings: "Policies & access", listing: "Commission", access: "Visibility and Access", done: "Done" },
+  event: { resume: "Continue", ownership: "Who is hosting", type: "What you are selling", details: "Details", commerce: "Pricing", members: "Member prices", content: "Course content", settings: "Policies & access", listing: "Commission", access: "Visibility and Access", done: "Done" },
   /*
    * "Teaching", not "Selling", for ownership: a course's author is the person
    * whose teaching it is, and that is the word a creator uses about it.
@@ -90,7 +90,7 @@ const LABELS: Record<CreateWizardKind, Record<CreateStepId, string>> = {
    * wording rather than a placeholder that would read as a bug if it ever did
    * render.
    */
-  course: { resume: "Continue", ownership: "Who is teaching", type: "What you are selling", details: "Details", commerce: "Pricing", content: "Course content", settings: "Policies & access", listing: "Commission", access: "Visibility and Access", done: "Done" },
+  course: { resume: "Continue", ownership: "Who is teaching", type: "What you are selling", details: "Details", commerce: "Pricing", members: "Member prices", content: "Course content", settings: "Policies & access", listing: "Commission", access: "Visibility and Access", done: "Done" },
 };
 
 /**
