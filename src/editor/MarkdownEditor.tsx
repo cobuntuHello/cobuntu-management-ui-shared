@@ -1,12 +1,13 @@
 "use client";
 
 import { useRef, useLayoutEffect, useState, useCallback, useEffect, useMemo } from "react";
-import { Image as ImageIcon } from "lucide-react";
+import { Image as ImageIcon, X } from "lucide-react";
 import { useSharedT } from "../i18n";
 import type { PersonSearchResult } from "../lib/searchPeople";
 import { useRichTextServices, ImageUploadError } from "./RichTextServices";
 import {
   mentionQueryAt, mentionLabel, insertImage, mentionsToDisplay, displayToMentions, displayMentionPattern,
+  imagesToDisplay, displayToImages, removeImageAt,
 } from "./richText";
 
 export interface MarkdownEditorProps {
@@ -16,10 +17,11 @@ export interface MarkdownEditorProps {
   disabled?: boolean;
   minRows?: number;
   autoFocus?: boolean;
-  /** Hard cap on the stored value's length, enforced on the textarea itself
-   * and surfaced as an always-visible "n / max" counter. Defaults to 2000:
-   * a description is free text, not a one-line label, and a silent
-   * truncation would be worse than a visible ceiling. */
+  /** Cap on the description's length as the writer SEES it (a mention counts
+   * as its `@Name`, an image as its `[Image 1]` placeholder, never the stored
+   * id or URL), surfaced as an always-visible "n / max" counter. Defaults to
+   * 1000 for events, products and courses alike. Text already over the cap
+   * (written under the old 2000) can still be edited, but only to shrink. */
   maxLength?: number;
   /** Offer @mentions when the host provides people search. Default on. */
   mentions?: boolean;
@@ -68,7 +70,7 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function formatLine(raw: string, mentionPattern: RegExp | null): string {
+function formatLine(raw: string, mentionPattern: RegExp | null, imagePattern: RegExp | null): string {
   let line = escapeHtml(raw);
 
   // Every multi-character delimiter (code/bold/strike, and now mentions and
@@ -91,6 +93,14 @@ function formatLine(raw: string, mentionPattern: RegExp | null): string {
   );
   // A mention as the editor shows it: `@Label`, coloured. Same characters as
   // the textarea underneath, so the caret stays aligned.
+  // An image placeholder, `[Image 1]`: muted, on a soft fill, so it reads as
+  // an object rather than prose. Colour and background only (no padding),
+  // which keeps every glyph exactly over the textarea's.
+  if (imagePattern) {
+    line = line.replace(imagePattern, (token) =>
+      mask(`<span class="rounded bg-zinc-900/[0.06] text-zinc-500">${token}</span>`),
+    );
+  }
   if (mentionPattern) {
     mentionPattern.lastIndex = 0;
     line = line.replace(mentionPattern, (_, lead: string, label: string) =>
@@ -142,10 +152,14 @@ function formatLine(raw: string, mentionPattern: RegExp | null): string {
  * `mentionLabels` are the labels of the mentions in it, which render as a
  * coloured `@Label`.
  */
-export function renderEditorOverlay(value: string, mentionLabels: string[] = []): string {
-  // The pattern is matched against HTML-escaped text, so the labels are escaped too.
+export function renderEditorOverlay(value: string, mentionLabels: string[] = [], imageTokens: string[] = []): string {
+  // The patterns are matched against HTML-escaped text, so the labels are escaped too.
   const pattern = displayMentionPattern(mentionLabels.map(escapeHtml));
-  return value.length ? value.split("\n").map((l) => formatLine(l, pattern)).join("\n") : "";
+  const images = imageTokens.length
+    ? new RegExp(imageTokens.map(escapeHtml).sort((a, b) => b.length - a.length)
+        .map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g")
+    : null;
+  return value.length ? value.split("\n").map((l) => formatLine(l, pattern, images)).join("\n") : "";
 }
 
 export function MarkdownEditor({
@@ -155,7 +169,7 @@ export function MarkdownEditor({
   disabled,
   minRows = 6,
   autoFocus,
-  maxLength = 2000,
+  maxLength = 1000,
   mentions = true,
   images = true,
   fill = false,
@@ -178,20 +192,40 @@ export function MarkdownEditor({
   // back into markdown with the label → id pairs seen so far (kept across
   // renders, so undoing a deleted mention brings its link back too).
   const knownMentions = useRef(new Map<string, string>());
-  const { display, mentionLabels } = useMemo(() => {
-    const parsed = mentionsToDisplay(value);
-    parsed.labels.forEach((id, label) => knownMentions.current.set(label, id));
-    return { display: parsed.display, mentionLabels: [...parsed.labels.keys()] };
-  }, [value]);
+  //
+  // Images get the same treatment: the textarea shows a numbered placeholder,
+  // `[Image 1]`, where the value has `![](https://storage...)`, and the
+  // thumbnail strip under the field shows the pictures themselves.
+  const imageWord = useCallback((n: number) => t("imageToken", { n }), [t]);
+  const toShown = useCallback((markdown: string) => {
+    const m = mentionsToDisplay(markdown);
+    const i = imagesToDisplay(m.display, imageWord);
+    return { display: i.display, labels: m.labels, imageTokens: i.tokens, imageUrls: i.urls };
+  }, [imageWord]);
+  const { display, mentionLabels, imageTokens, imageUrls } = useMemo(() => {
+    const shown = toShown(value);
+    shown.labels.forEach((id, label) => knownMentions.current.set(label, id));
+    return { display: shown.display, mentionLabels: [...shown.labels.keys()], imageTokens: shown.imageTokens, imageUrls: shown.imageUrls };
+  }, [value, toShown]);
   const caretRef = useRef(display.length);
 
-  /** Store an edit of the shown text. False when it would pass the limit. */
+  /**
+   * Store an edit of the shown text. False when it would pass the limit,
+   * measured on what the writer sees. An edit that SHORTENS the text is always
+   * allowed, so a description already over the limit can still be trimmed.
+   */
   const commit = (nextDisplay: string, extra?: [string, string]): boolean => {
     if (extra) knownMentions.current.set(extra[0], extra[1]);
-    const markdown = displayToMentions(nextDisplay, knownMentions.current);
-    if (markdown.length > maxLength) return false;
+    const markdown = displayToMentions(displayToImages(nextDisplay, imageTokens), knownMentions.current);
+    const shownLength = toShown(markdown).display.length;
+    if (shownLength > maxLength && shownLength >= display.length) return false;
     onChange(markdown);
     return true;
+  };
+
+  /** The thumbnail strip's remove button: drop the n-th image and its line. */
+  const removeImage = (index: number) => {
+    onChange(removeImageAt(value, index));
   };
 
   // ── Mention picker state ──
@@ -311,7 +345,10 @@ export function MarkdownEditor({
         setImageError(t("noRoomForImage"));
         return;
       }
-      placeCaret(next.caret);
+      // The text now shows the image as a short placeholder, not the URL just
+      // inserted, so the caret goes after what the shown prefix becomes.
+      const prefix = displayToMentions(displayToImages(next.text.slice(0, next.caret), imageTokens), knownMentions.current);
+      placeCaret(toShown(prefix).display.length);
     } catch (err) {
       setImageError(err instanceof ImageUploadError && err.message ? err.message : t("imageFailed"));
     } finally {
@@ -325,8 +362,8 @@ export function MarkdownEditor({
     return null;
   };
 
-  const html = renderEditorOverlay(display, mentionLabels);
-  const atLimit = value.length >= maxLength;
+  const html = renderEditorOverlay(display, mentionLabels, [...imageTokens.keys()]);
+  const atLimit = display.length >= maxLength;
 
   // Fill mode is a flat sheet of paper: white, a hairline edge, no grey fill.
   // The grey fill read as a sunken box inside the dialog; white stays readable
@@ -346,7 +383,7 @@ export function MarkdownEditor({
 
   const counter = (
     <p className={`shrink-0 text-[11px] tabular-nums ${atLimit ? "text-red-500" : "text-zinc-400"}`}>
-      {value.length} / {maxLength}
+      {display.length} / {maxLength}
     </p>
   );
 
@@ -426,6 +463,37 @@ export function MarkdownEditor({
                 )}
                 <span className="min-w-0 truncate text-zinc-900">{p.name || p.usertag}</span>
                 {p.usertag && <span className="min-w-0 truncate text-zinc-400">@{p.usertag}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* The pictures in the description, numbered like their placeholders in
+          the text, each with a way to remove it. Without this a host saw an
+          image only as a line of storage URL until the page was published. */}
+      {imageUrls.length > 0 && (
+        <ul aria-label={t("imagesInDescription")} className="mt-2 flex shrink-0 flex-wrap gap-2">
+          {imageUrls.map((url, i) => (
+            <li key={`${i}-${url}`} className="relative">
+              <img
+                src={url}
+                alt={t("imageToken", { n: i + 1 })}
+                // text-[0px]: a picture still loading (or gone) must not
+                // spill its alt text over the strip; the fill marks the slot.
+                className="block h-14 w-14 overflow-hidden rounded-lg bg-zinc-100 object-cover text-[0px] ring-1 ring-black/[0.08]"
+              />
+              <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-black/55 px-1 text-[10px] font-semibold leading-4 text-white tabular-nums">
+                {i + 1}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeImage(i)}
+                disabled={disabled}
+                aria-label={t("removeImage", { n: i + 1 })}
+                className="absolute -right-1.5 -top-1.5 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-white text-zinc-600 shadow ring-1 ring-black/10 hover:text-zinc-900 disabled:opacity-50"
+              >
+                <X className="h-3 w-3" strokeWidth={2.5} />
               </button>
             </li>
           ))}

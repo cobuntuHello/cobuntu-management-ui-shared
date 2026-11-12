@@ -130,6 +130,53 @@ export function insertImage(text: string, caret: number, url: string): { text: s
 }
 
 /**
+ * Stored markdown → what the editor SHOWS for images: each `![alt](url)`
+ * becomes a short numbered placeholder, `[Image 1]`, `[Image 2]` (the word
+ * comes from `label`, so it is translated). The long storage URL was the only
+ * thing a host saw of a picture while writing.
+ *
+ * Numbers follow the order the images appear in, so they match the thumbnail
+ * strip under the editor. `tokens` maps each placeholder back to its URL.
+ */
+export function imagesToDisplay(
+  markdown: string,
+  label: (n: number) => string,
+): { display: string; tokens: Map<string, string>; urls: string[] } {
+  const tokens = new Map<string, string>();
+  const urls: string[] = [];
+  const display = markdown.replace(IMAGE_PATTERN, (_m, _alt: string, url: string) => {
+    urls.push(url);
+    const token = `[${label(urls.length)}]`;
+    tokens.set(token, url);
+    return token;
+  });
+  return { display, tokens, urls };
+}
+
+/**
+ * The reverse: every placeholder still in the shown text becomes its stored
+ * image again. A placeholder edited by even one character no longer matches
+ * and stays plain text, so the image is gone, which is what deleting into it
+ * should do.
+ */
+export function displayToImages(display: string, tokens: Map<string, string>): string {
+  if (tokens.size === 0) return display;
+  const names = [...tokens.keys()].sort((a, b) => b.length - a.length).map(escapeRegExp);
+  return display.replace(new RegExp(names.join("|"), "g"), (token) => `![](${tokens.get(token)})`);
+}
+
+/** The text without its `n`-th image (0-based) or the line break that held it. */
+export function removeImageAt(markdown: string, index: number): string {
+  let i = -1;
+  return markdown.replace(/(^|\n)!\[[^\]\n]*\]\((https:\/\/[^\s)]+)\)(?=\n|$)\n?|!\[[^\]\n]*\]\((https:\/\/[^\s)]+)\)/g, (m, lead: string | undefined) => {
+    i += 1;
+    if (i !== index) return m;
+    // A whole image line goes with its newline; keep the line break before it.
+    return lead ?? "";
+  });
+}
+
+/**
  * For any PLAIN-TEXT rendering of a description (cards, search, link
  * previews, calendar files, the wizard's description row): a mention reads as
  * `@Label` and an image disappears. Without this a card printed the stored
