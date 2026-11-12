@@ -12,7 +12,7 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { useState } from "react";
 import {
   mentionQueryAt, mentionToken, insertMention, insertImage, mentionUrlTransform, MENTION_PATTERN,
-  mentionsToDisplay, displayToMentions,
+  mentionsToDisplay, displayToMentions, imagesToDisplay, displayToImages, removeImageAt,
 } from "../editor/richText";
 import { MarkdownEditor, renderEditorOverlay } from "../editor/MarkdownEditor";
 import { RichTextServicesProvider, ImageUploadError, type RichTextServices } from "../editor/RichTextServices";
@@ -108,6 +108,29 @@ describe("shown text vs stored text", () => {
   });
 });
 
+describe("image placeholders", () => {
+  const word = (n: number) => `Image ${n}`;
+
+  it("round-trips: stored → shown → stored, numbered in order", () => {
+    const md = "A\n![](https://x.test/a.png)\nB\n![alt](https://x.test/b.png)";
+    const { display, tokens, urls } = imagesToDisplay(md, word);
+    expect(display).toBe("A\n[Image 1]\nB\n[Image 2]");
+    expect(urls).toEqual(["https://x.test/a.png", "https://x.test/b.png"]);
+    expect(displayToImages(display, tokens)).toBe("A\n![](https://x.test/a.png)\nB\n![](https://x.test/b.png)");
+  });
+
+  it("a placeholder edited by a character is plain text again", () => {
+    const { tokens } = imagesToDisplay("![](https://x.test/a.png)", word);
+    expect(displayToImages("[Image 1", tokens)).toBe("[Image 1");
+  });
+
+  it("removeImageAt drops exactly that image and its line", () => {
+    expect(removeImageAt("![](https://x.test/a.png)\nText", 0)).toBe("Text");
+    expect(removeImageAt("A\n![](https://x.test/a.png)\nB", 0)).toBe("A\nB");
+    expect(removeImageAt("A\n![](https://x.test/a.png)\n![](https://x.test/b.png)", 1)).toBe("A\n![](https://x.test/a.png)\n");
+  });
+});
+
 describe("MarkdownEditor without services", () => {
   it("is the plain editor it always was: no image button, no picker", () => {
     render(<Harness />);
@@ -149,17 +172,38 @@ describe("MarkdownEditor with services", () => {
     expect(screen.getByTestId("value").textContent).toBe("Hi @Ana Cost");
   });
 
-  it("enforces the limit on the STORED text, ids included", () => {
+  it("counts the limit on what the writer SEES, not the stored ids", () => {
     function Small() {
       const [v, setV] = useState("@[Ana Costa](user:u_ana-1)");
-      return (<><RichTextServicesProvider value={{ searchPeople: vi.fn(async () => []) }}><MarkdownEditor value={v} onChange={setV} maxLength={30} /></RichTextServicesProvider><output data-testid="value">{v}</output></>);
+      return (<><RichTextServicesProvider value={{ searchPeople: vi.fn(async () => []) }}><MarkdownEditor value={v} onChange={setV} maxLength={16} /></RichTextServicesProvider><output data-testid="value">{v}</output></>);
     }
     render(<Small />);
     const box = screen.getByRole("textbox") as HTMLTextAreaElement;
-    // 26 stored characters; five more would make 31.
+    expect(screen.getByText("10 / 16")).toBeTruthy();
+    // 16 shown characters fit, though the stored text is 32.
     fireEvent.change(box, { target: { value: "@Ana Costa hello", selectionStart: 16 } });
-    expect(screen.getByTestId("value").textContent).toBe("@[Ana Costa](user:u_ana-1)");
-    expect(screen.getByText("26 / 30")).toBeTruthy();
+    expect(screen.getByTestId("value").textContent).toBe("@[Ana Costa](user:u_ana-1) hello");
+    // One more does not.
+    fireEvent.change(box, { target: { value: "@Ana Costa hello!", selectionStart: 17 } });
+    expect(screen.getByTestId("value").textContent).toBe("@[Ana Costa](user:u_ana-1) hello");
+  });
+
+  it("text already over the limit can still be shortened, never lengthened", () => {
+    function Over() {
+      const [v, setV] = useState("abcdefghij");
+      return (<><MarkdownEditor value={v} onChange={setV} maxLength={5} /><output data-testid="value">{v}</output></>);
+    }
+    render(<Over />);
+    const box = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: "abcdefghijk" } });
+    expect(screen.getByTestId("value").textContent).toBe("abcdefghij");
+    fireEvent.change(box, { target: { value: "abcdefgh" } });
+    expect(screen.getByTestId("value").textContent).toBe("abcdefgh");
+  });
+
+  it("defaults to a 1000-character limit", () => {
+    render(<MarkdownEditor value="" onChange={() => {}} />);
+    expect(screen.getByText("0 / 1000")).toBeTruthy();
   });
 
   it("says so when nobody matches, and Escape closes the list", async () => {
@@ -184,6 +228,26 @@ describe("MarkdownEditor with services", () => {
     await waitFor(() => expect(screen.getByTestId("value").textContent)
       .toBe("Lunch\n![](https://storage.googleapis.com/b/descriptions/u/1.png)\n"));
     expect(uploadImage).toHaveBeenCalledWith(file);
+    // Shown as a placeholder, with the picture in the strip under the field.
+    expect(box.value).toBe("Lunch\n[Image 1]\n");
+    expect((screen.getByRole("img", { name: "Image 1" }) as HTMLImageElement).src)
+      .toBe("https://storage.googleapis.com/b/descriptions/u/1.png");
+  });
+
+  it("an image's remove button takes it and its line out", () => {
+    render(<Harness services={{ uploadImage: vi.fn() }} initial={"Lunch\n![](https://x.test/a.png)\nAfter\n![](https://x.test/b.png)"} />);
+    const box = screen.getByRole("textbox") as HTMLTextAreaElement;
+    expect(box.value).toBe("Lunch\n[Image 1]\nAfter\n[Image 2]");
+    fireEvent.click(screen.getByRole("button", { name: "Remove image 1" }));
+    expect(screen.getByTestId("value").textContent).toBe("Lunch\nAfter\n![](https://x.test/b.png)");
+    expect(box.value).toBe("Lunch\nAfter\n[Image 1]");
+  });
+
+  it("typing around an image placeholder keeps the image", () => {
+    render(<Harness services={{ uploadImage: vi.fn() }} initial={"![](https://x.test/a.png)"} />);
+    const box = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: "Hello\n[Image 1]", selectionStart: 5 } });
+    expect(screen.getByTestId("value").textContent).toBe("Hello\n![](https://x.test/a.png)");
   });
 
   it("takes a pasted image too", async () => {

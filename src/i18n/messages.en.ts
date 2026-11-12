@@ -25,6 +25,9 @@ export const MANAGEMENT_UI_MESSAGES_EN = {
         noRoomForImage: "The description is too long to add another image.",
         mentionSomeone: "Mention someone",
         noPeopleFound: "No one found",
+        imageToken: "Image {n}",
+        imagesInDescription: "Images in this description",
+        removeImage: "Remove image {n}",
       },
       modalChrome: {
         close: "Close",

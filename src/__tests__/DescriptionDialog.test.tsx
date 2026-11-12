@@ -46,7 +46,7 @@ describe("DescriptionDialog", () => {
     setup();
     const cancel = screen.getByRole("button", { name: "Cancel" });
     const row = cancel.parentElement!.parentElement!;
-    expect(row.textContent).toContain("10 / 2000");
+    expect(row.textContent).toContain("10 / 1000");
     expect(row.contains(screen.getByRole("button", { name: "Done" }))).toBe(true);
   });
 
