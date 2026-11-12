@@ -521,3 +521,40 @@ describe('the "Policies & access" settings step', () => {
         });
     });
 });
+
+/*
+ * Member prices as a step of its own (2026-11-12). Sellers kept missing member
+ * pricing while it lived in each variant's editor and then as a row under the
+ * prices, so it became a step: a discount on a price, right after the prices.
+ */
+describe("the member prices step", () => {
+  it("is absent unless the flow asks for it, so callers that have not wired it are unchanged", () => {
+    const steps = resolveCreateSteps({ canChooseOwnership: false, ownership: "personal", withCommerceStep: true, withSettingsStep: true });
+    expect(steps).not.toContain("members");
+  });
+
+  it("comes right after pricing for a member selling personally", () => {
+    expect(resolveCreateSteps({
+      canChooseOwnership: false, ownership: "personal",
+      withCommerceStep: true, withMembersStep: true, withSettingsStep: true,
+    })).toEqual(["details", "commerce", "members", "settings", "listing"]);
+  });
+
+  it("comes right after pricing for a leader selling as the community", () => {
+    expect(resolveCreateSteps({
+      canChooseOwnership: true, ownership: "community",
+      withCommerceStep: true, withMembersStep: true, withSettingsStep: true,
+    })).toEqual(["ownership", "details", "commerce", "members", "settings", "access"]);
+  });
+
+  it("sits before a course's content: it is still part of what the course costs", () => {
+    expect(resolveCreateSteps({
+      canChooseOwnership: false, ownership: "personal",
+      withCommerceStep: true, withMembersStep: true, withContentStep: true, withSettingsStep: true,
+    })).toEqual(["details", "commerce", "members", "content", "settings", "listing"]);
+  });
+
+  it("has its own heading keys rather than borrowing another step's", () => {
+    expect(stepHeaderKeys("members")).toEqual({ title: "stepMembersTitle", subtitle: "stepMembersSubtitle" });
+  });
+});
