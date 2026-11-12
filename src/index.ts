@@ -381,6 +381,8 @@ export { MANAGEMENT_UI_MESSAGES_EN, flattenMessageKeys } from "./i18n/messages.e
 // text conventions a renderer needs to show them.
 export { MarkdownEditor, renderEditorOverlay } from "./editor/MarkdownEditor";
 export type { MarkdownEditorProps } from "./editor/MarkdownEditor";
+export { DescriptionDialog } from "./editor/DescriptionDialog";
+export type { DescriptionDialogProps } from "./editor/DescriptionDialog";
 export {
   RichTextServicesProvider,
   useRichTextServices,

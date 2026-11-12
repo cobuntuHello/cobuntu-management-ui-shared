@@ -23,6 +23,20 @@ export interface MarkdownEditorProps {
   mentions?: boolean;
   /** Offer images when the host provides an uploader. Default on. */
   images?: boolean;
+  /**
+   * Fill the parent's height instead of growing with the text, on a flat
+   * white writing surface. For an editor that IS the whole dialog
+   * (DescriptionDialog): growing to a 200px cap left the rest of a tall
+   * dialog empty. The parent must give it a definite height (a flex child
+   * with min-h-0 is enough).
+   */
+  fill?: boolean;
+  /**
+   * Buttons for the right end of the editor's bottom row (Cancel / Done).
+   * With these, "Add image" and the counter move together to the left, so a
+   * dialog needs one row under the text rather than two.
+   */
+  actions?: React.ReactNode;
 }
 
 /**
@@ -128,6 +142,8 @@ export function MarkdownEditor({
   maxLength = 2000,
   mentions = true,
   images = true,
+  fill = false,
+  actions,
 }: MarkdownEditorProps) {
   const t = useSharedT("shared.managementUi.markdownEditor");
   const services = useRichTextServices();
@@ -156,11 +172,18 @@ export function MarkdownEditor({
   const resize = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
+    // In fill mode the height comes from the parent (h-full), and the
+    // textarea scrolls on its own once the text outgrows it.
+    if (fill) {
+      el.style.height = "";
+      el.style.overflowY = "auto";
+      return;
+    }
     el.style.height = "auto";
     const next = Math.min(el.scrollHeight, MAX_GROW_PX);
     el.style.height = `${next}px`;
     el.style.overflowY = el.scrollHeight > MAX_GROW_PX ? "auto" : "hidden";
-  }, []);
+  }, [fill]);
 
   useLayoutEffect(() => {
     resize();
@@ -267,16 +290,32 @@ export function MarkdownEditor({
   const html = renderEditorOverlay(value);
   const atLimit = value.length >= maxLength;
 
+  // Fill mode is a flat sheet of paper: white, a hairline edge, no grey fill.
+  // The grey fill read as a sunken box inside the dialog; white stays readable
+  // on every community theme, dark ones included, because the overlay text is
+  // a fixed dark zinc.
+  const surface = fill
+    ? disabled
+      ? "bg-white opacity-60 ring-1 ring-black/[0.07]"
+      : focused
+      ? "bg-white ring-1 ring-black/[0.16] shadow-[0_0_0_4px_rgba(24,24,27,0.05)]"
+      : "bg-white ring-1 ring-black/[0.08] hover:ring-black/[0.12]"
+    : disabled
+    ? "bg-zinc-50 opacity-60"
+    : focused
+    ? "bg-white shadow-[0_1px_2px_rgba(16,24,32,0.04),0_0_0_4px_rgba(24,24,27,0.05)] ring-1 ring-zinc-200"
+    : "bg-zinc-50 ring-1 ring-transparent hover:ring-zinc-100";
+
+  const counter = (
+    <p className={`shrink-0 text-[11px] tabular-nums ${atLimit ? "text-red-500" : "text-zinc-400"}`}>
+      {value.length} / {maxLength}
+    </p>
+  );
+
   return (
-    <div>
+    <div className={fill ? "flex h-full min-h-0 flex-col" : undefined}>
       <div
-        className={`group relative rounded-2xl transition-all duration-150 ${
-          disabled
-            ? "bg-zinc-50 opacity-60"
-            : focused
-            ? "bg-white shadow-[0_1px_2px_rgba(16,24,32,0.04),0_0_0_4px_rgba(24,24,27,0.05)] ring-1 ring-zinc-200"
-            : "bg-zinc-50 ring-1 ring-transparent hover:ring-zinc-100"
-        }`}
+        className={`group relative rounded-2xl transition-all duration-150 ${surface} ${fill ? "min-h-0 flex-1" : ""}`}
       >
         <div
           ref={overlayRef}
@@ -310,7 +349,7 @@ export function MarkdownEditor({
           spellCheck
           aria-autocomplete={canMention ? "list" : undefined}
           aria-expanded={canMention ? pickerOpen : undefined}
-          className="relative w-full resize-none whitespace-pre-wrap break-words border-0 bg-transparent px-4 py-3.5 text-[14.5px] leading-relaxed text-transparent caret-zinc-900 outline-none placeholder:text-zinc-300"
+          className={`relative ${fill ? "block h-full" : ""} w-full resize-none whitespace-pre-wrap break-words border-0 bg-transparent px-4 py-3.5 text-[14.5px] leading-relaxed text-transparent caret-zinc-900 outline-none placeholder:text-zinc-300`}
         />
       </div>
 
@@ -345,8 +384,8 @@ export function MarkdownEditor({
         </ul>
       )}
 
-      <div className="mt-1 flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className={`${actions ? "mt-4" : "mt-1"} flex items-center justify-between gap-3`}>
+        <div className="flex min-w-0 items-center gap-2.5">
           {canImage && (
             <>
               <button
@@ -367,11 +406,10 @@ export function MarkdownEditor({
               />
             </>
           )}
+          {actions && counter}
           {imageError && <p role="alert" className="min-w-0 truncate text-[11.5px] text-red-500">{imageError}</p>}
         </div>
-        <p className={`shrink-0 text-right text-[11px] tabular-nums ${atLimit ? "text-red-500" : "text-zinc-400"}`}>
-          {value.length} / {maxLength}
-        </p>
+        {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : counter}
       </div>
     </div>
   );
