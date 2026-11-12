@@ -313,9 +313,14 @@ export function MarkdownEditor({
   );
 
   return (
-    <div className={fill ? "flex h-full min-h-0 flex-col" : undefined}>
+    // Fill mode: the root grows in a flex parent (flex-1) or takes a definite
+    // parent height (h-full), and the textarea is pinned to the surface
+    // (absolute inset-0) rather than sized by a percentage height, which
+    // collapses to `rows` whenever the parent's height is not definite (a
+    // sheet with only a min-height, as in the course builder).
+    <div className={fill ? "flex h-full min-h-0 flex-1 flex-col" : undefined}>
       <div
-        className={`group relative rounded-2xl transition-all duration-150 ${surface} ${fill ? "min-h-0 flex-1" : ""}`}
+        className={`group relative rounded-2xl transition-all duration-150 ${surface} ${fill ? "min-h-[120px] flex-1" : ""}`}
       >
         <div
           ref={overlayRef}
@@ -349,7 +354,7 @@ export function MarkdownEditor({
           spellCheck
           aria-autocomplete={canMention ? "list" : undefined}
           aria-expanded={canMention ? pickerOpen : undefined}
-          className={`relative ${fill ? "block h-full" : ""} w-full resize-none whitespace-pre-wrap break-words border-0 bg-transparent px-4 py-3.5 text-[14.5px] leading-relaxed text-transparent caret-zinc-900 outline-none placeholder:text-zinc-300`}
+          className={`${fill ? "absolute inset-0 h-full" : "relative"} w-full resize-none whitespace-pre-wrap break-words border-0 bg-transparent px-4 py-3.5 text-[14.5px] leading-relaxed text-transparent caret-zinc-900 outline-none placeholder:text-zinc-300`}
         />
       </div>
 
