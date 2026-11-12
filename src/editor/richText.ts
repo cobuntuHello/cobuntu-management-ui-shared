@@ -42,14 +42,18 @@ export function mentionQueryAt(text: string, caret: number): { start: number; qu
   return { start: caret - query.length - 1, query };
 }
 
-/** The stored token for a person. Brackets and newlines cannot appear in the label. */
-export function mentionToken(person: MentionPerson): string {
-  const label = (person.name || person.usertag || "")
+/** The label a mention of this person shows. Brackets and newlines cannot appear in it. */
+export function mentionLabel(person: MentionPerson): string {
+  return (person.name || person.usertag || "")
     .replace(/[[\]\n\r]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 80) || "someone";
-  return `@[${label}](user:${person.id})`;
+}
+
+/** The stored token for a person. */
+export function mentionToken(person: MentionPerson): string {
+  return `@[${mentionLabel(person)}](user:${person.id})`;
 }
 
 /**
@@ -61,6 +65,55 @@ export function insertMention(
 ): { text: string; caret: number } {
   const token = `${mentionToken(person)} `;
   return { text: text.slice(0, start) + token + text.slice(caret), caret: start + token.length };
+}
+
+/**
+ * Stored markdown → what the editor SHOWS: every mention token becomes plain
+ * `@Label`, and the label → id pairs come back so the edit can be turned into
+ * stored markdown again.
+ *
+ * The editor used to show the token itself, so tagging someone put
+ * `(user:bb05b515-...)` in front of the host while they wrote. The id is
+ * storage, not prose.
+ */
+export function mentionsToDisplay(markdown: string): { display: string; labels: Map<string, string> } {
+  const labels = new Map<string, string>();
+  const display = markdown.replace(MENTION_PATTERN, (_, label: string, id: string) => {
+    labels.set(label, id);
+    return `@${label}`;
+  });
+  return { display, labels };
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * What the editor shows → stored markdown: every `@Label` whose label is a
+ * known mention becomes its token again. Longest labels first, so "Ana Costa"
+ * wins over "Ana". A label edited by even one character no longer matches, so
+ * that mention simply turns back into plain text, which is what deleting into
+ * it should do.
+ *
+ * `mentionsToDisplay(displayToMentions(d, labels).display)` is `d` itself, so a
+ * controlled textarea keeps its caret across the round trip.
+ */
+export function displayToMentions(display: string, labels: Map<string, string>): string {
+  const pattern = displayMentionPattern([...labels.keys()]);
+  if (!pattern) return display;
+  return display.replace(pattern, (_, lead: string, label: string) => `${lead}@[${label}](user:${labels.get(label)})`);
+}
+
+/**
+ * Matches a shown `@Label` for any of `labels`: group 1 is the character
+ * before the `@` (start of text, or anything that is not part of a word or an
+ * email), group 2 the label. Null when there are no labels.
+ */
+export function displayMentionPattern(labels: string[]): RegExp | null {
+  if (labels.length === 0) return null;
+  const names = [...labels].sort((a, b) => b.length - a.length).map(escapeRegExp);
+  return new RegExp(`(^|[^\\p{L}\\p{N}_@])@(${names.join("|")})(?![\\p{L}\\p{N}_])`, "gu");
 }
 
 /**
