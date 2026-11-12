@@ -22,3 +22,20 @@ describe("plain-text previews", () => {
     expect(htmlToPlainText("Write to ana@cobuntu.com or @ana")).toBe("Write to ana@cobuntu.com or @ana");
   });
 });
+
+describe("plain-text previews: markdown markers", () => {
+  it("drops markers, keeps the words", () => {
+    const md = "# Sunset hike\n\n**Two** communities. *One* room. ~~old~~ `code`\n- Meet at the station\n1. Bring water\n> Quiet please\nSee [our map](https://x.test/m).";
+    expect(htmlToPlainText(md)).toBe(
+      "Sunset hike Two communities. One room. old code Meet at the station Bring water Quiet please See our map.",
+    );
+  });
+
+  it("leaves snake_case, a lone asterisk and arithmetic alone", () => {
+    expect(htmlToPlainText("file_name_here costs 2 * 3 euros")).toBe("file_name_here costs 2 * 3 euros");
+  });
+
+  it("still flattens legacy HTML", () => {
+    expect(htmlToPlainText("<p><strong>Hi</strong> &amp; welcome</p>")).toBe("Hi & welcome");
+  });
+});
