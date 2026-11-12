@@ -129,6 +129,18 @@ export function insertImage(text: string, caret: number, url: string): { text: s
   return { text: before + block + after, caret: before.length + block.length };
 }
 
+/**
+ * For any PLAIN-TEXT rendering of a description (cards, search, link
+ * previews, calendar files, the wizard's description row): a mention reads as
+ * `@Label` and an image disappears. Without this a card printed the stored
+ * `@[Ana Costa](user:u_ana-1)` and `![](https://storage...)` verbatim.
+ */
+export function richTextToPlain(text: string): string {
+  return text
+    .replace(IMAGE_PATTERN, " ")
+    .replace(MENTION_PATTERN, (_, label: string) => `@${label}`);
+}
+
 /** Where a mention token links: the member page by immutable id. */
 export function mentionHref(id: string): string {
   return `/members/${encodeURIComponent(id)}`;

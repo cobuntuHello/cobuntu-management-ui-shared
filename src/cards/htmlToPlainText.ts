@@ -1,3 +1,5 @@
+import { richTextToPlain } from "../editor/richText";
+
 /**
  * Flatten an HTML rich-text string into a plain-text preview: strip tags AND
  * decode the common entities a WYSIWYG editor emits (&nbsp;, &amp;, &#39;, …).
@@ -9,7 +11,9 @@
  */
 export function htmlToPlainText(html: string | null | undefined): string {
   if (!html) return "";
-  return html
+  // Descriptions are markdown now and can carry mentions and images: show a
+  // mention as @Name and drop an image, rather than their stored syntax.
+  return richTextToPlain(html)
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&lt;/gi, "<")
