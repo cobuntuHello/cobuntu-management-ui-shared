@@ -273,6 +273,34 @@ export const MANAGEMENT_UI_MESSAGES_EN = {
         manage: "Manage {kind, select, event {event} other {product}}",
         createAnother: "Create another {kind, select, event {event} other {product}}",
       },
+      /*
+       * The create wizards' "Member prices" step (events, products, courses).
+       * One copy for both packages' MemberPricesStep, so the wording and its
+       * translations cannot drift apart. {tier} is a membership tier's name.
+       */
+      memberPricesStep: {
+        introSeller: "Optional. Give this community's members a lower price than everyone else. The community approves it along with your listing.",
+        introCommunity: "Optional. Give members of your tiers a lower price than everyone else.",
+        loading: "Loading membership tiers…",
+        loadFailed: "The membership tiers didn't load.",
+        retry: "Try again",
+        noTiersSeller: "This community hasn't published any membership tiers yet, so there's no member price to set.",
+        noTiersCommunity: "Your community has no membership tiers yet, so there's no member price to set.",
+        nothingPriced: "Everything here is free, so there's no price to lower. Set a price on the previous step to offer members a lower one.",
+        modeFree: "Free for these members",
+        modePercent: "% off",
+        modeFlat: "Amount off",
+        modeFixed: "Fixed price",
+        modeLabel: "How the price for {tier} works",
+        valueLabel: "Member price for {tier}",
+        offerTo: "Offer {tier} a member price",
+        everyRenewal: "Every renewal",
+        firstPaymentOnly: "First payment only",
+        payWhatYouWant: "Pay what you want",
+        priceNotSet: "No price yet",
+        errorValue: "Enter an amount for {tier}, or untick it.",
+        errorPercent: "{tier}: the discount must be a whole number from 1 to 100.",
+      },
       createStepRail: {
         product: {
           resume: "Continue",
