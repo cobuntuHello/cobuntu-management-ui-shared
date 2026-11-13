@@ -12,7 +12,7 @@ export type {
   PeopleListModalProps, PeopleListModalCopy, PeopleListPerson,
 } from "./ui/PeopleListModal";
 
-export { PersonPickerModal } from "./ui/PersonPickerModal";
+export { PersonPickerModal, GUEST_NAME_LIMIT } from "./ui/PersonPickerModal";
 export type {
   PersonPickerModalProps, PersonPickerCopy, PersonPickerStepTwo,
   PersonPickerEmails, PersonPickerPerRecipient, PersonPickerTierStep,
@@ -26,7 +26,7 @@ export type {
 export {
   recipientKey, fromPerson, looksLikeEmail, parseCsvEmails,
   addRecipients, visibleSuggestions, userIdsOf, emailsOf,
-  recipientsToApi, perRecipientMessages,
+  recipientsToApi, perRecipientMessages, guestNamesOf,
   parseCsvRecipientRows, matchTier, planImport, recipientsFromPlan,
   tierPlanFor, applyDefaultTier, allHaveTiers,
 } from "./lib/recipients";
