@@ -713,3 +713,46 @@ describe("naming guests", () => {
         expect(screen.queryByPlaceholderText("Their name")).not.toBeInTheDocument();
     });
 });
+
+/*
+ * Approved applicants who have not created their account yet (Pathseekers,
+ * 2026-11-13): a leader approved someone, went to give her a workbook and
+ * found nobody. They are listed under the roster and picked by address.
+ */
+describe("outsiders", () => {
+    const OUTSIDERS = {
+        label: "Approved, not joined yet",
+        note: "Hasn't joined yet",
+        people: [{ email: "malgo@example.com", name: "Malgorzata Grzasko" }],
+    };
+
+    it("lists them under the roster and stages them by address", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        const { onConfirm } = setup({ emails: EMAILS, outsiders: OUTSIDERS, multiple: true });
+        await screen.findByText("Ana Neto");
+        expect(screen.getByText("Approved, not joined yet")).toBeInTheDocument();
+
+        await userEvent.click(screen.getByText("Malgorzata Grzasko"));
+        await userEvent.click(screen.getByRole("button", { name: COPY.stepTwo }));
+        await userEvent.click(screen.getByRole("button", { name: COPY.confirm }));
+        await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+        expect(onConfirm.mock.calls[0][0]).toEqual([{ email: "malgo@example.com", name: "Malgorzata Grzasko" }]);
+    });
+
+    it("is found by typing, even when the roster has other matches", async () => {
+        // Stella typed "Ma": eight members matched and she was not among them.
+        vi.stubGlobal("fetch", mockApi({ roster: [...ROSTER, { id: "u-mare", name: "Mare", usertag: "mare", roleGroups: [] }] }));
+        setup({ emails: EMAILS, outsiders: OUTSIDERS, multiple: true });
+        await screen.findByText("Ana Neto");
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "Ma");
+        expect(await screen.findByText("Mare")).toBeInTheDocument();
+        expect(screen.getByText("Malgorzata Grzasko")).toBeInTheDocument();
+    });
+
+    it("is not shown on a surface that cannot take addresses", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        setup({ outsiders: OUTSIDERS, multiple: true });
+        await screen.findByText("Ana Neto");
+        expect(screen.queryByText("Malgorzata Grzasko")).not.toBeInTheDocument();
+    });
+});
