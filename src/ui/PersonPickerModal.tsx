@@ -243,6 +243,15 @@ export interface PersonPickerModalProps {
      * question about events or products, not about picking people.
      */
     suggestions?: Array<{ label: string; people: PersonSearchResult[] }>;
+    /**
+     * People with no account the surface already knows about, listed under the
+     * roster and picked by ADDRESS: approved applicants who have not joined
+     * yet. Only rendered alongside `emails`, because picking one stages an
+     * address. A leader who approved somebody and goes straight to give them
+     * something finds them here instead of finding nobody (Pathseekers,
+     * 2026-11-13).
+     */
+    outsiders?: { label: string; note: string; people: Array<{ email: string; name: string | null }> };
     /** Performs the write. Throw an Error to surface its message. */
     onConfirm: (recipients: Recipient[], message: string | null) => Promise<void>;
     onAdded?: (recipients: Recipient[]) => void;
@@ -258,7 +267,7 @@ const CHEVRON = (
 export function PersonPickerModal({
     open, onClose, apiBaseUrl, authHeaders, communityTag, searchEveryone = false, excludeUserIds,
     currentUserId, UserAvatar, multiple = false, copy, stepTwo, emails, suggestions,
-    tierStep, onConfirm, onAdded,
+    outsiders, tierStep, onConfirm, onAdded,
 }: PersonPickerModalProps) {
     /* Where a query goes once the roster has nobody for it. Null means global
        user search; see searchPeople. */
@@ -522,9 +531,22 @@ export function PersonPickerModal({
         }
     }
 
+    /* Outsiders that match what is typed (all of them when nothing is), minus
+       anyone already staged or already on the roster under the same address. */
+    const outsiderHits = React.useMemo(() => {
+        if (!emails || !outsiders) return [];
+        const q = query.trim().toLowerCase();
+        const staged = new Set(picked.map((r) => recipientKey(r)));
+        return outsiders.people.filter((o) => {
+            if (!o.email) return false;
+            if (q && !(`${o.name ?? ""} ${o.email}`.toLowerCase().includes(q))) return false;
+            return !staged.has(recipientKey({ email: o.email }));
+        });
+    }, [emails, outsiders, query, picked]);
+
     const showSearchResults = rosterHitCount === 0 && found.length > 0;
     const nothingToShow = !rosterLoading && !searching && rosterHitCount === 0
-        && found.length === 0 && !offerTyped;
+        && found.length === 0 && !offerTyped && outsiderHits.length === 0;
     const motion = entered
         ? "opacity-100 translate-x-0"
         : `opacity-0 ${stepIdx > 0 ? "translate-x-3" : "-translate-x-3"}`;
@@ -836,6 +858,32 @@ export function PersonPickerModal({
                                         ))}
                                     </div>
                                 ))
+                            )}
+
+                            {!rosterLoading && outsiders && outsiderHits.length > 0 && (
+                                <div>
+                                    <p className="px-5 sm:px-6 pt-3 pb-1 m-0 text-[10.5px] font-semibold uppercase tracking-[0.07em] text-zinc-400">
+                                        {outsiders.label}
+                                    </p>
+                                    {outsiderHits.map((o) => (
+                                        <button
+                                            key={o.email}
+                                            type="button"
+                                            onClick={() => stage([{ email: o.email, name: o.name }])}
+                                            className="w-full flex items-center gap-3 px-5 sm:px-6 py-2 min-h-[44px] text-left cursor-pointer transition-colors hover:bg-zinc-50"
+                                        >
+                                            <span className="w-[17px] h-[17px] rounded-[5px] shrink-0 grid place-items-center border-[1.5px] border-zinc-200 text-zinc-400">
+                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">
+                                                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                                                </svg>
+                                            </span>
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block text-[13px] text-zinc-900 truncate">{o.name || o.email}</span>
+                                                <span className="block text-[11.5px] text-zinc-400 truncate">{outsiders.note} · {o.email}</span>
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
                             )}
                         </div>
 
