@@ -162,6 +162,25 @@ export function recipientsToApi(recipients: Recipient[]): {
 }
 
 /**
+ * Names the host typed for people with no account, in the shape
+ * `POST /events/:id/add-attendees` reads as `guestNames`.
+ *
+ * Only addresses without an account: a member already has a name of their own,
+ * and a host-typed one must never overwrite it. Blank names are dropped rather
+ * than sent, so "no name" stays "Guest N" instead of becoming an empty string.
+ */
+export function guestNamesOf(recipients: Recipient[]): Array<{ email: string; name: string }> {
+    const out: Array<{ email: string; name: string }> = [];
+    for (const r of recipients) {
+        if (r.id || r.usertag) continue;
+        const email = r.email?.trim();
+        const name = r.name?.trim();
+        if (email && name) out.push({ email, name });
+    }
+    return out;
+}
+
+/**
  * The per-recipient overrides, in the shape the invite services read.
  *
  * The server picks the override when one is present and falls back to the

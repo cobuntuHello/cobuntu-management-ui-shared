@@ -30,9 +30,12 @@ import {
  * rather than two modes to learn — and "show me the leaders" needs no filter,
  * because they are already at the top.
  *
- * A search still reaches PAST the roster when the query finds nobody in it: the
- * member-search endpoint and, for a listing no community owns, global user
- * search. Someone who is not a member yet is exactly who an invitation is for.
+ * When the query finds nobody in the roster, the search goes to the server:
+ * the member-search endpoint (members of THIS community only) or, for a
+ * listing no community owns and for surfaces that pass `searchEveryone`,
+ * global user search. A person with no account, or one outside the community
+ * on a members-only surface, is reached by typing their full email address,
+ * which is what `emails.noMatchesHint` tells the host.
  *
  * ── Three things only invitations need ──────────────────────────────
  *
@@ -109,7 +112,25 @@ export interface PersonPickerEmails {
     /** Shown when the file had no addresses in its first column. */
     importedNothing: string;
     importFailed: string;
+    /**
+     * Said under "No matches" when the typed text is not an address. Search
+     * only finds people the surface can see (a community's members), so a
+     * host looking for an outsider by name needs to be told the address is
+     * the way in. Omit and the bare "No matches" stays.
+     */
+    noMatchesHint?: string;
+    /**
+     * A name field per address on the confirm step, for surfaces that ADD
+     * people rather than invite them. Somebody with no account otherwise
+     * reaches the attendee list as "Guest 3", and the host is the only one
+     * who knows who that is. Shown for the first {@link GUEST_NAME_LIMIT}
+     * addresses; a long CSV import is not a form to fill in by hand.
+     */
+    guestName?: { label: string; placeholder: string };
 }
+
+/** How many name fields the confirm step offers before it stops asking. */
+export const GUEST_NAME_LIMIT = 10;
 
 /** Per-recipient overrides of the shared message. */
 export interface PersonPickerPerRecipient {
@@ -192,6 +213,13 @@ export interface PersonPickerModalProps {
     authHeaders: () => Record<string, string>;
     /** Truthy → community roster + member search. Null → global user search. */
     communityTag: string | null;
+    /**
+     * Keep the roster as the list, but search EVERY account when the roster
+     * has nobody for the query. For roles that are not about community
+     * membership: an event's co-host can be a partner organisation's account
+     * that never joined the community the event is listed in.
+     */
+    searchEveryone?: boolean;
     excludeUserIds: string[];
     currentUserId?: string | null;
     UserAvatar: React.ComponentType<{ user: any; className?: string }>;
@@ -228,10 +256,13 @@ const CHEVRON = (
 );
 
 export function PersonPickerModal({
-    open, onClose, apiBaseUrl, authHeaders, communityTag, excludeUserIds,
+    open, onClose, apiBaseUrl, authHeaders, communityTag, searchEveryone = false, excludeUserIds,
     currentUserId, UserAvatar, multiple = false, copy, stepTwo, emails, suggestions,
     tierStep, onConfirm, onAdded,
 }: PersonPickerModalProps) {
+    /* Where a query goes once the roster has nobody for it. Null means global
+       user search; see searchPeople. */
+    const searchTag = searchEveryone ? null : communityTag;
     const tChrome = useSharedT("shared.managementUi.modalChrome");
     /*
      * The steps, derived from the props rather than hard-coded.
@@ -364,7 +395,7 @@ export function PersonPickerModal({
     React.useEffect(() => {
         if (!open || step !== 'people') return;
         const q = query.trim();
-        if (q.length < minQueryLength(communityTag) || rosterHitCount > 0) {
+        if (q.length < minQueryLength(searchTag) || rosterHitCount > 0) {
             setFound([]);
             return;
         }
@@ -372,7 +403,7 @@ export function PersonPickerModal({
         setSearching(true);
         const timer = setTimeout(async () => {
             const people = await searchPeople({
-                apiBaseUrl, communityTag, query: q,
+                apiBaseUrl, communityTag: searchTag, query: q,
                 excludeUserIds: excludeKey ? excludeKey.split(",") : [],
                 currentUserId, headers: authHeaders(),
             });
@@ -382,7 +413,7 @@ export function PersonPickerModal({
         }, 250);
         return () => { cancelled = true; clearTimeout(timer); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, step, query, communityTag, excludeKey, currentUserId, apiBaseUrl, rosterHitCount]);
+    }, [open, step, query, searchTag, excludeKey, currentUserId, apiBaseUrl, rosterHitCount]);
 
     const stage = React.useCallback((incoming: Recipient[]) => {
         setPicked((prev) => (multiple ? addRecipients(prev, incoming) : incoming.slice(0, 1)));
@@ -411,6 +442,16 @@ export function PersonPickerModal({
     }
 
     const isPicked = (id: string) => picked.some((r) => r.id === id);
+
+    /* Addresses with no account, which only the host can put a name to. */
+    const guestsToName = React.useMemo(
+        () => (emails?.guestName ? picked.filter((r) => !r.id && r.email).slice(0, GUEST_NAME_LIMIT) : []),
+        [emails?.guestName, picked],
+    );
+
+    function setGuestName(key: string, name: string) {
+        setPicked((prev) => prev.map((r) => (recipientKey(r) === key ? { ...r, name: name || null } : r)));
+    }
 
     /*
      * The typed address. Offered whenever it looks like one and is not already
@@ -767,9 +808,19 @@ export function PersonPickerModal({
                             {rosterLoading || searching ? (
                                 <p className="px-5 py-8 text-center text-[12px] text-zinc-400">{copy.searching}</p>
                             ) : nothingToShow ? (
-                                <p className="px-5 py-8 text-center text-[12px] text-zinc-400">
-                                    {typed ? copy.noMatches : copy.emptyHint}
-                                </p>
+                                <div className="px-5 py-8 text-center">
+                                    <p className="m-0 text-[12px] text-zinc-400">
+                                        {typed ? copy.noMatches : copy.emptyHint}
+                                    </p>
+                                    {/* A name that matches nobody: say how an
+                                        outsider is reached, instead of leaving
+                                        the host at a dead end. */}
+                                    {typed && emails?.noMatchesHint && (
+                                        <p className="m-0 mt-1.5 text-[12px] text-zinc-500 max-w-[320px] mx-auto">
+                                            {emails.noMatchesHint}
+                                        </p>
+                                    )}
+                                </div>
                             ) : showSearchResults ? (
                                 found.map((p) => (
                                     <Row key={p.id} person={p} picked={isPicked(p.id)} onToggle={toggle} UserAvatar={UserAvatar} unknown={copy.unknown} />
@@ -953,6 +1004,29 @@ export function PersonPickerModal({
                                 <p className="text-[13.5px] text-zinc-700 min-w-0 truncate">
                                     {picked.map((r) => r.name || r.email || copy.unknown).join(", ")}
                                 </p>
+                            </div>
+                        )}
+
+                        {emails?.guestName && guestsToName.length > 0 && (
+                            <div>
+                                <p className="m-0 mb-1.5 text-[12px] font-medium text-zinc-900">
+                                    {emails.guestName.label}
+                                </p>
+                                <div className="rounded-xl border border-zinc-200 divide-y divide-zinc-100 overflow-hidden">
+                                    {guestsToName.map((r) => (
+                                        <label key={recipientKey(r)} className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 px-3.5 py-2.5 bg-white">
+                                            <span className="text-[12px] text-zinc-500 truncate sm:w-[45%] sm:shrink-0">{r.email}</span>
+                                            <input
+                                                value={r.name ?? ""}
+                                                onChange={(e) => setGuestName(recipientKey(r), e.target.value)}
+                                                placeholder={emails.guestName!.placeholder}
+                                                maxLength={120}
+                                                /* 16px on phones so iOS does not zoom the sheet. */
+                                                className="flex-1 min-w-0 border border-zinc-200 rounded-lg px-2.5 py-1.5 text-[16px] sm:text-[13px] text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400"
+                                            />
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
                         )}
 

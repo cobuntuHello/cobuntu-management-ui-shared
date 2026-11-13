@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
     recipientKey, fromPerson, looksLikeEmail, parseCsvEmails,
     addRecipients, visibleSuggestions, userIdsOf, emailsOf,
-    recipientsToApi, perRecipientMessages, type Recipient,
+    recipientsToApi, perRecipientMessages, guestNamesOf, type Recipient,
 } from "../lib/recipients";
 
 /**
@@ -223,5 +223,18 @@ describe("suggestion rows", () => {
         // surface, not three labels over nothing.
         const rows = [{ label: "Recently invited", people: [ana] }];
         expect(visibleSuggestions(rows, [fromPerson(ana)])).toEqual([]);
+    });
+});
+
+describe("guestNamesOf", () => {
+    it("returns host-typed names for addresses with no account only", () => {
+        const out = guestNamesOf([
+            { email: " speaker@example.com ", name: " Ana Costa " },
+            { id: "u-1", email: "member@example.com", name: "Member Name", usertag: "member" },
+            { email: "unnamed@example.com" },
+            { email: "blank@example.com", name: "   " },
+        ]);
+        // A member keeps their own name; a blank name stays "Guest N".
+        expect(out).toEqual([{ email: "speaker@example.com", name: "Ana Costa" }]);
     });
 });

@@ -617,3 +617,99 @@ describe("a listing no community owns", () => {
         expect(fetchMock.mock.calls.some(([u]: any) => String(u).includes("/memberships"))).toBe(false);
     });
 });
+
+/*
+ * ── Reaching people the search cannot find ──────────────────────────────────
+ *
+ * Reported from a live event: a host typed a speaker's name, got "No matches."
+ * and concluded outsiders could not be invited at all. The address was the way
+ * in all along; nothing said so.
+ */
+describe("when a name matches nobody", () => {
+    it("says how to reach an outsider, on surfaces that take addresses", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        setup({ emails: { ...EMAILS, noMatchesHint: "Not a member? Type their full email address." }, multiple: true });
+        await screen.findByText("Ana Neto");
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "Ana Costa");
+        expect(await screen.findByText("Not a member? Type their full email address.")).toBeInTheDocument();
+        expect(screen.getByText(COPY.noMatches)).toBeInTheDocument();
+    });
+
+    it("stays quiet once the text is an address, because the row offers it", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        setup({ emails: { ...EMAILS, noMatchesHint: "Not a member? Type their full email address." }, multiple: true });
+        await screen.findByText("Ana Neto");
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "ana@example.com");
+        expect(await screen.findByText("Invite ana@example.com")).toBeInTheDocument();
+        expect(screen.queryByText("Not a member? Type their full email address.")).not.toBeInTheDocument();
+    });
+});
+
+describe("searchEveryone", () => {
+    it("keeps the roster but searches every account when the roster has nobody", async () => {
+        // A co-host can be a partner organisation that never joined the
+        // community the event is listed in.
+        const fetchMock = mockApi({ search: [{ id: "u-ihp", name: "Impact Hub Porto", usertag: "impact-hub-porto" }] });
+        vi.stubGlobal("fetch", fetchMock);
+        setup({ searchEveryone: true });
+        expect(await screen.findByText("Ana Neto")).toBeInTheDocument();
+
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "impact");
+        expect(await screen.findByText("Impact Hub Porto")).toBeInTheDocument();
+        const urls = fetchMock.mock.calls.map(([u]: any) => String(u));
+        expect(urls.some((u) => u.includes("/api/discovery/users"))).toBe(true);
+        expect(urls.some((u) => u.includes("/members/search"))).toBe(false);
+    });
+
+    it("leaves member-only surfaces on member search", async () => {
+        const fetchMock = mockApi();
+        vi.stubGlobal("fetch", fetchMock);
+        setup();
+        await screen.findByText("Ana Neto");
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "impact");
+        await waitFor(() => expect(screen.getByText(COPY.noMatches)).toBeInTheDocument());
+        const urls = fetchMock.mock.calls.map(([u]: any) => String(u));
+        expect(urls.some((u) => u.includes("/api/discovery/users"))).toBe(false);
+    });
+});
+
+describe("naming guests", () => {
+    const NAMED: PersonPickerEmails = {
+        ...EMAILS,
+        guestName: { label: "Names (only you see them)", placeholder: "Their name" },
+    };
+
+    it("asks for a name per address on the confirm step and hands it over", async () => {
+        // Without a name an added speaker reaches the attendee list as "Guest 1".
+        vi.stubGlobal("fetch", mockApi());
+        const { onConfirm } = setup({ emails: NAMED, multiple: true });
+        await screen.findByText("Ana Neto");
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "speaker@example.com");
+        await userEvent.click(await screen.findByText("Invite speaker@example.com"));
+        await userEvent.click(screen.getByRole("button", { name: COPY.stepTwo }));
+
+        expect(screen.getByText("Names (only you see them)")).toBeInTheDocument();
+        await userEvent.type(screen.getByPlaceholderText("Their name"), "Ana Costa");
+        await userEvent.click(screen.getByRole("button", { name: COPY.confirm }));
+        await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+        expect(onConfirm.mock.calls[0][0]).toEqual([{ email: "speaker@example.com", name: "Ana Costa" }]);
+    });
+
+    it("never asks for a member's name", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        setup({ emails: NAMED, multiple: true });
+        await userEvent.click(await screen.findByText("Ana Neto"));
+        await userEvent.click(screen.getByRole("button", { name: COPY.stepTwo }));
+        expect(screen.queryByText("Names (only you see them)")).not.toBeInTheDocument();
+    });
+
+    it("is off unless the surface asks for it", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        setup({ emails: EMAILS, multiple: true });
+        await screen.findByText("Ana Neto");
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "speaker@example.com");
+        await userEvent.click(await screen.findByText("Invite speaker@example.com"));
+        await userEvent.click(screen.getByRole("button", { name: COPY.stepTwo }));
+        expect(screen.queryByPlaceholderText("Their name")).not.toBeInTheDocument();
+    });
+});
