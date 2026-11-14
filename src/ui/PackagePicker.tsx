@@ -3,6 +3,7 @@
 import { useSharedT } from "../i18n";
 import * as React from "react";
 import { cn } from "../lib/cn";
+import { formatFixedFee } from "../lib/memberFee";
 
 export interface CommissionPackage {
   id: string;
@@ -32,6 +33,13 @@ export interface PackagePickerProps {
     /** Fixed part, in the smallest currency unit. */
     fixedCents: number;
     currencySymbol?: string;
+    /*
+     * The currency the item is priced in (multi-currency MC3c). Given, every
+     * fixed part is formatted in it, in its own units: "£0.25", "¥50" (whole
+     * yen, never divided by 100). memberFeeFor(currency) builds the whole
+     * object. Omitted, the fee reads as before, with `currencySymbol`.
+     */
+    currency?: string;
     /*
      * What the payment processor takes out of the figure above.
      *
@@ -93,6 +101,8 @@ export function PackagePicker({
 }: PackagePickerProps) {
   const t = useSharedT("shared.managementUi.packagePicker");
   const sym = platformFee?.currencySymbol ?? "€";
+  const fixed = (minor: number) =>
+    platformFee?.currency ? formatFixedFee(minor, platformFee.currency) : `${sym}${(minor / 100).toFixed(2)}`;
   /*
    * Cobuntu's share is the all-in charge MINUS what the processor takes, which
    * is the only figure a premium subscription could ever remove — the processor
@@ -101,12 +111,12 @@ export function PackagePicker({
   const feeSplit =
     platformFee && platformFee.processing
       ? {
-          processing: `${formatRate(platformFee.processing.rate)}% + ${sym}${(platformFee.processing.fixedCents / 100).toFixed(2)}`,
-          platform: `${formatRate(platformFee.rate - platformFee.processing.rate)}% + ${sym}${((platformFee.fixedCents - platformFee.processing.fixedCents) / 100).toFixed(2)}`,
+          processing: `${formatRate(platformFee.processing.rate)}% + ${fixed(platformFee.processing.fixedCents)}`,
+          platform: `${formatRate(platformFee.rate - platformFee.processing.rate)}% + ${fixed(platformFee.fixedCents - platformFee.processing.fixedCents)}`,
         }
       : null;
   const feeLine = platformFee
-    ? `${formatRate(platformFee.rate)}% + ${sym}${(platformFee.fixedCents / 100).toFixed(2)}`
+    ? `${formatRate(platformFee.rate)}% + ${fixed(platformFee.fixedCents)}`
     : null;
 
   /*

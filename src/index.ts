@@ -102,6 +102,7 @@ export { fetchMembershipTiers } from "./lib/fetchMembershipTiers";
 export type { MembershipTierOption } from "./lib/fetchMembershipTiers";
 
 export { PackagePicker } from "./ui/PackagePicker";
+export { memberFeeFor, formatFixedFee, type MemberFee } from "./lib/memberFee";
 export type { PackagePickerProps, CommissionPackage, ListingApprovalStatus } from "./ui/PackagePicker";
 
 export { PackageNegotiation } from "./ui/PackageNegotiation";
