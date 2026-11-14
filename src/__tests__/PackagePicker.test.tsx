@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PackagePicker } from "../ui/PackagePicker";
+import { formatFixedFee, memberFeeFor } from "../lib/memberFee";
 
 /**
  * Cobuntu's (and Stripe's) cut is owed on every sale regardless of whether
@@ -132,5 +133,51 @@ describe("PackagePicker — approval status, shown before the fees", () => {
     expect(screen.getByText("Submit your listing")).toBeInTheDocument();
     expect(screen.getByText("Orbis reviews it")).toBeInTheDocument();
     expect(screen.getByText("Sell on the marketplace")).toBeInTheDocument();
+  });
+});
+
+/**
+ * The member fee in the currency the item is priced in (multi-currency MC3c,
+ * decision MC-D7): its fixed part is about EUR 0.30 set per currency, so a
+ * seller pricing in pounds or yen reads the amount they are actually charged,
+ * in that currency's own units.
+ */
+describe("PackagePicker — the fee in the item's currency", () => {
+  it("states a pound item's fee in pence: 4% + £0.25, of which Stripe 1.5% + £0.20", () => {
+    render(<PackagePicker packages={[]} value={null} onChange={vi.fn()} platformFee={memberFeeFor("GBP")} />);
+
+    expect(screen.getByText("1.5% + £0.20")).toBeInTheDocument();
+    expect(screen.getByText("2.5% + £0.05")).toBeInTheDocument();
+    expect(screen.queryByText(/€/)).not.toBeInTheDocument();
+  });
+
+  it("states yen in whole yen, never divided by 100", () => {
+    render(<PackagePicker packages={[]} value={null} onChange={vi.fn()} platformFee={memberFeeFor("jpy")} />);
+
+    expect(screen.getByText("1.5% + ¥45")).toBeInTheDocument();
+    expect(screen.getByText("2.5% + ¥5")).toBeInTheDocument();
+  });
+
+  it("reads a euro item exactly as the euro constants always did", () => {
+    render(<PackagePicker packages={[]} value={null} onChange={vi.fn()} platformFee={memberFeeFor("EUR")} />);
+
+    expect(screen.getByText("1.5% + €0.25")).toBeInTheDocument();
+    expect(screen.getByText("2.5% + €0.05")).toBeInTheDocument();
+  });
+});
+
+describe("memberFeeFor and formatFixedFee", () => {
+  it("mirror the backend's per-currency amounts, and fall back to the euro's", () => {
+    expect(memberFeeFor("GBP")).toEqual({ rate: 4, fixedCents: 25, currency: "GBP", processing: { rate: 1.5, fixedCents: 20 } });
+    expect(memberFeeFor("KRW")).toMatchObject({ fixedCents: 450, currency: "KRW" });
+    expect(memberFeeFor(null)).toEqual({ rate: 4, fixedCents: 30, currency: "EUR", processing: { rate: 1.5, fixedCents: 25 } });
+    expect(memberFeeFor("XYZ")).toMatchObject({ fixedCents: 30, currency: "EUR" });
+  });
+
+  it("formats each currency in its own units", () => {
+    expect(formatFixedFee(30, "EUR")).toBe("€0.30");
+    expect(formatFixedFee(25, "gbp")).toBe("£0.25");
+    expect(formatFixedFee(50, "JPY")).toBe("¥50");
+    expect(formatFixedFee(450, "KRW")).toBe("₩450");
   });
 });
