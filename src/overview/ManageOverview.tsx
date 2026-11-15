@@ -57,12 +57,17 @@ export interface ManageOverviewProps {
     /**
      * The community whose site this is, and how to ask it to carry the item.
      *
-     * Offered ONLY when nothing carries it yet. An item may be listed in one
-     * community for now, so once there is a listing the page states the limit
-     * instead of offering a second.
+     * Offered when nothing carries it yet. Once something does, it is offered
+     * again only when `stats.mayCarryMany` (a Premium member's own item) and
+     * THIS community is not one of the carriers; otherwise the page states the
+     * one-community limit instead of offering a second the API would refuse.
      */
     requestOn?: {
         name: string;
+        /** This community's tag, to tell whether it already carries the item.
+         *  Without it a Premium seller is never offered a second community:
+         *  the page cannot rule out asking a community that already has it. */
+        communityTag?: string;
         onRequest: () => void;
         pending?: boolean;
     };
@@ -110,6 +115,15 @@ export function ManageOverview({
     t, locale = "en-GB", footer, requestOn,
 }: ManageOverviewProps) {
     const { money, views, listings, weekly } = stats;
+    /*
+     * A Premium member's own item, carried elsewhere but not by this community:
+     * offer this one too. Any row here counts as carried, whatever its status
+     * (the existing row is what the seller acts on), and without the tag the
+     * page cannot tell, so it offers nothing rather than guess.
+     */
+    const here = requestOn?.communityTag?.toLowerCase();
+    const offerAlsoHere = !!stats.mayCarryMany && !!here && listings.length > 0
+        && !listings.some((l) => l.communityTag?.toLowerCase() === here);
     const isEvent = stats.kind === "event";
     const sellable = isSellable(stats);
 
@@ -549,25 +563,31 @@ export function ManageOverview({
                   */}
 
                 {/*
-                  * ONE LISTING, AND THE PAGE SAYS SO EITHER WAY.
+                  * WHERE ELSE IT CAN BE LISTED, AND THE PAGE SAYS SO EITHER WAY.
                   *
                   * This replaced a picker that offered every community you
-                  * belong to. The picker implied an item could be carried in
-                  * several places, which is not true yet -- and a control that
-                  * promises what the rule forbids is worse than no control at
-                  * all, because the refusal arrives after the click.
+                  * belong to. A control that promises what the rule forbids is
+                  * worse than no control at all, because the refusal arrives
+                  * after the click. So the offer follows the server's rule:
                   *
                   * Nothing carrying it: one button, this community, one press.
-                  * Something carrying it: the limit, stated, with nothing to
-                  * press against it.
+                  * Carried elsewhere and the server says it may be carried by
+                  * several (a Premium member's own item, `mayCarryMany`): the
+                  * same button for THIS community, unless it already carries it.
+                  * Carried and not allowed more: the limit, stated, with nothing
+                  * to press against it.
                   */}
-                {listings.length === 0 && requestOn ? (
+                {requestOn && (listings.length === 0 || offerAlsoHere) ? (
                     <div className="mt-4 rounded-xl border border-zinc-200/70 bg-white p-4">
                         <p className="text-[14px] font-semibold text-zinc-900">
-                            {t("overviewNotCarriedTitle")}
+                            {listings.length === 0
+                                ? t("overviewNotCarriedTitle")
+                                : t("overviewAlsoHereTitle", { community: requestOn.name })}
                         </p>
                         <p className="mt-0.5 text-[13px] text-zinc-500">
-                            {t("overviewNotCarriedBody", { community: requestOn.name })}
+                            {listings.length === 0
+                                ? t("overviewNotCarriedBody", { community: requestOn.name })
+                                : t("overviewAlsoHereBody", { community: requestOn.name })}
                         </p>
                         <button
                             type="button"
@@ -580,7 +600,7 @@ export function ManageOverview({
                                 : t("overviewListItHere", { community: requestOn.name })}
                         </button>
                     </div>
-                ) : listings.length > 0 ? (
+                ) : listings.length > 0 && !stats.mayCarryMany ? (
                     <p className="mt-4 text-[12.5px] text-zinc-500">{t("overviewOneCommunityOnly")}</p>
                 ) : null}
 

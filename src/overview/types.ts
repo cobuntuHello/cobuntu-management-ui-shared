@@ -171,6 +171,14 @@ export interface OverviewStats {
      */
     everPublished?: boolean;
     /**
+     * May this item be carried by more than one community? True only for an
+     * item a PERSON owns while they are Premium: the server's own gate
+     * (oneCommunityGate.mayCarryMany), so offering a second community never
+     * promises what the listing request refuses. Undefined (an older backend)
+     * reads as false, the one-community rule.
+     */
+    mayCarryMany?: boolean;
+    /**
      * Which payout model this item is on -- `community` (the community sells and
      * pays only Cobuntu) or `member` (a user sells, a community brokers it,
      * Cobuntu absorbs Stripe). Drives which fee lines the card renders. Absent
