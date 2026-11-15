@@ -201,9 +201,21 @@ describe("MarkdownEditor with services", () => {
     expect(screen.getByTestId("value").textContent).toBe("abcdefgh");
   });
 
-  it("defaults to a 1000-character limit", () => {
+  it("defaults to a 2000-character limit", () => {
     render(<MarkdownEditor value="" onChange={() => {}} />);
-    expect(screen.getByText("0 / 1000")).toBeTruthy();
+    expect(screen.getByText("0 / 2000")).toBeTruthy();
+  });
+
+  it("accepts a description past the old 1000 ceiling by default", () => {
+    function Long() {
+      const [v, setV] = useState("");
+      return (<><MarkdownEditor value={v} onChange={setV} /><output data-testid="value">{v}</output></>);
+    }
+    render(<Long />);
+    const box = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: "a".repeat(1500) } });
+    expect(screen.getByTestId("value").textContent).toHaveLength(1500);
+    expect(screen.getByText("1500 / 2000")).toBeTruthy();
   });
 
   it("says so when nobody matches, and Escape closes the list", async () => {

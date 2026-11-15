@@ -20,8 +20,9 @@ export interface MarkdownEditorProps {
   /** Cap on the description's length as the writer SEES it (a mention counts
    * as its `@Name`, an image as its `[Image 1]` placeholder, never the stored
    * id or URL), surfaced as an always-visible "n / max" counter. Defaults to
-   * 1000 for events, products and courses alike. Text already over the cap
-   * (written under the old 2000) can still be edited, but only to shrink. */
+   * 2000 for events, products and courses alike, for every seller (a longer
+   * description is not a paid perk). A host may pass a lower cap; text already
+   * over the cap can still be edited, but only to shrink. */
   maxLength?: number;
   /** Offer @mentions when the host provides people search. Default on. */
   mentions?: boolean;
@@ -169,7 +170,7 @@ export function MarkdownEditor({
   disabled,
   minRows = 6,
   autoFocus,
-  maxLength = 1000,
+  maxLength = 2000,
   mentions = true,
   images = true,
   fill = false,
