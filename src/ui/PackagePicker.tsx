@@ -41,18 +41,24 @@ export interface PackagePickerProps {
      */
     currency?: string;
     /*
-     * What the payment processor takes out of the figure above.
+     * The payment processor's cut, as an estimate.
      *
-     * The charge is ALL-IN — Cobuntu pays Stripe out of it rather than
-     * deducting separately — so a single "Cobuntu charges 4% + EUR 0.30"
-     * overstates what Cobuntu keeps by roughly 60%: at Stripe's 1.5% + EUR
-     * 0.25, Cobuntu's own take is 2.5% + EUR 0.05.
+     * With `processingOnTop` (what memberFeeFor builds, Premium Phase 3) it is
+     * a SEPARATE charge on the seller's share, on top of Cobuntu's `rate` and
+     * `fixedCents`, and renders as its own line: Cobuntu no longer pays Stripe
+     * out of its fee.
      *
-     * Optional. Given, the fee renders as a breakdown; omitted, it stays the
-     * single all-in line, so a caller that has not been updated is unchanged
-     * rather than silently claiming a split it cannot substantiate.
+     * Without it the figures above are read the old way, ALL-IN (Cobuntu paid
+     * Stripe out of them), and this is the part of them that went to Stripe.
+     * Omitted entirely, the fee stays a single line, so a caller that has not
+     * been updated is unchanged rather than silently claiming a split it
+     * cannot substantiate.
      */
     processing?: { rate: number; fixedCents: number } | null;
+    /** Stripe's processing comes ON TOP of `rate`/`fixedCents` (Premium Phase 3). */
+    processingOnTop?: boolean;
+    /** The seller has Cobuntu Premium: no Cobuntu fee, said in words instead of "0% + €0.00". */
+    premium?: boolean;
   } | null;
   /**
    * Whether this submission needs a leader's review before it is visible to
@@ -104,23 +110,34 @@ export function PackagePicker({
   const fixed = (minor: number) =>
     platformFee?.currency ? formatFixedFee(minor, platformFee.currency) : `${sym}${(minor / 100).toFixed(2)}`;
   /*
-   * Cobuntu's share is the all-in charge MINUS what the processor takes, which
-   * is the only figure a premium subscription could ever remove — the processor
-   * charges per transaction regardless.
+   * Two lines, Cobuntu's and the processor's, because only one of them is
+   * Cobuntu's and only that one goes away with Premium: the processor charges
+   * per transaction regardless.
+   *
+   * On top (Premium Phase 3): Cobuntu's line is its fee as given, Stripe's is
+   * its own estimate beside it. All-in (an older caller): Cobuntu's line is the
+   * all-in charge MINUS what the processor took out of it.
    */
+  const onTop = platformFee?.processingOnTop === true;
   const feeSplit =
     platformFee && platformFee.processing
       ? {
           processing: `${formatRate(platformFee.processing.rate)}% + ${fixed(platformFee.processing.fixedCents)}`,
-          platform: `${formatRate(platformFee.rate - platformFee.processing.rate)}% + ${fixed(platformFee.fixedCents - platformFee.processing.fixedCents)}`,
+          platform: onTop
+            ? platformFee.premium
+              ? t("cobuntuPremium")
+              : `${formatRate(platformFee.rate)}% + ${fixed(platformFee.fixedCents)}`
+            : `${formatRate(platformFee.rate - platformFee.processing.rate)}% + ${fixed(platformFee.fixedCents - platformFee.processing.fixedCents)}`,
         }
       : null;
   const feeLine = platformFee
     ? `${formatRate(platformFee.rate)}% + ${fixed(platformFee.fixedCents)}`
     : null;
+  /* Stripe's percent of the sale, given only when it is charged ON TOP of Cobuntu's fee. */
+  const processingRate = onTop && platformFee?.processing ? platformFee.processing.rate : undefined;
 
   /*
-   * Cobuntu's cut (and Stripe's, split out of it) is owed on every sale
+   * Cobuntu's cut (and Stripe's processing) is owed on every sale
    * REGARDLESS of whether the community has published a package yet — it is
    * not a property of the community's own arrangement, so a seller must see
    * it even while there is nothing from the community side to pick. Used to
@@ -132,7 +149,7 @@ export function PackagePicker({
     return (
       <div className="flex flex-col gap-3">
         <SubmissionFlowExplainer approval={approval} t={t} />
-        <CommissionCard packageRow={null} feeLine={feeLine} feeSplit={feeSplit} sellerRate={undefined} platformFeeRate={platformFee?.rate} t={t} />
+        <CommissionCard packageRow={null} feeLine={feeLine} feeSplit={feeSplit} sellerRate={undefined} platformFeeRate={platformFee?.rate} processingRate={processingRate} t={t} />
         <p className="m-0 rounded-[11px] border border-amber-200 bg-amber-50 px-3.5 py-3 text-[12.5px] leading-relaxed text-amber-900">
           {emptyLabel ??
             t("empty", { community: communityName ?? t("thisCommunity") })}
@@ -169,6 +186,7 @@ export function PackagePicker({
           feeSplit={feeSplit}
           sellerRate={only.rate}
           platformFeeRate={platformFee?.rate}
+          processingRate={processingRate}
           t={t}
         />
       </div>
@@ -242,11 +260,11 @@ export function PackagePicker({
         * the same on every option — repeating it per card would imply it varies
         * with the choice, which is the one thing it does not do.
         *
-        * "Card processing included" is the load-bearing half. Without it a
-        * seller assumes Stripe comes on top, which is what every other platform
-        * they have used does.
+        * Since Premium Phase 3 card processing comes ON TOP of Cobuntu's fee,
+        * which is what every other platform a seller has used does, and it is
+        * its own line so nobody reads it as Cobuntu's.
         */}
-      <CommissionCard packageRow={null} feeLine={feeLine} feeSplit={feeSplit} sellerRate={selectedPkg?.rate} platformFeeRate={platformFee?.rate} t={t} />
+      <CommissionCard packageRow={null} feeLine={feeLine} feeSplit={feeSplit} sellerRate={selectedPkg?.rate} platformFeeRate={platformFee?.rate} processingRate={processingRate} t={t} />
     </div>
   );
 }
@@ -265,6 +283,7 @@ function CommissionCard({
   feeSplit,
   sellerRate,
   platformFeeRate,
+  processingRate,
   t,
 }: {
   /** Folded into this same card's header when there is exactly one package to show inline (never for the multi-package radio list, which already shows its own name/rate per option). */
@@ -273,8 +292,14 @@ function CommissionCard({
   feeSplit: { processing: string; platform: string } | null;
   /** The chosen package's own rate — what the COMMUNITY takes, separate from Cobuntu's cut below. Omit when nothing is chosen yet. */
   sellerRate?: number;
-  /** Cobuntu's all-in rate (processing included) as a plain percent, e.g. 4 for 4%. */
+  /**
+   * Cobuntu's rate as a plain percent. With `processingRate` (Premium Phase 3)
+   * it is Cobuntu's own fee, a percent of the seller's SHARE (2.5); without,
+   * the old all-in rate read against the sale, processing included (4).
+   */
   platformFeeRate?: number;
+  /** Stripe's percent of the sale when it is charged ON TOP of Cobuntu's fee. */
+  processingRate?: number;
   t: ReturnType<typeof useSharedT>;
 }) {
   if (!feeLine && !packageRow) return null;
@@ -285,21 +310,32 @@ function CommissionCard({
    * subtraction themselves otherwise. Only known once a rate is on the
    * table: with `platformFee` alone (no tier rate selected) there is
    * nothing to total yet.
+   *
+   * On top (Premium Phase 3), Cobuntu's percent is of the seller's share
+   * (what the community did not take) and Stripe's is of the whole sale, so
+   * each is turned into a percent of the sale before subtracting: at 10%
+   * commission, (100 - 10) x (1 - 2.5%) - 1.5 = 86.25, about 86.3%. The fixed
+   * parts have no percent until there is a price, so "about" stays honest.
    */
-  const keepsRaw = sellerRate !== undefined && platformFeeRate !== undefined
-    ? Math.round((100 - sellerRate - platformFeeRate) * 10) / 10
+  const onTop = processingRate !== undefined;
+  const platformOfSale = sellerRate !== undefined && platformFeeRate !== undefined
+    ? onTop ? ((100 - sellerRate) * platformFeeRate) / 100 : platformFeeRate
+    : undefined;
+  const keepsRaw = sellerRate !== undefined && platformOfSale !== undefined
+    ? Math.round((100 - sellerRate - platformOfSale - (processingRate ?? 0)) * 10) / 10
     : null;
   const keepsPct = keepsRaw !== null ? formatRate(keepsRaw) : null;
 
   /*
    * The number alone answers "what's left"; the bar answers "where did the
    * rest go" in the same glance, without reading three separate percent
-   * signs to add them up. Three segments, not two — the community's cut
-   * and Cobuntu's are different parties and a seller comparing tiers needs
-   * to see which one moved.
+   * signs to add them up. The community's cut and Cobuntu's are different
+   * parties and a seller comparing tiers needs to see which one moved; on
+   * top, Stripe is a fourth segment of its own, because it is no longer
+   * inside Cobuntu's.
    */
-  const split = keepsRaw !== null && sellerRate !== undefined && platformFeeRate !== undefined
-    ? { you: Math.max(keepsRaw, 0), community: sellerRate, platform: platformFeeRate }
+  const split = keepsRaw !== null && sellerRate !== undefined && platformOfSale !== undefined
+    ? { you: Math.max(keepsRaw, 0), community: sellerRate, platform: platformOfSale, processing: processingRate ?? 0 }
     : null;
 
   return (
@@ -318,11 +354,13 @@ function CommissionCard({
                 <div className="h-full bg-emerald-500" style={{ width: `${split.you}%` }} />
                 <div className="h-full bg-zinc-400" style={{ width: `${split.community}%` }} />
                 <div className="h-full bg-zinc-700" style={{ width: `${split.platform}%` }} />
+                {split.processing > 0 && <div className="h-full bg-sky-600" style={{ width: `${split.processing}%` }} />}
               </div>
               <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-zinc-500">
                 <LegendDot colorClass="bg-emerald-500" label={t("legendYou")} />
                 <LegendDot colorClass="bg-zinc-400" label={t("legendCommunity")} />
-                <LegendDot colorClass="bg-zinc-700" label="Cobuntu" />
+                {split.platform > 0 && <LegendDot colorClass="bg-zinc-700" label="Cobuntu" />}
+                {split.processing > 0 && <LegendDot colorClass="bg-sky-600" label={t("cardProcessing")} />}
               </div>
             </>
           )}
@@ -348,9 +386,9 @@ function CommissionCard({
           {feeSplit ? (
             /*
              * Split, because only one of these two lines is ours and only
-             * one of them could ever go away. Lumping them together
-             * overstates Cobuntu's take and makes any future "we waive our
-             * fee" claim unreadable.
+             * one of them goes away with Premium. Lumping them together
+             * overstates Cobuntu's take and makes "no fee with Premium"
+             * unreadable.
              */
             <>
               <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">

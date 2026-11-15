@@ -35,7 +35,7 @@ import { CobuntuMark, StripeMark, SaleMark } from "./marks";
  *
  * This card used to draw a three-way PERCENTAGE bar, and a percentage split of
  * this sale cannot be made to add up. Two of the four deductions carry a FLAT
- * per-sale charge (Cobuntu's member-seller fee is 4% + EUR 0.30, Stripe's is
+ * per-sale charge (Cobuntu's member-seller fee is 2.5% + EUR 0.05, Stripe's is
  * 1.5% + EUR 0.25), and a flat charge has no percentage until you name a price.
  * `saleSplit` silently drops the fixed components for exactly that reason, so
  * the old bar was wrong by an amount that GREW as the ticket got cheaper -- on
@@ -59,11 +59,11 @@ import { CobuntuMark, StripeMark, SaleMark } from "./marks";
  *    fusing them is why that number barely moved between an 8% package and a
  *    22% one -- the halves move in opposite directions. They are separate rows.
  *
- * 3. Stripe did not appear at all. Cobuntu's member-seller fee is ALL-IN
- *    (feeConstants.ts: "Stripe's processing comes out of it"), so card
- *    processing was real money buried inside the Cobuntu row. It is its own
- *    line now, carved OUT of Cobuntu's -- see euroSplit, which subtracts it, so
- *    naming it cannot double-count it.
+ * 3. Stripe did not appear at all. Cobuntu's member-seller fee was ALL-IN then
+ *    (Stripe paid out of it), so card processing was real money buried inside
+ *    the Cobuntu row. It is its own line now. Since Cobuntu Premium Phase 3 it
+ *    is also its own CHARGE: the seller's share pays Stripe on top of Cobuntu's
+ *    fee, and Cobuntu keeps its whole fee (see euroSplit).
  *
  * ── Whose money is "yours" depends on who is reading ────────────────────────
  *
@@ -98,7 +98,7 @@ export function OfferedPackages({
     packages: Package[];
     /** Cobuntu's cut OF the commission, as a percent. Per community. */
     platformShare?: number;
-    /** Cobuntu's all-in fee on the seller's own share. `rate` is a fraction. */
+    /** Cobuntu's fee on the seller's own share, Stripe on top. `rate` is a fraction; { rate: 0, fixed: 0 } for a Premium seller. */
     sellerFee?: { rate: number; fixed: number; currency?: string } | null;
     /** Stripe's estimate, from the same GET /api/config/fees. Fraction + minor units. */
     stripeRate?: number;
@@ -382,7 +382,7 @@ export function OfferedPackages({
                                         ? Math.round(samplePrice! * 100) - destination.reduce((a, b) => a + b, 0)
                                         : 0;
 
-                                    const s = saleSplit(rate, platformShare, sellerFee);
+                                    const s = saleSplit(rate, platformShare, sellerFee, stripeRate);
                                     /*
                                      * ONE BAND PER ROW of the receipt beneath it, in the same
                                      * colours as those rows' marks -- seller, community, platform,
@@ -402,6 +402,7 @@ export function OfferedPackages({
                                               { pct: s.sellerOfSale, color: "var(--b-keep)" },
                                               { pct: s.communityOfSale, color: "var(--b-comm)" },
                                               { pct: s.platformOfSale, color: "var(--b-cob)" },
+                                              { pct: s.stripeOfSale, color: "var(--b-stripe)" },
                                           ].filter((b) => b.pct > 0);
                                     /*
                                      * key = the package, so React remounts this
@@ -464,13 +465,13 @@ export function OfferedPackages({
                                                         {/*
                                                           * Three parties, each as its own line, and
                                                           * each showing what it RECEIVES. Stripe is
-                                                          * separate from the platform fee even though
-                                                          * it is paid out of it -- a leader reading
-                                                          * "card processing" wants to see the card
-                                                          * processing, not be told it is folded into
-                                                          * someone else's number. The note under the
-                                                          * total carries the one relationship that
-                                                          * makes these three add up.
+                                                          * separate from the platform fee: since
+                                                          * Premium Phase 3 the seller's share pays it
+                                                          * on top of Cobuntu's fee, and a leader
+                                                          * reading "card processing" wants to see the
+                                                          * card processing. The note under the total
+                                                          * carries the one relationship that makes
+                                                          * these three add up.
                                                           */}
                                                         <Line
                                                             icon={<ImageMark src={communityIconUrl} name={communityName} />}
@@ -527,7 +528,7 @@ export function OfferedPackages({
                                                                     ? `${round(sellerFee.rate * 100)}% + ${money(sellerFee.fixed, cur)}`
                                                                     : "",
                                                             },
-                                                            `${communityName} charges ${rate}%. ${platformName} takes ${platformShare}% of that, plus ${sellerFee ? `${round(sellerFee.rate * 100)}% + ${money(sellerFee.fixed, cur)}` : "its fee"} of ${sellerName}'s share, and pays Stripe out of it.`)}
+                                                            `${communityName} charges ${rate}%. ${platformName} takes ${platformShare}% of that, plus ${sellerFee ? `${round(sellerFee.rate * 100)}% + ${money(sellerFee.fixed, cur)}` : "its fee"} of ${sellerName}'s share. Stripe's card processing is deducted from ${sellerName}'s share too.`)}
                                                         </p>
                                                     </dl>
                                                 ) : (
@@ -537,6 +538,7 @@ export function OfferedPackages({
                                                             { pct: s.sellerOfSale, color: "var(--b-keep)", name: sellerRowName },
                                                             { pct: s.communityOfSale, color: "var(--b-comm)", name: communityName },
                                                             { pct: s.platformOfSale, color: "var(--b-cob)", name: platformName },
+                                                            { pct: s.stripeOfSale, color: "var(--b-stripe)", name: label("spineStripeRow", "Stripe (card processing)") },
                                                         ]
                                                             .filter((x) => x.pct > 0)
                                                             .map((x, i) => (
