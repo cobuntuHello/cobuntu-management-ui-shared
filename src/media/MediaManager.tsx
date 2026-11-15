@@ -101,8 +101,12 @@ export function MediaManager<T extends ManagedMedia>(props: MediaManagerProps<T>
   const [error, setError] = React.useState<string | null>(null);
   const [over, setOver] = React.useState(false);
   // The latest list, for async commits to write into without a stale closure.
+  // Updated the moment WE change it too (apply), not only on the next render:
+  // a commit that resolves before the host re-renders would otherwise map
+  // over the list from before the placeholder and drop it.
   const latest = React.useRef(items);
   latest.current = items;
+  const apply = (next: T[]) => { latest.current = next; onChange(next); };
 
   const needsTick = !!rules?.requireConfirmation;
   const room = maxItems - items.length;
@@ -136,15 +140,15 @@ export function MediaManager<T extends ManagedMedia>(props: MediaManagerProps<T>
     const replacing = target.kind === "add" ? undefined : latest.current.find((i) => i.id === target.id);
     const tempId = nextKey();
     const placeholder = { id: tempId, preview: photo.dataUrl, type: "image", source: photo.source, uploading: true } as T;
-    onChange(replacing
+    apply(replacing
       ? latest.current.map((i) => (i.id === replacing.id ? placeholder : i))
       : [...latest.current, placeholder]);
     try {
       const item = await commit(photo, replacing);
-      onChange(latest.current.map((i) => (i.id === tempId ? ({ ...item, source: item.source ?? photo.source } as T) : i)));
+      apply(latest.current.map((i) => (i.id === tempId ? ({ ...item, source: item.source ?? photo.source } as T) : i)));
     } catch (err) {
       // Put back what was there, or drop the new one.
-      onChange(replacing
+      apply(replacing
         ? latest.current.map((i) => (i.id === tempId ? replacing : i))
         : latest.current.filter((i) => i.id !== tempId));
       setError(err instanceof Error && err.message ? err.message : t("uploadFailed"));
@@ -242,7 +246,7 @@ export function MediaManager<T extends ManagedMedia>(props: MediaManagerProps<T>
           initialFiles={dropped}
           reframeSource={mode.kind === "reframe" ? (target?.source ?? target?.preview) : undefined}
           allowVideo={!!addVideo && mode.kind === "add"}
-          onVideo={(file) => { if (addVideo) onChange([...latest.current, addVideo(file)]); }}
+          onVideo={(file) => { if (addVideo) apply([...latest.current, addVideo(file)]); }}
           onFramed={(photo) => { void place(photo, mode); }}
           onClose={() => { setMode(null); setDropped(null); }}
         />
