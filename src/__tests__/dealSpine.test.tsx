@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { DealSpine, euroSplit, saleSplit } from "../listings/ui/DealSpine";
+import { DealSpine, allocateCents, euroSplit, minorUnitsPerMajor, money, saleSplit } from "../listings/ui/DealSpine";
 import { NextAction } from "../listings/ui/NextAction";
 
 /**
@@ -321,5 +321,45 @@ describe("saleSplit and euroSplit (Premium Phase 3)", () => {
 
     it("leaves the split as it was when Stripe's rate is not given", () => {
         expect(saleSplit(10, 10, null)).toEqual({ sellerOfSale: 90, communityOfSale: 9, platformOfSale: 1, stripeOfSale: 0 });
+    });
+});
+
+/**
+ * A sample price in a currency without cents (yen, won): every conversion
+ * between whole and smallest units goes by the currency's own decimals. With a
+ * fixed 100, a ¥3,000 sale read its ¥10 and ¥45 fixed fees as ¥0.10 and ¥0.45.
+ *
+ *   ¥3,000 at 8%: commission ¥240, Cobuntu ¥12 of it, the community ¥228;
+ *   the host's ¥2,760 pays Cobuntu 2.5% + ¥10 = ¥79 and Stripe 1.5% + ¥45 = ¥90
+ *   (of the whole sale), so the host keeps ¥2,591 and Cobuntu ¥91.
+ */
+describe("a sample price in yen", () => {
+    const fee = { rate: 0.025, fixed: 10, currency: "JPY" };
+    const stripe = { rate: 0.015, fixed: 45 };
+
+    it("counts smallest units by each currency's own decimals", () => {
+        expect(minorUnitsPerMajor("EUR")).toBe(100);
+        expect(minorUnitsPerMajor("GBP")).toBe(100);
+        expect(minorUnitsPerMajor("JPY")).toBe(1);
+        expect(minorUnitsPerMajor("KRW")).toBe(1);
+        expect(money(2591, "JPY")).toMatch(/¥2,591$/); // whole yen, not ¥25.91
+        expect(money(4794, "EUR")).toBe("€47.94");
+    });
+
+    it("splits the sale with the fixed fees in whole yen", () => {
+        const e = euroSplit(3000, 8, 5, fee, stripe, "JPY");
+        expect(e.communityNet).toBeCloseTo(228, 9);
+        expect(e.cobuntuNet).toBeCloseTo(91, 9);
+        expect(e.stripeAmt).toBeCloseTo(90, 9);
+        expect(e.hostKeeps).toBeCloseTo(2591, 9);
+        expect(allocateCents(3000 - e.hostKeeps, [e.communityNet, e.cobuntuNet, e.stripeAmt], "JPY")).toEqual([228, 91, 90]);
+    });
+
+    it("prints the four rows in yen", () => {
+        render(<DealSpine rate={8} communityName="PBN" platformShare={5} sellerFee={fee} stripeRate={0.015} stripeFixed={45} samplePrice={3000} sampleCurrency="JPY" />);
+        expect(share("Host keeps")).toMatch(/¥2,591/);
+        expect(share("PBN (net commission)")).toMatch(/¥228/);
+        expect(share("Cobuntu (platform fee)")).toMatch(/¥91/);
+        expect(share("Stripe (card processing)")).toMatch(/¥90/);
     });
 });
