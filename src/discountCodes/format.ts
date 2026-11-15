@@ -16,7 +16,7 @@ export function money(minor: number, currency = "EUR", locale = "en-GB"): string
   const whole = Number.isInteger(major);
   try {
     return new Intl.NumberFormat(locale, {
-      style: "currency", currency,
+      style: "currency", currency, currencyDisplay: "narrowSymbol",
       minimumFractionDigits: whole ? 0 : undefined,
       maximumFractionDigits: whole ? 0 : undefined,
     }).format(major);
