@@ -19,7 +19,7 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     spineHeading: "The community's cut",
     spineZero: "No commission on this listing. Nothing to split.",
     spineKeySeller: "You keep",
-    spineFixedFee: "Plus {amount} per sale to Cobuntu. Stripe's processing comes out of Cobuntu's fee, so it is not charged separately.",
+    spineFixedFee: "Plus {amount} per sale to Cobuntu. Stripe's card processing is deducted from the seller's share too.",
     spineSplitHeading: "Every sale, split",
     /* The commission, split into what the community keeps vs Cobuntu's share of it. */
     spineCommissionSplit: "Where the {rate}% commission goes",
@@ -147,7 +147,7 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
        commission" ran to half the row on a community with a long name. */
     /* The rates, stated once under the figures rather than in a column that
        never matched the amount beside it. */
-    offerBasisNote: "{community} charges {rate}%. {platform} takes {share}% of that, plus {fee} of {seller}'s share, and pays Stripe out of it.",
+    offerBasisNote: "{community} charges {rate}%. {platform} takes {share}% of that, plus {fee} of {seller}'s share. Stripe's card processing is deducted from {seller}'s share too.",
     offerWhereItGoes: "Of that, {community} keeps {communityAmount}, {platform} {platformAmount}, and {stripeAmount} is Stripe's card processing.",
     /* The split bar is role="img"; this is what a screen reader is given. */
     spineBarAria: "You keep {pct}% of each sale",

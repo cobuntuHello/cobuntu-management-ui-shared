@@ -2,15 +2,18 @@ import { useState } from "react";
 import { Card } from "./primitives";
 
 /**
- * One sale, divided into the three shares that leave it.
+ * One sale, divided into the shares that leave it.
  *
  * `rate` is the community's cut of the sale; Cobuntu takes `platformShare`
  * percent OF that cut (a fraction of a fraction, so it stays small as the rate
  * moves). On top of that Cobuntu charges the seller a fee on their OWN share,
  * which is why the seller does not simply keep "everything the community did
- * not take" -- a 0% listing is not "seller 100%". Stripe's processing comes out
- * of Cobuntu's fee, so it is named, not drawn as a fourth share that would
- * double-count.
+ * not take" -- a 0% listing is not "seller 100%".
+ *
+ * Stripe's processing is the fourth share, given its rate (a fraction of the
+ * whole sale). Since Cobuntu Premium Phase 3 the seller's share pays it, on top
+ * of Cobuntu's fee: it used to come out of Cobuntu's all-in fee, and was only
+ * named then, never drawn. A Premium seller's fee is { rate: 0, fixed: 0 }.
  *
  * Shared so the spine and the leader's package options split a sale the exact
  * same way; one of them doing it differently is a number that lies.
@@ -19,15 +22,18 @@ export function saleSplit(
     rate: number,
     platformShare: number,
     sellerFee: { rate: number; fixed: number; currency?: string } | null,
-): { sellerOfSale: number; communityOfSale: number; platformOfSale: number } {
+    stripeRate?: number | null,
+): { sellerOfSale: number; communityOfSale: number; platformOfSale: number; stripeOfSale: number } {
     const cobuntuOfCommission = (rate * platformShare) / 100;
     const communityOfSale = rate - cobuntuOfCommission;
     const sellerShare = 100 - rate;
     const cobuntuOfSeller = sellerFee ? sellerShare * sellerFee.rate : 0;
+    const stripeOfSale = stripeRate != null && stripeRate > 0 ? stripeRate * 100 : 0;
     return {
-        sellerOfSale: sellerShare - cobuntuOfSeller,
+        sellerOfSale: sellerShare - cobuntuOfSeller - stripeOfSale,
         communityOfSale,
         platformOfSale: cobuntuOfCommission + cobuntuOfSeller,
+        stripeOfSale,
     };
 }
 
@@ -90,17 +96,17 @@ export function DealSpine({
      * the bar then shows only what was agreed rather than inventing the rest.
      */
     sellerFee?: {
-        /** Cobuntu's fee on the seller's own share, as a fraction (0.04). */
+        /** Cobuntu's fee on the seller's own share, as a fraction (0.025; 0 for a Premium seller). */
         rate: number;
-        /** The fixed part, in the smallest unit (30 = EUR 0.30). */
+        /** The fixed part, in the smallest unit (5 = EUR 0.05; 0 for a Premium seller). */
         fixed: number;
         currency?: string;
     } | null;
     /**
      * Stripe's card-processing estimate, from the same /api/config/fees. Given,
-     * the euro breakdown pulls Stripe out as its OWN line instead of leaving it
-     * folded inside Cobuntu's fee -- the transparency the member asked for. Rate
-     * is a fraction (0.015); fixed is the smallest unit (25 = EUR 0.25).
+     * Stripe is its OWN share and line, off the seller's share and on top of
+     * Cobuntu's fee (Premium Phase 3). Rate is a fraction (0.015); fixed is the
+     * smallest unit (25 = EUR 0.25).
      */
     stripeRate?: number;
     stripeFixed?: number;
@@ -134,7 +140,7 @@ export function DealSpine({
     const say = (k: string, vars: Record<string, unknown>, fallback: string) =>
         (t ? t(k, vars) : fallback);
 
-    const { sellerOfSale, communityOfSale, platformOfSale } = saleSplit(shown, platformShare, sellerFee);
+    const { sellerOfSale, communityOfSale, platformOfSale, stripeOfSale } = saleSplit(shown, platformShare, sellerFee, stripeRate);
 
     /*
      * The commission, split into what the community KEEPS and Cobuntu's share
@@ -184,6 +190,8 @@ export function DealSpine({
              */
             name: communityName.trim().toLowerCase() === "cobuntu" ? "Platform" : "Cobuntu",
         },
+        /* Stripe's own share, off the seller's (Premium Phase 3), when its rate is known. */
+        { key: "stripe", pct: stripeOfSale, color: "var(--b-stripe)", name: label("spineStripeRow", "Stripe (card processing)") },
     ].filter((r) => r.pct > 0);
 
     return (
@@ -330,10 +338,11 @@ export function DealSpine({
                                     </div>
                                 ))}
                             </dl>
-                            {sellerFee && (
+                            {/* No note for a Premium seller: there is no fixed fee to add (Premium Phase 3). */}
+                            {sellerFee && sellerFee.fixed > 0 && (
                                 <p className="mt-3 border-t border-[var(--line-soft)] pt-3 text-[11.5px] leading-relaxed text-[var(--ink-3)]">
                                     {say("spineFixedFee", { amount: money(sellerFee.fixed, sellerFee.currency) },
-                                        `Plus ${money(sellerFee.fixed, sellerFee.currency)} per sale to Cobuntu. Stripe's processing comes out of Cobuntu's fee, so it is not charged separately.`)}
+                                        `Plus ${money(sellerFee.fixed, sellerFee.currency)} per sale to Cobuntu. Stripe's card processing is deducted from the seller's share too.`)}
                                 </p>
                             )}
                         </div>
@@ -424,8 +433,7 @@ function round(n: number): number {
 }
 
 /**
- * One real sale, split four ways in MAJOR units — and Stripe pulled out of
- * Cobuntu's fee into its own line.
+ * One real sale, split four ways in MAJOR units, Stripe on its own line.
  *
  * Why euros, not percent: both Cobuntu's seller fee and Stripe carry a flat
  * per-sale charge, and flat charges do not add up as percentages across sale
@@ -434,10 +442,10 @@ function round(n: number): number {
  *   commission        = price × rate
  *   community keeps    = commission − Cobuntu's platformShare OF it
  *   host's share       = price − commission
- *   Cobuntu's all-in seller fee comes off the host's share; STRIPE comes out of
- *   that fee, so Cobuntu's own line is its take on both sides MINUS what Stripe
- *   actually costs. Clamped at zero: a tiny sale where Stripe exceeds the fee is
- *   a real loss to Cobuntu, not a negative row.
+ *   Cobuntu's seller fee AND Stripe's processing both come off the host's
+ *   share, and Cobuntu keeps its whole fee (Cobuntu Premium Phase 3: the fee is
+ *   no longer all-in). It used to pay Stripe out of the fee, so this line was
+ *   its take MINUS Stripe. A Premium seller's fee is { rate: 0, fixed: 0 }.
  */
 export function euroSplit(
     price: number,
@@ -451,9 +459,9 @@ export function euroSplit(
     const communityNet = commission - cobuntuOfCommission;
     const hostShare = price - commission;
     const sellerFeeAmt = sellerFee ? hostShare * sellerFee.rate + sellerFee.fixed / 100 : 0;
-    const hostKeeps = hostShare - sellerFeeAmt;
     const stripeAmt = stripe ? price * stripe.rate + stripe.fixed / 100 : 0;
-    const cobuntuNet = Math.max(0, cobuntuOfCommission + sellerFeeAmt - stripeAmt);
+    const hostKeeps = hostShare - sellerFeeAmt - stripeAmt;
+    const cobuntuNet = cobuntuOfCommission + sellerFeeAmt;
     return { hostKeeps, communityNet, cobuntuNet, stripeAmt };
 }
 

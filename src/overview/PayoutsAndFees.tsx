@@ -204,10 +204,10 @@ export function PayoutsAndFees({
             ? [{ key: "vat", label: t("feesVat"), amount: b.vat, display: cash(b.vat), swatch: "bg-zinc-300" }]
             : []),
         /*
-         * The real amount, always -- on a member sale Cobuntu PAYS this out
-         * of the `cobuntu` fee above rather than deducting it from the
-         * seller separately, but that's a question of who settles it, not
-         * whether it happened. `b.stripe`/`b.cobuntu` are already decomposed
+         * The real amount, always. On a member sale booked before Cobuntu
+         * Premium Phase 3 (all-in fee) Cobuntu PAID this out of the `cobuntu`
+         * fee above; since Phase 3 the seller's share pays it on top. Either
+         * way that is who settles it, not whether it happened. `b.stripe`/`b.cobuntu` are already decomposed
          * server-side (see OverviewService) so the two bars sum back to the
          * same all-in total either way; showing Stripe as "covered" with no
          * width hid a real cost rather than explaining who carries it.

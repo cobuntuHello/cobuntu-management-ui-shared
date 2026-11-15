@@ -17,7 +17,7 @@ describe("PackagePicker — the platform fee is never conditional on a community
     render(<PackagePicker packages={[]} value={null} onChange={vi.fn()} platformFee={platformFee} />);
 
     expect(screen.getByText(/hasn.t published any arrangements/)).toBeInTheDocument();
-    expect(screen.getByText("Card processing")).toBeInTheDocument();
+    expect(screen.getByText("Card processing (estimate)")).toBeInTheDocument();
     expect(screen.getByText("Cobuntu")).toBeInTheDocument();
     expect(screen.getByText("1.5% + €0.25")).toBeInTheDocument();
     expect(screen.getByText("2.5% + €0.05")).toBeInTheDocument();
@@ -34,7 +34,7 @@ describe("PackagePicker — the platform fee is never conditional on a community
     );
 
     expect(screen.getByText("Standard")).toBeInTheDocument();
-    expect(screen.getByText("Card processing")).toBeInTheDocument();
+    expect(screen.getByText("Card processing (estimate)")).toBeInTheDocument();
     // "Cobuntu" now legitimately appears twice: once in the split legend,
     // once in the itemized breakdown row.
     expect(screen.getAllByText("Cobuntu").length).toBeGreaterThan(0);
@@ -138,12 +138,13 @@ describe("PackagePicker — approval status, shown before the fees", () => {
 
 /**
  * The member fee in the currency the item is priced in (multi-currency MC3c,
- * decision MC-D7): its fixed part is about EUR 0.30 set per currency, so a
- * seller pricing in pounds or yen reads the amount they are actually charged,
- * in that currency's own units.
+ * decision MC-D7; Cobuntu Premium Phase 3): Cobuntu's 2.5% plus a fixed part
+ * of about EUR 0.05 set per currency, and Stripe's estimate ON TOP, so a seller
+ * pricing in pounds or yen reads what they are actually charged, in that
+ * currency's own units.
  */
 describe("PackagePicker — the fee in the item's currency", () => {
-  it("states a pound item's fee in pence: 4% + £0.25, of which Stripe 1.5% + £0.20", () => {
+  it("states a pound item's fee in pence: Cobuntu 2.5% + £0.05, Stripe 1.5% + £0.20 on top", () => {
     render(<PackagePicker packages={[]} value={null} onChange={vi.fn()} platformFee={memberFeeFor("GBP")} />);
 
     expect(screen.getByText("1.5% + £0.20")).toBeInTheDocument();
@@ -155,10 +156,10 @@ describe("PackagePicker — the fee in the item's currency", () => {
     render(<PackagePicker packages={[]} value={null} onChange={vi.fn()} platformFee={memberFeeFor("jpy")} />);
 
     expect(screen.getByText("1.5% + ¥45")).toBeInTheDocument();
-    expect(screen.getByText("2.5% + ¥5")).toBeInTheDocument();
+    expect(screen.getByText("2.5% + ¥10")).toBeInTheDocument();
   });
 
-  it("reads a euro item exactly as the euro constants always did", () => {
+  it("states a euro item as the backend charges it: 2.5% + €0.05, Stripe on top", () => {
     render(<PackagePicker packages={[]} value={null} onChange={vi.fn()} platformFee={memberFeeFor("EUR")} />);
 
     expect(screen.getByText("1.5% + €0.25")).toBeInTheDocument();
@@ -166,12 +167,65 @@ describe("PackagePicker — the fee in the item's currency", () => {
   });
 });
 
+/**
+ * Cobuntu Premium Phase 3: the fee is no longer all-in. Stripe comes off the
+ * seller's share ON TOP of Cobuntu's fee, so "you keep" subtracts both, each
+ * against its own base (Cobuntu's of the seller's share, Stripe's of the sale),
+ * and a Premium seller pays Cobuntu nothing.
+ */
+describe("PackagePicker — Stripe on top of Cobuntu's fee (Premium Phase 3)", () => {
+  const one = [{ id: "p1", name: "Standard", rate: 10 }];
+
+  it("subtracts Cobuntu's fee on the seller's share and Stripe on the sale", () => {
+    render(<PackagePicker packages={one} value="p1" onChange={vi.fn()} platformFee={memberFeeFor("EUR")} />);
+    // (100 - 10) x (1 - 2.5%) - 1.5 = 86.25, shown as 86.3.
+    expect(screen.getByText("86.3%")).toBeInTheDocument();
+    expect(screen.getByText("2.5% + €0.05")).toBeInTheDocument();
+    expect(screen.getByText("1.5% + €0.25")).toBeInTheDocument();
+    // Card processing is its own band and legend entry, not inside Cobuntu's.
+    expect(screen.getAllByText("Card processing (estimate)").length).toBe(2);
+  });
+
+  it("says a Premium seller pays Cobuntu nothing, and still shows Stripe", () => {
+    render(<PackagePicker packages={one} value="p1" onChange={vi.fn()} platformFee={memberFeeFor("EUR", { premium: true })} />);
+    // 100 - 10 - 0 - 1.5.
+    expect(screen.getByText("88.5%")).toBeInTheDocument();
+    expect(screen.getByText("No fee with Premium")).toBeInTheDocument();
+    expect(screen.getByText("1.5% + €0.25")).toBeInTheDocument();
+    expect(screen.queryByText(/0% \+ €0\.00/)).not.toBeInTheDocument();
+  });
+
+  it("keeps an all-in caller (no processingOnTop) exactly as it rendered before", () => {
+    render(
+      <PackagePicker
+        packages={one}
+        value="p1"
+        onChange={vi.fn()}
+        platformFee={{ rate: 4, fixedCents: 30, processing: { rate: 1.5, fixedCents: 25 } }}
+      />,
+    );
+    expect(screen.getByText("86%")).toBeInTheDocument();
+    expect(screen.getByText("2.5% + €0.05")).toBeInTheDocument();
+  });
+});
+
 describe("memberFeeFor and formatFixedFee", () => {
   it("mirror the backend's per-currency amounts, and fall back to the euro's", () => {
-    expect(memberFeeFor("GBP")).toEqual({ rate: 4, fixedCents: 25, currency: "GBP", processing: { rate: 1.5, fixedCents: 20 } });
-    expect(memberFeeFor("KRW")).toMatchObject({ fixedCents: 450, currency: "KRW" });
-    expect(memberFeeFor(null)).toEqual({ rate: 4, fixedCents: 30, currency: "EUR", processing: { rate: 1.5, fixedCents: 25 } });
-    expect(memberFeeFor("XYZ")).toMatchObject({ fixedCents: 30, currency: "EUR" });
+    expect(memberFeeFor("GBP")).toEqual({
+      rate: 2.5, fixedCents: 5, currency: "GBP", processing: { rate: 1.5, fixedCents: 20 }, processingOnTop: true, premium: false,
+    });
+    expect(memberFeeFor("KRW")).toMatchObject({ fixedCents: 80, currency: "KRW" });
+    expect(memberFeeFor("JPY")).toMatchObject({ fixedCents: 10, currency: "JPY", processing: { rate: 1.5, fixedCents: 45 } });
+    expect(memberFeeFor(null)).toEqual({
+      rate: 2.5, fixedCents: 5, currency: "EUR", processing: { rate: 1.5, fixedCents: 25 }, processingOnTop: true, premium: false,
+    });
+    expect(memberFeeFor("XYZ")).toMatchObject({ fixedCents: 5, currency: "EUR" });
+  });
+
+  it("charges a Premium seller no Cobuntu fee, Stripe's estimate unchanged", () => {
+    expect(memberFeeFor("GBP", { premium: true })).toEqual({
+      rate: 0, fixedCents: 0, currency: "GBP", processing: { rate: 1.5, fixedCents: 20 }, processingOnTop: true, premium: true,
+    });
   });
 
   it("formats each currency in its own units", () => {

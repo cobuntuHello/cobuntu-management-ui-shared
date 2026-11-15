@@ -106,10 +106,14 @@ describe("OfferedPackages", () => {
     });
 });
 
-/** PBN's real shape: 5% of the commission, 4% + EUR 0.30 on the seller. */
+/**
+ * PBN's real shape: 5% of the commission, 2.5% + EUR 0.05 on the seller, and
+ * Stripe's 1.5% + EUR 0.25 on top of it, off the seller's share too (Cobuntu
+ * Premium Phase 3; it was 4% + EUR 0.30 all-in, Stripe paid out of it).
+ */
 const FEES = {
     platformShare: 5,
-    sellerFee: { rate: 0.04, fixed: 30 },
+    sellerFee: { rate: 0.025, fixed: 5 },
     stripeRate: 0.015,
     stripeFixed: 25,
 };
@@ -219,7 +223,7 @@ describe("what the card shows", () => {
         await showNumbers({ ...base, ...price, viewer: "leader" });
         expect(
             screen.getAllByText(
-                /PBN charges 8%\. Cobuntu takes 5% of that, plus 4% \+ €0\.30 of Drew Milligan's share, and pays Stripe out of it\./,
+                /PBN charges 8%\. Cobuntu takes 5% of that, plus 2\.5% \+ €0\.05 of Drew Milligan's share\. Stripe's card processing is deducted from Drew Milligan's share too\./,
             ).length,
         ).toBe(1);
         /*
@@ -235,21 +239,22 @@ describe("what the card shows", () => {
         await showNumbers({ ...base, ...price, viewer: "leader" });
         const minus = MINUS;
         // The three parties that TAKE money each show a minus...
-        for (const amount of [`${minus}€1.90`, `${minus}€0.70`, `${minus}€0.62`]) {
+        for (const amount of [`${minus}€1.90`, `${minus}€0.73`, `${minus}€0.62`]) {
             expect(screen.getAllByText(amount).length).toBeGreaterThan(0);
         }
         // ...and the two that are not deductions do not.
-        // Once: the seller's share differs per package (21.78 / 20.10 / 18.42).
-        expect(screen.getAllByText("€21.78").length).toBe(1); // seller keeps
+        // Once: the seller's share differs per package (21.75 / 20.04 / 18.34).
+        expect(screen.getAllByText("€21.75").length).toBe(1); // seller keeps
         // Three times: the ticket is the same sale whichever package is picked.
         expect(screen.getAllByText("€25.00").length).toBe(1); // ticket price
-        expect(screen.queryByText(`${minus}€21.78`)).toBeNull();
+        expect(screen.queryByText(`${minus}€21.75`)).toBeNull();
         expect(screen.queryByText(`${minus}€25.00`)).toBeNull();
     });
 
     /*
-     * Cobuntu's member-seller fee is ALL-IN (feeConstants: "Stripe's processing
-     * comes out of it"), so card processing used to be real money with no row.
+     * Card processing used to be real money with no row, folded inside
+     * Cobuntu's all-in fee. Since Premium Phase 3 it is a separate charge on
+     * the seller's share, so it has to be its own line.
      */
     it("gives Stripe its own line", async () => {
         await showNumbers({ ...base, ...price, viewer: "leader" });
@@ -262,11 +267,13 @@ describe("what the card shows", () => {
         expect(screen.getAllByText("€25.00").length).toBe(1);
     });
 
-    it("falls back to percentages when no price is known", async () => {
+    it("falls back to percentages when no price is known, Stripe its own share", async () => {
         await showNumbers({ ...base, viewer: "leader" });
         expect(screen.queryByText("Ticket price")).toBeNull();
-        expect(screen.queryByText("Stripe (card processing)")).toBeNull();
-        expect(screen.getAllByText("88.3%").length).toBe(1);
+        // 8% commission: 92 - 2.5% of 92 (Cobuntu) - 1.5 (Stripe) = 88.2.
+        expect(screen.getAllByText("88.2%").length).toBe(1);
+        expect(screen.getByText(/Stripe \(card processing\)/)).toBeInTheDocument();
+        expect(screen.getAllByText("1.5%").length).toBe(1);
     });
 
     it("still names the floor package, which bills whether or not terms are set", async () => {
@@ -333,7 +340,7 @@ describe("the party marks", () => {
         expect(screen.getAllByText("Cobuntu").length).toBe(1);
         // ...and the two carry different amounts, i.e. one is not folded into
         // the other behind a single figure.
-        expect(screen.getAllByText(`${MINUS}€0.70`).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(`${MINUS}€0.73`).length).toBeGreaterThan(0);
         expect(screen.getAllByText(`${MINUS}€0.62`).length).toBeGreaterThan(0);
     });
 });
@@ -361,9 +368,9 @@ describe("the share column", () => {
         // matches, so pick out the row shares by the amounts they must equal.
         const expected = [
             (1.9 / 25) * 100,   // community, net of Cobuntu's share of the commission
-            (0.7 / 25) * 100,   // Cobuntu
-            (0.62 / 25) * 100,  // Stripe
-            (21.78 / 25) * 100, // the seller
+            (0.73 / 25) * 100,  // Cobuntu, its whole fee (Stripe no longer paid out of it)
+            (0.62 / 25) * 100,  // Stripe, off the seller's share
+            (21.75 / 25) * 100, // the seller
         ].map((n) => Math.round(n * 10) / 10);
         for (const pct of expected) expect(shares).toContain(pct);
         expect(expected.reduce((a, b) => a + b, 0)).toBeCloseTo(100, 1);

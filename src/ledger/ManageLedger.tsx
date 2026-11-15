@@ -717,9 +717,10 @@ function BreakdownPanel({
                                         </tr>
                                     )}
                                     {/*
-                                      * The real amount, always -- even on a
-                                      * member sale where Cobuntu funds this
-                                      * out of its own fee rather than
+                                      * The real amount, always -- even on an
+                                      * all-in member sale (booked before
+                                      * Premium Phase 3), where Cobuntu funds
+                                      * this out of its own fee rather than
                                       * deducting it from the seller
                                       * separately. "Who pays it" and "what
                                       * it cost" are different questions; the

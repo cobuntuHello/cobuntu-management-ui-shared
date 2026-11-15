@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { DealSpine } from "../listings/ui/DealSpine";
+import { DealSpine, euroSplit, saleSplit } from "../listings/ui/DealSpine";
 import { NextAction } from "../listings/ui/NextAction";
 
 /**
@@ -247,14 +247,16 @@ describe("the commission split", () => {
 });
 
 /**
- * ── Every euro, with Stripe pulled out of Cobuntu's fee ─────────────────────
+ * ── Every euro, Stripe on its own line ──────────────────────────────────────
  *
  * Percentages cannot add up once Cobuntu's seller fee and Stripe both carry a
  * flat per-sale charge, so a real ticket price renders the four-way split in
  * euros instead: host / community / Cobuntu / Stripe, Stripe on its own line.
+ * Since Cobuntu Premium Phase 3 the host's share pays Stripe on top of
+ * Cobuntu's 2.5% + EUR 0.05, and Cobuntu keeps its whole fee.
  */
 describe("the euro breakdown", () => {
-    const sellerFee = { rate: 0.04, fixed: 30 };
+    const sellerFee = { rate: 0.025, fixed: 5 };
     const stripe = { stripeRate: 0.015, stripeFixed: 25 };
 
     it("splits a real ticket four ways, Stripe separate from Cobuntu", () => {
@@ -270,10 +272,12 @@ describe("the euro breakdown", () => {
             />,
         );
         expect(screen.getByText(/On a €5\.00 ticket/)).toBeInTheDocument();
-        expect(share("Host keeps")).toMatch(/€4\.12/);
+        // €4.60 share - €0.165 Cobuntu fee - €0.325 Stripe.
+        expect(share("Host keeps")).toMatch(/€4\.11/);
         expect(share("PBN (net commission)")).toMatch(/€0\.38/);
-        // Named after COBUNTU here (the fee is Cobuntu's), not PBN.
-        expect(share("Cobuntu (platform fee)")).toMatch(/€0\.18/);
+        // Named after COBUNTU here (the fee is Cobuntu's), not PBN: its €0.02 of
+        // the commission plus its whole €0.165 fee, Stripe no longer paid out of it.
+        expect(share("Cobuntu (platform fee)")).toMatch(/€0\.19/);
         expect(share("Stripe (card processing)")).toMatch(/€0\.33/);
         // The ticket row is the real price, not a resum of the (independently
         // rounded) rows above it — those can be a cent off the total, which is
@@ -285,5 +289,37 @@ describe("the euro breakdown", () => {
         render(<DealSpine rate={8} communityName="PBN" platformShare={5} sellerFee={sellerFee} {...stripe} />);
         expect(screen.queryByText(/On a .* ticket/)).toBeNull();
         expect(screen.getByText("Every sale, split")).toBeInTheDocument();
+    });
+
+    it("draws Stripe as its own share of the sale, off the seller's", () => {
+        render(<DealSpine rate={8} communityName="PBN" platformShare={5} sellerFee={sellerFee} {...stripe} />);
+        // 92% share - 2.5% of it (2.3) - Stripe's 1.5 = 88.2.
+        expect(share("You keep")).toBe("88.2%");
+        expect(share("Stripe (card processing)")).toBe("1.5%");
+        expect(screen.getByText(/Stripe's card processing is deducted from the seller's share too/)).toBeInTheDocument();
+    });
+
+    it("shows a Premium seller no Cobuntu fee, only Stripe", () => {
+        render(<DealSpine rate={8} communityName="PBN" platformShare={5} sellerFee={{ rate: 0, fixed: 0 }} {...stripe} />);
+        // 92 - 1.5; Cobuntu keeps only its 0.4 of the commission.
+        expect(share("You keep")).toBe("90.5%");
+        expect(share("Cobuntu")).toBe("0.4%");
+        expect(screen.queryByText(/per sale to Cobuntu/)).toBeNull();
+    });
+});
+
+describe("saleSplit and euroSplit (Premium Phase 3)", () => {
+    it("takes Stripe off the seller's share, never out of Cobuntu's fee", () => {
+        const e = euroSplit(25, 8, 5, { rate: 0.025, fixed: 5 }, { rate: 0.015, fixed: 25 });
+        expect(e.cobuntuNet).toBeCloseTo(0.1 + 0.625, 10); // its share of the commission + its whole fee
+        expect(e.hostKeeps).toBeCloseTo(23 - 0.625 - 0.625, 10);
+        expect(e.hostKeeps + e.communityNet + e.cobuntuNet + e.stripeAmt).toBeCloseTo(25, 10);
+        expect(saleSplit(8, 5, { rate: 0.025, fixed: 5 }, 0.015)).toEqual({
+            sellerOfSale: 88.2, communityOfSale: 7.6, platformOfSale: 2.7, stripeOfSale: 1.5,
+        });
+    });
+
+    it("leaves the split as it was when Stripe's rate is not given", () => {
+        expect(saleSplit(10, 10, null)).toEqual({ sellerOfSale: 90, communityOfSale: 9, platformOfSale: 1, stripeOfSale: 0 });
     });
 });
