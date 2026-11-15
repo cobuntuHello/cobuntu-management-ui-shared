@@ -504,7 +504,7 @@ describe("asking a community to carry it", () => {
     it("states the limit instead, once something carries it", () => {
         renderIt(stats({ listings: [listing({ communityName: "Coimbra Connect" })] }), { requestOn });
         expect(screen.queryByText(/Ask Coimbra Connect/)).not.toBeInTheDocument();
-        expect(screen.getByText(/carried by one community for now/)).toBeInTheDocument();
+        expect(screen.getByText(/carried by one community at a time/)).toBeInTheDocument();
     });
 
     /*
@@ -519,6 +519,62 @@ describe("asking a community to carry it", () => {
     it("offers nothing when the host passes no community", () => {
         renderIt(stats({ listings: [] }));
         expect(screen.queryByText(/to carry it/)).not.toBeInTheDocument();
+    });
+});
+
+/**
+ * Premium multi-community: a Premium member's own item (`mayCarryMany`, the
+ * server's own gate) may be carried by several communities, so a community
+ * that does not carry it yet is offered on its own site. Everyone else keeps
+ * the one-community limit, stated, with nothing to press.
+ */
+describe("a Premium member's item carried elsewhere", () => {
+    const here = { name: "Coimbra Connect", communityTag: "coimbra", onRequest: () => {} };
+    const elsewhere = [listing({ communityName: "Porto Business Network", communityTag: "pbn" })];
+
+    it("offers this community too, and does not state the limit", () => {
+        renderIt(stats({ listings: elsewhere, mayCarryMany: true }), { requestOn: here });
+        expect(screen.getByText("Coimbra Connect doesn't carry this yet")).toBeInTheDocument();
+        expect(screen.getByText("Ask Coimbra Connect to carry it")).toBeInTheDocument();
+        expect(screen.queryByText(/one community at a time/)).not.toBeInTheDocument();
+    });
+
+    it("asks this community when the button is pressed", () => {
+        const onRequest = vi.fn();
+        renderIt(stats({ listings: elsewhere, mayCarryMany: true }), { requestOn: { ...here, onRequest } });
+        fireEvent.click(screen.getByText("Ask Coimbra Connect to carry it"));
+        expect(onRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(["ACTIVE", "PENDING", "PAUSED", "CANCELLED"])(
+        "offers nothing when this community already has a %s row",
+        (status) => {
+            renderIt(stats({
+                listings: [...elsewhere, listing({ listingId: "l2", communityTag: "Coimbra", status })],
+                mayCarryMany: true,
+            }), { requestOn: here });
+            expect(screen.queryByText(/Ask Coimbra Connect/)).not.toBeInTheDocument();
+            expect(screen.queryByText(/one community at a time/)).not.toBeInTheDocument();
+        },
+    );
+
+    it("offers nothing without this community's tag, since it cannot rule out a duplicate", () => {
+        renderIt(stats({ listings: elsewhere, mayCarryMany: true }), {
+            requestOn: { name: "Coimbra Connect", onRequest: () => {} },
+        });
+        expect(screen.queryByText(/Ask Coimbra Connect/)).not.toBeInTheDocument();
+    });
+
+    it("keeps the one-community limit for anyone else, mentioning Premium", () => {
+        renderIt(stats({ listings: elsewhere, mayCarryMany: false }), { requestOn: here });
+        expect(screen.queryByText(/Ask Coimbra Connect/)).not.toBeInTheDocument();
+        expect(screen.getByText(/With Premium you can list it in several/)).toBeInTheDocument();
+    });
+
+    it("treats an older backend without the field as the one-community rule", () => {
+        renderIt(stats({ listings: elsewhere }), { requestOn: here });
+        expect(screen.queryByText(/Ask Coimbra Connect/)).not.toBeInTheDocument();
+        expect(screen.getByText(/one community at a time/)).toBeInTheDocument();
     });
 });
 
