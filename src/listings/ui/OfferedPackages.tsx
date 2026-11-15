@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { ActionModalShell } from "../../ui/ActionModalShell";
 import { listingTokenStyle } from "./tokens";
 import { Card } from "./primitives";
-import { saleSplit, euroSplit, money, allocateCents } from "./DealSpine";
+import { saleSplit, euroSplit, money, allocateCents, minorUnitsPerMajor } from "./DealSpine";
 import { CobuntuMark, StripeMark, SaleMark } from "./marks";
 
 /**
@@ -340,6 +340,7 @@ export function OfferedPackages({
                                         ? euroSplit(
                                               samplePrice!, rate, platformShare, sellerFee,
                                               stripeRate != null ? { rate: stripeRate, fixed: stripeFixed ?? 0 } : null,
+                                              cur,
                                           )
                                         : null;
                                     /*
@@ -350,7 +351,7 @@ export function OfferedPackages({
                                      * only the second one belongs in the money column.
                                      */
                                     const destination = e
-                                        ? allocateCents(samplePrice! - e.hostKeeps, [e.communityNet, e.cobuntuNet, e.stripeAmt])
+                                        ? allocateCents(samplePrice! - e.hostKeeps, [e.communityNet, e.cobuntuNet, e.stripeAmt], cur)
                                         : [0, 0, 0];
                                     /*
                                      * The seller's line is the ticket MINUS the rows above it, not
@@ -377,9 +378,9 @@ export function OfferedPackages({
                                      * "8%" ended up next to EUR 0.38.
                                      */
                                     const shareOf = (c: number) =>
-                                        samplePrice ? `${round((c / Math.round(samplePrice * 100)) * 100)}%` : undefined;
+                                        samplePrice ? `${round((c / Math.round(samplePrice * minorUnitsPerMajor(cur))) * 100)}%` : undefined;
                                     const sellerCents = e
-                                        ? Math.round(samplePrice! * 100) - destination.reduce((a, b) => a + b, 0)
+                                        ? Math.round(samplePrice! * minorUnitsPerMajor(cur)) - destination.reduce((a, b) => a + b, 0)
                                         : 0;
 
                                     const s = saleSplit(rate, platformShare, sellerFee, stripeRate);
@@ -459,7 +460,7 @@ export function OfferedPackages({
                                                         <Line
                                                             icon={<SaleMark kind={kind} />}
                                                             name={label("offerTicketTotal", "Ticket price")}
-                                                            amount={money(Math.round(samplePrice! * 100), cur)}
+                                                            amount={money(Math.round(samplePrice! * minorUnitsPerMajor(cur)), cur)}
                                                             muted
                                                         />
                                                         {/*

@@ -153,15 +153,16 @@ export function DealSpine({
     const communityNetCommission = shown - cobuntuOfCommission;
     const naiveWrong = Math.max(0, round(shown - platformShare));
     const platformLabel = communityName.trim().toLowerCase() === "cobuntu" ? "Platform" : "Cobuntu";
-    /* The real euros, four ways, Stripe its own line — only with a price to work. */
+    /* The real money, four ways, Stripe its own line — only with a price to work. */
+    const cur = sampleCurrency || sellerFee?.currency || "EUR";
     const euro = (rate !== null && rate > 0 && samplePrice && samplePrice > 0)
         ? euroSplit(
               samplePrice, shown, platformShare, sellerFee,
               stripeRate != null ? { rate: stripeRate, fixed: stripeFixed ?? 0 } : null,
+              cur,
           )
         : null;
-    const cur = sampleCurrency || sellerFee?.currency || "EUR";
-    const eur = (major: number) => money(Math.round(major * 100), cur);
+    const eur = (major: number) => money(Math.round(major * minorUnitsPerMajor(cur)), cur);
     const euroRows = euro
         ? [
               { key: "host", amt: euro.hostKeeps, color: "var(--b-keep)", name: label("spineHostKeeps", "Host keeps") },
@@ -393,9 +394,24 @@ export function DealSpine({
     );
 }
 
-/** The smallest unit, as money. Amounts here are cents, as everywhere. */
+/**
+ * Smallest units in one whole unit of `currency`: 100 for euro cents, 1 for yen
+ * and won, which have no minor unit (Intl's own count of decimals). Every
+ * conversion on these cards goes through it: a fixed 100 read a yen sample
+ * price, and the fixed fee parts beside it, a hundred times too small.
+ */
+export function minorUnitsPerMajor(currency = "EUR"): number {
+    try {
+        const digits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits;
+        return 10 ** (digits ?? 2);
+    } catch {
+        return 100;
+    }
+}
+
+/** The smallest unit (cents, pence, whole yen), as money in its own currency. */
 export function money(amount: number, currency = "EUR"): string {
-    return new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(amount / 100);
+    return new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(amount / minorUnitsPerMajor(currency));
 }
 
 /**
@@ -412,9 +428,10 @@ export function money(amount: number, currency = "EUR"): string {
  * rows with the biggest discarded fraction, which keeps each row within a cent
  * of its true value and the sum exact.
  */
-export function allocateCents(totalMajor: number, partsMajor: number[]): number[] {
-    const total = Math.round(totalMajor * 100);
-    const exact = partsMajor.map((p) => p * 100);
+export function allocateCents(totalMajor: number, partsMajor: number[], currency = "EUR"): number[] {
+    const unit = minorUnitsPerMajor(currency);
+    const total = Math.round(totalMajor * unit);
+    const exact = partsMajor.map((p) => p * unit);
     const floors = exact.map((c) => Math.floor(c));
     let left = total - floors.reduce((a, b) => a + b, 0);
     const order = exact
@@ -453,13 +470,16 @@ export function euroSplit(
     platformShare: number,
     sellerFee: { rate: number; fixed: number; currency?: string } | null,
     stripe: { rate: number; fixed: number } | null,
+    /** The price's currency; the fixed parts are in its smallest unit. */
+    currency: string = sellerFee?.currency || "EUR",
 ): { hostKeeps: number; communityNet: number; cobuntuNet: number; stripeAmt: number } {
+    const unit = minorUnitsPerMajor(currency);
     const commission = price * (rate / 100);
     const cobuntuOfCommission = commission * (platformShare / 100);
     const communityNet = commission - cobuntuOfCommission;
     const hostShare = price - commission;
-    const sellerFeeAmt = sellerFee ? hostShare * sellerFee.rate + sellerFee.fixed / 100 : 0;
-    const stripeAmt = stripe ? price * stripe.rate + stripe.fixed / 100 : 0;
+    const sellerFeeAmt = sellerFee ? hostShare * sellerFee.rate + sellerFee.fixed / unit : 0;
+    const stripeAmt = stripe ? price * stripe.rate + stripe.fixed / unit : 0;
     const hostKeeps = hostShare - sellerFeeAmt - stripeAmt;
     const cobuntuNet = cobuntuOfCommission + sellerFeeAmt;
     return { hostKeeps, communityNet, cobuntuNet, stripeAmt };
