@@ -403,3 +403,21 @@ export {
   richTextToPlain,
   type MentionPerson,
 } from "./editor/richText";
+
+// The photos of an event, a product or a course: drop area, upload modal,
+// framing each photo, reorder, re-frame, replace, remove (MediaManager.tsx).
+export {
+  MediaManager,
+  type ManagedMedia,
+  type FramedPhoto,
+  type MediaRules,
+  type MediaManagerProps,
+} from "./media/MediaManager";
+export {
+  hasAiGeneratedLabel,
+  fileHasAiGeneratedLabel,
+  framedSize,
+  frameToDataUrl,
+  dataUrlToFile,
+  type FrameArea,
+} from "./media/mediaFrame";
