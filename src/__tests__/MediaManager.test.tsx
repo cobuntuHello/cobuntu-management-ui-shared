@@ -76,7 +76,10 @@ describe("MediaManager", () => {
     expect(screen.getByTestId("cropper").getAttribute("data-aspect")).toBe("1");
     fireEvent.click(screen.getByRole("button", { name: "Use and next" }));
     expect(await screen.findByText("2 of 2")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Use photo" }));
+    // The new frame reports its size after it mounts; Use waits for it.
+    const use = screen.getByRole("button", { name: "Use photo" }) as HTMLButtonElement;
+    await waitFor(() => expect(use.disabled).toBe(false));
+    fireEvent.click(use);
     await waitFor(() => expect(commit).toHaveBeenCalledTimes(2));
     expect(commit.mock.calls[0][0]).toMatchObject({ width: 1500, height: 1500, confirmed: true, source: "data:image/png;base64,a.jpg" });
     await waitFor(() => expect(onChange.mock.calls.at(-1)![0]).toHaveLength(2));
