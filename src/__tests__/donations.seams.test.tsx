@@ -120,13 +120,17 @@ describe("HelpTip — rebuilt without radix", () => {
    * would push it onto every consumer of shared to render one tooltip. So the
    * behaviours Radix provided are asserted here by hand.
    */
-  const openSection = () =>
-    render(
+  const openSection = () => {
+    const r = render(
       <DonationsSection
         donation={draft()} onUpdate={vi.fn()} defaultCurrency="EUR"
         symbolFor={(c) => c} tierNoun="variant"
       />,
     );
+    // On, the row shows a summary first (approved redesign): Edit opens the settings.
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    return r;
+  };
 
   it("is closed until asked, then shows the explainer", async () => {
     const user = userEvent.setup();
