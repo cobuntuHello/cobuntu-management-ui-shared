@@ -54,4 +54,13 @@ export interface DiscountCodeDraft {
 }
 
 /** A tier the code may cover, for the editor's "Tickets" choice. */
-export interface DiscountTierOption { id: string; name: string }
+export interface DiscountTierOption {
+  id: string;
+  name: string;
+  /**
+   * The tier's own currency, when it can differ from the item's (an event's
+   * tiers each sell in their own). An amount off is in this currency, so the
+   * editor reads it from the tiers the code covers.
+   */
+  currency?: string;
+}
