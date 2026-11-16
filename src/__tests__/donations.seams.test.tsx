@@ -18,7 +18,7 @@ import * as React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { DonationsField, DonationsSection } from "../donations";
+import { DonationsField, DonationsHeading, DonationsSection } from "../donations";
 import type { DonationDraft } from "../donations";
 
 afterEach(() => cleanup());
@@ -75,23 +75,14 @@ describe("seam 2 — the tier noun is the caller's word", () => {
    * copies said it anyway.
    */
   it("says 'ticket tier' for events", () => {
-    render(
-      <DonationsSection
-        donation={draft({ enabled: false })} onUpdate={vi.fn()} defaultCurrency="EUR"
-        symbolFor={(c) => c} tierNoun="ticket tier"
-      />,
-    );
+    // The explainer sits under the section heading now (approved redesign, 2026-11-16).
+    render(<DonationsHeading tierNoun="ticket tier" />);
     expect(screen.getByText(/no matter which ticket tier they pick/i)).toBeInTheDocument();
     expect(screen.queryByText(/variant/i)).not.toBeInTheDocument();
   });
 
   it("says 'variant' for products", () => {
-    render(
-      <DonationsSection
-        donation={draft({ enabled: false })} onUpdate={vi.fn()} defaultCurrency="EUR"
-        symbolFor={(c) => c} tierNoun="variant"
-      />,
-    );
+    render(<DonationsHeading tierNoun="variant" />);
     expect(screen.getByText(/no matter which variant they pick/i)).toBeInTheDocument();
     expect(screen.queryByText(/ticket tier/i)).not.toBeInTheDocument();
   });
@@ -129,13 +120,17 @@ describe("HelpTip — rebuilt without radix", () => {
    * would push it onto every consumer of shared to render one tooltip. So the
    * behaviours Radix provided are asserted here by hand.
    */
-  const openSection = () =>
-    render(
+  const openSection = () => {
+    const r = render(
       <DonationsSection
         donation={draft()} onUpdate={vi.fn()} defaultCurrency="EUR"
         symbolFor={(c) => c} tierNoun="variant"
       />,
     );
+    // On, the row shows a summary first (approved redesign): Edit opens the settings.
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    return r;
+  };
 
   it("is closed until asked, then shows the explainer", async () => {
     const user = userEvent.setup();
@@ -187,3 +182,34 @@ describe("HelpTip — rebuilt without radix", () => {
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 });
+
+describe("the Pricing row (approved redesign, 2026-11-16)", () => {
+  it("off: one plain row with its state and the switch, saying Donations once", () => {
+    render(
+      <DonationsSection donation={draft({ enabled: false })} onUpdate={vi.fn()} defaultCurrency="EUR" symbolFor={() => "€"} tierNoun="variant" />,
+    );
+    const row = screen.getByTestId("donations-row");
+    expect(row.textContent).toContain("Ask for donations");
+    expect(row.textContent).toContain("Off");
+    expect(screen.queryByText("Donations")).not.toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: /enable donations/i })).toBeInTheDocument();
+  });
+
+  it("on: says what buyers will see, with Edit", () => {
+    render(
+      <DonationsSection donation={draft({ enabled: true, mode: "fixed", amounts: ["5", "10", ""], label: "" })}
+        onUpdate={vi.fn()} defaultCurrency="EUR" symbolFor={() => "€"} tierNoun="variant" />,
+    );
+    expect(screen.getByTestId("donations-summary").textContent).toBe('€5€10Button: "Add a donation"');
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+  });
+
+  it("on with any amount: says so, with the minimum", () => {
+    render(
+      <DonationsSection donation={draft({ enabled: true, mode: "pwyw", minAmount: "3", label: "Support us" })}
+        onUpdate={vi.fn()} defaultCurrency="EUR" symbolFor={() => "€"} tierNoun="variant" />,
+    );
+    expect(screen.getByTestId("donations-summary").textContent).toBe('Any amount · min €3Button: "Support us"');
+  });
+});
+

@@ -1,9 +1,12 @@
 "use client";
 
+import * as React from "react";
+
 import { useSharedT } from "../i18n";
-import { HandCoins, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { resolveMoments, type DonationDraft, type DonationMoments, type SymbolFor } from "./types";
 import { Collapse, Eyebrow, Switch } from "./primitives";
+import { PricingSectionHeading } from "../ui/PricingSectionHeading";
 
 export interface DonationsSectionProps {
   donation: DonationDraft;
@@ -78,6 +81,22 @@ export function DonationsSection({
   };
   const onlyOne = moments.checkout !== moments.afterEvent;
 
+  /*
+   * The row (approved redesign, 2026-11-16): title, state and switch level,
+   * no grey box or icon tile. On, it says what buyers will see (the amounts
+   * or "any amount", and the button's text) with Edit, which opens the
+   * settings below. Switching on opens them straight away.
+   */
+  const [editing, setEditing] = React.useState(false);
+  const shownAmounts = donation.amounts.map((a) => a.trim()).filter((a) => a !== "" && Number(a) > 0);
+  const momentsLine = showMoments
+    ? (moments.checkout && moments.afterEvent ? t("summaryMomentsBoth") : moments.checkout ? t("summaryMomentsCheckout") : t("summaryMomentsAfter"))
+    : null;
+  const chips: string[] = donation.mode === "fixed"
+    ? shownAmounts.map((a) => `${sym}${a}`)
+    : [donation.minAmount && Number(donation.minAmount) > 0 ? t("summaryAnyMin", { min: `${sym}${donation.minAmount}` }) : t("anyAmount")];
+  chips.push(t("buttonChip", { label: donation.label.trim() || t("defaultButtonLabel") }));
+
   const addAmount = () => onUpdate({ amounts: [...donation.amounts, ""] });
   const updateAmount = (idx: number, value: string) =>
     onUpdate({ amounts: donation.amounts.map((a, i) => (i === idx ? value : a)) });
@@ -92,26 +111,35 @@ export function DonationsSection({
       {/* Enable + intro. Suppressed when the caller owns the header — see
           `hideHeader`. */}
       {!hideHeader && (
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 h-9 w-9 shrink-0 rounded-xl bg-zinc-100 flex items-center justify-center text-zinc-500">
-          <HandCoins className="h-[18px] w-[18px]" />
+        <div className="flex items-start gap-4" data-testid="donations-row">
+          <div className="min-w-0 flex-1">
+            <p className="text-[14px] font-semibold text-zinc-900">{t("askForDonations")}</p>
+            {!donation.enabled && <p className="mt-0.5 text-[12.5px] text-zinc-500">{t("off")}</p>}
+            {donation.enabled && !editing && (
+              <>
+                {momentsLine && <p className="mt-0.5 text-[12.5px] text-zinc-500">{momentsLine}</p>}
+                <div className="mt-2 flex flex-wrap gap-1.5" data-testid="donations-summary">
+                  {chips.map((c) => (
+                    <span key={c} className="rounded-full bg-zinc-100 px-2.5 py-1 text-[12px] font-medium text-zinc-700">{c}</span>
+                  ))}
+                </div>
+                <button type="button" onClick={() => setEditing(true)}
+                  className="mt-2 text-[13px] font-semibold text-zinc-900 underline underline-offset-[3px] cursor-pointer">
+                  {t("edit")}
+                </button>
+              </>
+            )}
+          </div>
+          <div className="pt-0.5">
+            <Switch checked={donation.enabled} onChange={(v) => { onUpdate({ enabled: v }); setEditing(v); }} label={t("enable")} />
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[14px] font-semibold text-zinc-900">{t("title")}</p>
-          <p className="text-[12px] text-zinc-500 mt-0.5 leading-snug">
-            {showMoments ? t("eventIntro") : t("sectionIntro", { tierNoun })}
-          </p>
-        </div>
-        <div className="pt-0.5">
-          <Switch checked={donation.enabled} onChange={(v) => onUpdate({ enabled: v })} label={t("enable")} />
-        </div>
-      </div>
       )}
 
       {/* With the header hidden the caller only mounts this when donations are
           already on, so the reveal has nothing left to animate — forcing it
           open avoids a collapsed-to-zero body on first paint. */}
-      <Collapse open={hideHeader || donation.enabled}>
+      <Collapse open={hideHeader || (donation.enabled && editing)}>
         {/* The top margin separates the body from the header; with no header
             the caller owns that spacing, so don't add it twice. */}
         <div className={`${hideHeader ? "" : "mt-5"} space-y-5`}>
@@ -240,8 +268,31 @@ export function DonationsSection({
               className="w-full mt-1.5 px-3 py-2 text-[13px] text-zinc-900 placeholder:text-zinc-400 border border-zinc-200 rounded-xl focus:outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-900/5"
             />
           </div>
+
+          {/* Back to the summary. The parent's own Save persists the changes. */}
+          {!hideHeader && (
+            <button type="button" onClick={() => setEditing(false)}
+              className="text-[13px] font-semibold text-zinc-900 underline underline-offset-[3px] cursor-pointer">
+              {t("done")}
+            </button>
+          )}
         </div>
       </Collapse>
     </div>
+  );
+}
+
+/**
+ * The Donations section's heading on an item's Pricing tab: the shared section
+ * heading with the translated title and the one sentence that used to sit in
+ * the row (approved redesign, 2026-11-16: say "Donations" once).
+ */
+export function DonationsHeading({ tierNoun, showMoments = false }: { tierNoun: string; showMoments?: boolean }) {
+  const t = useSharedT("shared.managementUi.donations");
+  return (
+    <PricingSectionHeading
+      title={t("title")}
+      description={showMoments ? t("eventIntro") : t("sectionIntro", { tierNoun })}
+    />
   );
 }

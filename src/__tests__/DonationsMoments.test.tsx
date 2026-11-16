@@ -11,7 +11,7 @@
 
 import * as React from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DonationsField, DonationsSection, resolveMoments } from "../donations";
 import type { DonationDraft, DonationReceive } from "../donations";
@@ -45,6 +45,8 @@ function section(over: Partial<DonationDraft> = {}) {
       tierNoun="ticket tier" showMoments
     />,
   );
+  // On, the row shows a summary first (approved redesign): Edit opens the settings.
+  fireEvent.click(screen.getByRole("button", { name: "Edit" }));
   return { onUpdate, user: userEvent.setup() };
 }
 

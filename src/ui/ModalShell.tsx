@@ -43,6 +43,12 @@ export interface ModalShellProps {
   /** Click on backdrop dismisses; set false for forms that should require explicit close. */
   dismissOnBackdrop?: boolean;
   className?: string;
+  /**
+   * No line under the header, no line or tint over the footer: one surface.
+   * The house style for new dialogs (the discount code editor first); off by
+   * default so the 49 existing dialogs look exactly as before.
+   */
+  plain?: boolean;
 }
 
 export function ModalShell({
@@ -58,6 +64,7 @@ export function ModalShell({
   hideCloseButton = false,
   dismissOnBackdrop = true,
   className,
+  plain = false,
 }: ModalShellProps) {
   // Inside an embedding host's themed wrapper when it provides one.
   const portalTarget = usePortalTarget();
@@ -131,7 +138,7 @@ export function ModalShell({
       >
         {(title || headerExtra || !hideCloseButton) && (
           <header
-            className="flex items-start gap-3 px-6 pt-5 pb-4 border-b"
+            className={`flex items-start gap-3 px-6 pt-5 ${plain ? "pb-1" : "pb-4 border-b"}`}
             style={{ borderColor: "color-mix(in srgb, var(--text-color, #18181b) 10%, transparent)" }}
           >
             <div className="flex-1 min-w-0">
@@ -173,8 +180,8 @@ export function ModalShell({
 
         {footer && (
           <footer
-            className="px-6 py-4 border-t rounded-b-xl"
-            style={{
+            className={`px-6 py-4 rounded-b-xl ${plain ? "pt-2" : "border-t"}`}
+            style={plain ? undefined : {
               borderColor: "color-mix(in srgb, var(--text-color, #18181b) 10%, transparent)",
               background: "color-mix(in srgb, var(--text-color, #18181b) 3%, transparent)",
             }}
