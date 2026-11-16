@@ -74,7 +74,7 @@ describe("InviteReferrerModal", () => {
     await pickDrew();
     await userEvent.type(screen.getAllByPlaceholderText("10")[0]!, "10");
 
-    expect(screen.getAllByText(/€2\.20 to them per ticket/)[0]!).toBeInTheDocument();
+    expect(screen.getAllByText(/They earn €2\.20 per €22\.00 ticket/)[0]!).toBeInTheDocument();
   });
 
   it("rejects a rate of 0 or 100 and over", async () => {

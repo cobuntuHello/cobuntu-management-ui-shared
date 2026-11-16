@@ -140,6 +140,13 @@ export function InviteReferrerModal({
         ? formatMoney(Math.round(priceCents * (pctNumber / 100)), currency)
         : null;
 
+    const ink = "var(--text-color, #18181b)";
+    const muted = "color-mix(in srgb, var(--text-color, #18181b) 58%, transparent)";
+    const soft = "color-mix(in srgb, var(--text-color, #18181b) 7%, transparent)";
+    const label12 = "mb-1.5 block text-[12px] font-semibold";
+    const field = "flex items-center justify-between gap-2 rounded-xl px-3.5 py-2.5";
+    const priceShown = priceCents != null ? formatMoney(priceCents, currency) : null;
+
     return (
         <ActionModalShell
             title="Invite someone to promote this"
@@ -147,23 +154,30 @@ export function InviteReferrerModal({
             isOpen={isOpen}
             onClose={onClose}
             footer={
-                <div className="mui-referrals__modalFooter">
-                    <button type="button" className="mui-btn mui-btn--secondary" onClick={onClose} disabled={busy}>
+                <div className="flex w-full gap-2">
+                    <button type="button" onClick={onClose} disabled={busy}
+                        className="h-10 flex-1 cursor-pointer rounded-[var(--button-radius,12px)] text-[13.5px] font-semibold"
+                        style={{ background: "color-mix(in srgb, var(--text-color, #18181b) 10%, transparent)", color: ink }}>
                         Cancel
                     </button>
-                    <button type="button" className="mui-btn mui-btn--primary" onClick={() => void submit()} disabled={!canSubmit}>
+                    <button type="button" onClick={() => void submit()} disabled={!canSubmit}
+                        className="h-10 flex-[2] cursor-pointer rounded-[var(--button-radius,12px)] text-[13.5px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                        style={{ background: "var(--brand-color, #18181b)" }}>
                         {busy ? "Inviting…" : "Send invite"}
                     </button>
                 </div>
             }
         >
-            <div className="mui-referrals__form">
-                <label className="mui-referrals__field">
-                    <span className="mui-referrals__fieldLabel">Person</span>
+            <div className="space-y-4">
+                <div>
+                    <span className={label12} style={{ color: muted }}>Person</span>
                     {person ? (
-                        <div className="mui-referrals__chosen">
-                            <span>{person.name || person.usertag || "This person"}</span>
-                            <button type="button" className="mui-btn mui-btn--ghost mui-btn--sm"
+                        <div className={field} style={{ background: soft }}>
+                            <span className="text-[13.5px] font-semibold" style={{ color: ink }}>
+                                {person.name || person.usertag || "This person"}
+                                {person.usertag && person.name ? <span className="ml-1.5 font-normal" style={{ color: muted }}>@{person.usertag}</span> : null}
+                            </span>
+                            <button type="button" className="cursor-pointer text-[12.5px] font-semibold" style={{ color: ink }}
                                     onClick={() => { setPerson(null); setQuery(""); }}>
                                 Change
                             </button>
@@ -171,21 +185,25 @@ export function InviteReferrerModal({
                     ) : (
                         <>
                             <input
-                                className="mui-input"
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
                                 placeholder="Search by name or handle"
                                 autoComplete="off"
+                                aria-label="Person"
+                                className="w-full rounded-xl px-3.5 py-2.5 text-[13.5px] outline-none"
+                                style={{ background: soft, color: ink }}
                             />
                             {query.trim().length >= minQueryLength(communityTag) ? (
-                                <ul className="mui-referrals__results">
+                                <ul className="mt-1.5 overflow-hidden rounded-xl border" style={{ borderColor: "color-mix(in srgb, var(--text-color, #18181b) 10%, transparent)" }}>
                                     {results.length === 0 ? (
-                                        <li className="mui-referrals__noResults">Nobody found.</li>
+                                        <li className="px-3.5 py-2.5 text-[13px]" style={{ color: muted }}>Nobody found.</li>
                                     ) : results.map((r) => (
                                         <li key={r.id}>
-                                            <button type="button" className="mui-referrals__result"
-                                                    onClick={() => setPerson(r)}>
+                                            <button type="button" onClick={() => setPerson(r)}
+                                                className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-2.5 text-left text-[13.5px] hover:bg-[color-mix(in_srgb,var(--text-color,#18181b)_5%,transparent)]"
+                                                style={{ color: ink }}>
                                                 {r.name || r.usertag || r.id}
+                                                {r.usertag && r.name ? <span style={{ color: muted }}>@{r.usertag}</span> : null}
                                             </button>
                                         </li>
                                     ))}
@@ -193,46 +211,50 @@ export function InviteReferrerModal({
                             ) : null}
                         </>
                     )}
-                </label>
+                </div>
 
-                <label className="mui-referrals__field">
-                    <span className="mui-referrals__fieldLabel">Commission</span>
-                    <span className="mui-referrals__pctWrap">
+                <div>
+                    <label htmlFor="mui-referral-pct" className={label12} style={{ color: muted }}>Their share</label>
+                    {/* A text box, no spinner (same as the discount amount box). */}
+                    <div className={field} style={{ background: soft }}>
                         <input
-                            className="mui-input"
+                            id="mui-referral-pct"
                             value={pct}
                             onChange={(e) => setPct(e.target.value.replace(/[^0-9.]/g, ""))}
                             inputMode="decimal"
                             placeholder="10"
                             aria-describedby="mui-referral-pct-hint"
+                            className="min-w-0 flex-1 bg-transparent text-[13.5px] tabular-nums outline-none"
+                            style={{ color: ink }}
                         />
-                        <span aria-hidden="true">% of each {singular(unit)}</span>
-                    </span>
-                    <span id="mui-referral-pct-hint" className="mui-referrals__hint">
+                        <span aria-hidden="true" className="text-[12.5px]" style={{ color: muted }}>% of each {singular(unit)}</span>
+                    </div>
+                    <p id="mui-referral-pct-hint" className="mt-1.5 text-[12px]" style={{ color: muted }}>
                         Comes out of your share. Cobuntu takes 0% of it.
-                        {perSale ? ` At this price that is ${perSale} to them per ${singular(unit)}.` : ""}
-                    </span>
-                </label>
+                    </p>
+                    {perSale ? (
+                        <p className="mt-1 text-[12.5px] font-medium" style={{ color: "#147a4b" }}>
+                            They earn {perSale}{priceShown ? ` per ${priceShown} ${singular(unit)}` : ` per ${singular(unit)}`}.
+                        </p>
+                    ) : null}
+                </div>
 
-                <label className="mui-referrals__field">
-                    <span className="mui-referrals__fieldLabel">Label (optional)</span>
-                    <input className="mui-input" value={label} onChange={(e) => setLabel(e.target.value)}
-                           placeholder="Newsletter partner" />
-                    <span className="mui-referrals__hint">Only you see this.</span>
-                </label>
+                <div>
+                    <label htmlFor="mui-referral-label" className={label12} style={{ color: muted }}>Label (optional)</label>
+                    <input id="mui-referral-label" value={label} onChange={(e) => setLabel(e.target.value)}
+                        placeholder="Newsletter partner"
+                        className="w-full rounded-xl px-3.5 py-2.5 text-[13.5px] outline-none"
+                        style={{ background: soft, color: ink }} />
+                    <p className="mt-1.5 text-[12px]" style={{ color: muted }}>Only you see this.</p>
+                </div>
 
-                {/*
-                  * The person's payout status is not known here -- the API
-                  * decides it -- so this is stated as a condition rather than a
-                  * fact about them. An owner who reads it still learns the rule
-                  * before they commit, which is the point.
-                  */}
-                <p className="mui-referrals__note">
+                {/* Stated as a condition: the API decides the person's payout status. */}
+                <p className="rounded-xl px-3 py-2.5 text-[12px]" style={{ background: soft, color: muted }}>
                     If they have not connected a payout account yet, the invite is still sent,
                     but the link stays off and records nothing until they do.
                 </p>
 
-                {error ? <p role="alert" className="mui-referrals__error">{error}</p> : null}
+                {error ? <p role="alert" className="text-[12.5px]" style={{ color: "#b42318" }}>{error}</p> : null}
             </div>
         </ActionModalShell>
     );
