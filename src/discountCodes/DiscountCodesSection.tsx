@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronDown, Copy, TriangleAlert } from "lucide-react";
+import { Check, ChevronDown, Copy, Link2, TriangleAlert } from "lucide-react";
 import { useSharedT } from "../i18n";
 import { cn } from "../lib/cn";
 import { ModalShell } from "../ui/ModalShell";
@@ -34,8 +34,15 @@ export function DiscountCodesSection({
   currency = "EUR",
   onCopied,
   tierNoun = "ticket",
+  itemUrl,
 }: {
   endpoint: DiscountCodesEndpoint;
+  /**
+   * The item's public page (https://<storefront>/events/<slug>). When given, a
+   * saved code offers "Copy link": that page with ?code=, which shows the
+   * price with the code and carries it to checkout (T-368). Absent: no link.
+   */
+  itemUrl?: string;
   /** For the suggested code ("SUMMER20"). */
   itemName: string;
   /** The item's tickets or variants, for "Tickets" in the editor. Empty for a product without tiers. */
@@ -133,6 +140,7 @@ export function DiscountCodesSection({
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); void reload(); }}
           onCopied={onCopied}
+          itemUrl={itemUrl}
         />
       )}
     </section>
@@ -154,9 +162,21 @@ function initialDraft(existing: DiscountCode | null, itemName: string): Discount
   return { code: suggestCode(itemName, 20), mode: "PERCENT_OFF", value: 20, tierIds: [], startsAt: null, endsAt: null, maxRedemptions: null, perBuyerLimit: null };
 }
 
+/** The item's page with this code on it: ?code= (any other query kept). Null for a URL that does not parse. */
+export function codeLinkFor(itemUrl: string, code: string): string | null {
+  try {
+    const u = new URL(itemUrl);
+    u.searchParams.set("code", code);
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function DiscountCodeEditor({
-  endpoint, existing, itemName, tiers, currency, onClose, onSaved, onCopied, tierNoun = "ticket",
+  endpoint, existing, itemName, tiers, currency, onClose, onSaved, onCopied, tierNoun = "ticket", itemUrl,
 }: {
+  itemUrl?: string;
   endpoint: DiscountCodesEndpoint;
   existing: DiscountCode | null;
   /** "variant" on products and courses, "ticket" on events: the fold row's and the list's noun. */
@@ -177,6 +197,9 @@ export function DiscountCodeEditor({
   const [previewPending, setPreviewPending] = React.useState(false);
   const [confirmArchive, setConfirmArchive] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
+  const [linkCopied, setLinkCopied] = React.useState(false);
+  // The link uses the SAVED code: an edited, unsaved name would not work yet.
+  const shareUrl = existing && itemUrl ? codeLinkFor(itemUrl, existing.code) : null;
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const usedAlready = !!existing && existing.uses.used + existing.uses.held > 0;
@@ -354,6 +377,24 @@ export function DiscountCodeEditor({
       </div>
       {usedAlready && <p className="mt-1 text-[12px]" style={{ color: muted }}>{t("usedKeepsName")}</p>}
       {!codeValid && draft.code.length > 0 && <p className="mt-1 text-[12px]" style={{ color: "#b42318" }}>{t("codeRule")}</p>}
+      {/* A saved code's link (T-368): only once it exists, so the link always works. */}
+      {existing && shareUrl && (
+        <div className="mt-2 rounded-xl px-3 py-2.5" style={{ background: soft }} data-testid="code-link">
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 text-[12px] font-semibold" style={{ color: muted }}>{t("shareLink")}</span>
+            <span className="min-w-0 flex-1 truncate text-[12px]" style={{ color: muted }} title={shareUrl}>{shareUrl}</span>
+            <button type="button" className="flex shrink-0 items-center gap-1 text-[12px] font-semibold" aria-live="polite"
+              onClick={() => {
+                void navigator.clipboard?.writeText(shareUrl).catch(() => undefined);
+                setLinkCopied(true);
+                window.setTimeout(() => setLinkCopied(false), 2000);
+              }}>
+              {linkCopied ? <Check size={13} aria-hidden /> : <Link2 size={13} aria-hidden />}{linkCopied ? t("copied") : t("copyLink")}
+            </button>
+          </div>
+          <p className="mt-1 text-[11.5px]" style={{ color: muted }}>{t("shareLinkHint")}</p>
+        </div>
+      )}
 
       <p className="mt-4 mb-1.5 text-[12px] font-semibold" style={{ color: muted }}>{t("discount")}</p>
       <div className="flex gap-[3px] rounded-xl p-[3px]" style={{ background: soft }} role="radiogroup">

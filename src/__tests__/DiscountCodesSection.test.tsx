@@ -4,7 +4,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { DiscountCodesSection, changedFields } from "../discountCodes/DiscountCodesSection";
+import { DiscountCodesSection, changedFields, codeLinkFor } from "../discountCodes/DiscountCodesSection";
 import { dateInputToIso, discountLabel, lastValidDay, money, optionsSummary, suggestCode, toLocalDateInput, usesLabel } from "../discountCodes/format";
 import { MANAGEMENT_UI_MESSAGES_EN } from "../i18n/messages.en";
 
@@ -243,3 +243,46 @@ describe("copying a code", () => {
   });
 });
 
+describe("a code's link (?code=, T-368)", () => {
+  const listOnly = (url: string) => (url.endsWith("/preview")
+    ? reply(200, { tiers: [], warnings: [], lowestPrice: null })
+    : reply(200, { codes: [CODE] }));
+
+  it("puts the code on the item's page, keeping any query it had", () => {
+    expect(codeLinkFor("https://pbn.cobuntu.com/events/food-for-thought-1", "SUMMER20"))
+      .toBe("https://pbn.cobuntu.com/events/food-for-thought-1?code=SUMMER20");
+    expect(codeLinkFor("https://x.com/marketplace/abc?ref=r1", "VIP"))
+      .toBe("https://x.com/marketplace/abc?ref=r1&code=VIP");
+    expect(codeLinkFor("not a url", "VIP")).toBeNull();
+  });
+
+  it("copies the link of a saved code and says Copied", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const write = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: write }, configurable: true });
+    fetchMock.mockImplementation(listOnly);
+    render(<DiscountCodesSection endpoint={EP} itemName="Success Talks" tiers={[]} itemUrl="https://pbn.cobuntu.com/events/success-talks" />);
+    fireEvent.click(await screen.findByText("SUMMER20"));
+    expect(screen.getByTestId("code-link").textContent).toContain("https://pbn.cobuntu.com/events/success-talks?code=SUMMER20");
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+    expect(write).toHaveBeenCalledWith("https://pbn.cobuntu.com/events/success-talks?code=SUMMER20");
+    expect(screen.getAllByRole("button", { name: "Copied" })).toHaveLength(1);
+    await act(async () => { vi.advanceTimersByTime(2100); });
+    expect(screen.getByRole("button", { name: "Copy link" })).toBeTruthy();
+    vi.useRealTimers();
+  });
+
+  it("offers no link without the item's page, or before the code is saved", async () => {
+    fetchMock.mockImplementation(listOnly);
+    const { unmount } = render(<DiscountCodesSection endpoint={EP} itemName="Success Talks" tiers={[]} />);
+    fireEvent.click(await screen.findByText("SUMMER20"));
+    expect(screen.queryByTestId("code-link")).toBeNull();
+    unmount();
+    fetchMock.mockImplementation((url: string) => (url.endsWith("/preview")
+      ? reply(200, { tiers: [], warnings: [], lowestPrice: null })
+      : reply(200, { codes: [] })));
+    render(<DiscountCodesSection endpoint={EP} itemName="Success Talks" tiers={[]} itemUrl="https://pbn.cobuntu.com/events/success-talks" />);
+    fireEvent.click(await screen.findByRole("button", { name: t("create") }));
+    expect(screen.queryByTestId("code-link")).toBeNull();
+  });
+});
