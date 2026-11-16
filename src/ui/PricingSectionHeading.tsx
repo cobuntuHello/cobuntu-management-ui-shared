@@ -20,9 +20,12 @@ export function PricingSectionHeading({
   return (
     <div className="mb-4 flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <h2 className="text-[15px] font-semibold text-zinc-900">{title}</h2>
+        {/* Theme-aware: an event page can be dark. Falls back to the zinc the
+            light pages already used. */}
+        <h2 className="text-[15px] font-semibold" style={{ color: "var(--text-color, #18181b)" }}>{title}</h2>
         {description && (
-          <p className="mt-1 max-w-[68ch] text-[12px] leading-relaxed text-zinc-500">{description}</p>
+          <p className="mt-1 max-w-[68ch] text-[12px] leading-relaxed"
+            style={{ color: "color-mix(in srgb, var(--text-color, #18181b) 60%, transparent)" }}>{description}</p>
         )}
       </div>
       {action && <div className="shrink-0">{action}</div>}
