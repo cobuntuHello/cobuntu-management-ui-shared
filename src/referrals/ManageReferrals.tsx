@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ArtifactReferralLink, ArtifactReferralCopy } from "./types";
 import { formatMoney } from "../overview/format";
-import { EmptyState } from "../overview/EmptyState";
+import { PricingSectionHeading } from "../ui/PricingSectionHeading";
 
 /**
  * Who promotes this item, and what they have earned.
@@ -64,132 +64,132 @@ export function ManageReferrals({
     const totalHeld = live.reduce((s, l) => s + l.earnedHeldCents, 0);
     const totalPaid = live.reduce((s, l) => s + l.earnedPaidCents, 0);
 
+    const ink = "var(--text-color, #18181b)";
+    const muted = "color-mix(in srgb, var(--text-color, #18181b) 58%, transparent)";
+    const line = "color-mix(in srgb, var(--text-color, #18181b) 10%, transparent)";
+    const soft = "color-mix(in srgb, var(--text-color, #18181b) 6%, transparent)";
+    const one = singular(copy.unit);
+    const heading = (
+        <PricingSectionHeading
+            title="Referral links"
+            description={`Someone shares a link. Buyers pay you, and they earn an agreed share of each ${one}.`}
+            action={links.length > 0 && canManage && onInvite ? (
+                <button type="button" onClick={onInvite} className={`${btn} text-white`} style={{ background: "var(--brand-color, #18181b)" }}>
+                    Invite someone
+                </button>
+            ) : undefined}
+        />
+    );
+
     if (links.length === 0) {
         return (
-            <div className="mui-referrals">
-                <Header canManage={canManage} onInvite={onInvite} />
-                <EmptyState
-                    title="No referral links yet"
-                    body={`Let someone promote this without handing over the sale. You stay the seller, you invoice the buyer, and they earn an agreed share of each ${singular(copy.unit)}.`}
-                    action={canManage && onInvite ? (
-                        <button type="button" className="mui-btn mui-btn--primary" onClick={onInvite}>
-                            Invite someone
-                        </button>
-                    ) : undefined}
-                />
+            <div data-testid="referrals">
+                {heading}
+                <div className="rounded-2xl border border-dashed px-5 py-6 text-center" style={{ borderColor: "color-mix(in srgb, var(--text-color, #18181b) 25%, transparent)" }}>
+                    <p className="text-[14.5px] font-semibold" style={{ color: ink }}>No referral links yet</p>
+                    <p className="mx-auto mt-1 max-w-[46ch] text-[12.5px]" style={{ color: muted }}>
+                        {canManage
+                            ? `Let a partner or a member promote this without handing over the sale. You stay the seller, you invoice the buyer, and they earn an agreed share of each ${one}.`
+                            : "Nobody has a referral link for this yet."}
+                    </p>
+                    {canManage && onInvite ? (
+                        <>
+                            <ol className="mx-auto mt-4 mb-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-[12px]" style={{ color: muted }}>
+                                {["Pick a person", "Set their share", "They share the link"].map((step, i) => (
+                                    <li key={step} className="flex items-center gap-1.5">
+                                        <span className="grid h-5 w-5 place-items-center rounded-full text-[11px] font-semibold" style={{ background: soft, color: ink }}>{i + 1}</span>
+                                        {step}
+                                    </li>
+                                ))}
+                            </ol>
+                            <button type="button" onClick={onInvite} className={`${btn} text-white`} style={{ background: "var(--brand-color, #18181b)" }}>
+                                Invite someone
+                            </button>
+                        </>
+                    ) : null}
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="mui-referrals">
-            <Header canManage={canManage} onInvite={onInvite} />
+        <div data-testid="referrals">
+            {heading}
 
-            <dl className="mui-referrals__summary">
-                <Stat k="Active links" v={String(live.filter((l) => l.status === "ACTIVE").length)}
-                      sub={`of ${links.length} assigned`} />
+            <dl className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <Stat k="Active links" v={String(live.filter((l) => l.status === "ACTIVE").length)} sub={`of ${links.length}`} />
                 <Stat k={`${cap(copy.unit)} referred`} v={String(totalSales)} />
-                <Stat k="Commission held" v={formatMoney(totalHeld, currency)}
-                      sub="still in the refund window" />
-                <Stat k="Commission paid" v={formatMoney(totalPaid, currency)} />
+                <Stat k="Held" v={formatMoney(totalHeld, currency)} sub="in the refund window" />
+                <Stat k="Paid" v={formatMoney(totalPaid, currency)} />
             </dl>
 
-            <ul className="mui-referrals__list">
-                {links.map((l) => {
+            <ul className="overflow-hidden rounded-2xl border" style={{ borderColor: line }}>
+                {links.map((l, i) => {
                     const pending = l.status === "PENDING_STRIPE";
                     const disabled = l.status === "DISABLED";
                     const name = l.owner.name || l.owner.usertag || "Someone";
                     return (
-                        <li key={l.id}
-                            className={`mui-referrals__row${pending ? " is-pending" : ""}${disabled ? " is-disabled" : ""}`}>
-                            <div className="mui-referrals__who">
+                        <li key={l.id} className={`px-4 py-3.5 ${i > 0 ? "border-t" : ""}`} style={{ borderColor: line }}>
+                            <div className="flex flex-wrap items-center gap-3">
                                 <Avatar person={l.owner} />
-                                <div className="mui-referrals__whoText">
-                                    <span className="mui-referrals__name">{name}</span>
-                                    <span className="mui-referrals__meta">
+                                <div className={`min-w-[180px] flex-1 ${disabled ? "opacity-55" : ""}`}>
+                                    <span className="block text-[14px] font-semibold" style={{ color: ink }}>{name}</span>
+                                    <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]" style={{ color: muted }}>
                                         <StatusPill status={l.status} />
-                                        <span>{formatPct(l.commissionPct)} per {singular(copy.unit)}</span>
-                                        {l.label ? <span>{l.label}</span> : null}
+                                        <span>{formatPct(l.commissionPct)} per {one}</span>
+                                        {l.label ? <span>· {l.label}</span> : null}
                                     </span>
-                                    {pending ? (
-                                        /*
-                                         * Names whose move it is. An owner who reads
-                                         * "not connected" without being told that
-                                         * NOTHING is tracked yet will assume the link
-                                         * is working and quietly lose the attribution.
-                                         */
-                                        <p className="mui-referrals__pendingNote">
-                                            <strong>This link is off.</strong>{" "}
-                                            {name} needs to connect a payout account before it can
-                                            record a sale. Nothing is tracked until then, so there is
-                                            nothing to share yet.
-                                        </p>
-                                    ) : null}
                                 </div>
-                            </div>
-
-                            <div className="mui-referrals__figures">
-                                <Figure k={cap(copy.unit)} v={pending ? "—" : String(l.sales)} />
-                                <Figure k="Held" v={pending ? "—" : formatMoney(l.earnedHeldCents, currency)} />
-                                <Figure k="Paid" v={pending ? "—" : formatMoney(l.earnedPaidCents, currency)} />
-
-                                <div className="mui-referrals__actions">
-                                    {/*
-                                      * No copy control on a pending link. Not disabled:
-                                      * absent. See the note at the top of the file.
-                                      */}
+                                <div className={`flex gap-4 tabular-nums ${disabled ? "opacity-55" : ""}`}>
+                                    <Figure k={cap(copy.unit)} v={pending ? "–" : String(l.sales)} />
+                                    <Figure k="Held" v={pending ? "–" : formatMoney(l.earnedHeldCents, currency)} />
+                                    <Figure k="Paid" v={pending ? "–" : formatMoney(l.earnedPaidCents, currency)} />
+                                </div>
+                                <div className="ml-auto flex gap-1.5">
+                                    {/* No copy control on a pending link. Not disabled: absent. */}
                                     {l.code && !disabled && onCopyLink ? (
-                                        <button type="button" className="mui-btn mui-btn--secondary mui-btn--sm"
-                                                onClick={() => onCopyLink(l)}>
+                                        <button type="button" className={`${btnSm}`} style={{ background: soft, color: ink }} onClick={() => onCopyLink(l)}>
                                             Copy link
                                         </button>
                                     ) : null}
-
                                     {canManage && !disabled && onDisable ? (
                                         confirmingId === l.id ? (
                                             <>
-                                                <button type="button" className="mui-btn mui-btn--danger mui-btn--sm"
+                                                <button type="button" className={`${btnSm} text-white`} style={{ background: "#b42318" }}
                                                         disabled={busyId === l.id}
                                                         onClick={() => { setConfirmingId(null); onDisable(l.id); }}>
                                                     {busyId === l.id ? "Turning off…" : "Turn off"}
                                                 </button>
-                                                <button type="button" className="mui-btn mui-btn--ghost mui-btn--sm"
-                                                        onClick={() => setConfirmingId(null)}>
+                                                <button type="button" className={btnSm} style={{ color: muted }} onClick={() => setConfirmingId(null)}>
                                                     Keep
                                                 </button>
                                             </>
                                         ) : (
-                                            <button type="button" className="mui-btn mui-btn--ghost mui-btn--sm"
-                                                    onClick={() => setConfirmingId(l.id)}>
+                                            <button type="button" className={btnSm} style={{ color: muted }} onClick={() => setConfirmingId(l.id)}>
                                                 Turn off
                                             </button>
                                         )
                                     ) : null}
-
-                                    {/*
-                                      * Re-enabling keeps the same row -- its rate and
-                                      * earnings history, not a fresh invite -- so this is
-                                      * a plain action, no confirm step (unlike Turn off,
-                                      * which stops something currently earning).
-                                      */}
+                                    {/* Re-enabling keeps the same row (its rate and history): no confirm step. */}
                                     {canManage && disabled && onEnable ? (
-                                        <button type="button" className="mui-btn mui-btn--secondary mui-btn--sm"
-                                                disabled={busyId === l.id}
-                                                onClick={() => onEnable(l.id)}>
+                                        <button type="button" className={btnSm} style={{ background: soft, color: ink }}
+                                                disabled={busyId === l.id} onClick={() => onEnable(l.id)}>
                                             {busyId === l.id ? "Turning on…" : "Turn back on"}
                                         </button>
                                     ) : null}
                                 </div>
                             </div>
-
+                            {pending ? (
+                                /* Says whose move it is: nothing is tracked until they connect. */
+                                <p className="mt-2 rounded-xl px-3 py-2 text-[12px] sm:ml-12" style={{ background: "#fdf4e3", color: "#8a5a12" }}>
+                                    <strong>This link is off.</strong>{" "}
+                                    {name} needs to connect a payout account before it can record a sale. Nothing is tracked until then, so there is nothing to share yet.
+                                </p>
+                            ) : null}
                             {confirmingId === l.id ? (
-                                /*
-                                 * Says what does NOT happen. "Turn off" beside a money
-                                 * figure reads as though the money goes too.
-                                 */
-                                <p className="mui-referrals__confirm">
-                                    {name}&rsquo;s link stops recording new {copy.unit}. Commission
-                                    they have already earned is not affected.
+                                /* Says what does NOT happen: the money earned stays. */
+                                <p className="mt-2 text-[12px] sm:ml-12" style={{ color: muted }}>
+                                    {name}&rsquo;s link stops recording new {copy.unit}. Commission they have already earned is not affected.
                                 </p>
                             ) : null}
                         </li>
@@ -200,71 +200,50 @@ export function ManageReferrals({
     );
 }
 
-function Header({ canManage, onInvite }: { canManage: boolean; onInvite?: () => void }) {
-    return (
-        <div className="mui-referrals__header">
-            <div>
-                <h3 className="mui-referrals__title">Referral links</h3>
-                <p className="mui-referrals__subtitle">
-                    Give someone a link to share. Buyers check out here, you invoice them,
-                    and they earn their share of each sale.
-                </p>
-            </div>
-            {canManage && onInvite ? (
-                <button type="button" className="mui-btn mui-btn--primary" onClick={onInvite}>
-                    Invite someone
-                </button>
-            ) : null}
-        </div>
-    );
-}
+const btn = "inline-flex items-center justify-center gap-1.5 rounded-[var(--button-radius,10px)] px-3.5 py-2 text-[13px] font-semibold cursor-pointer";
+const btnSm = "inline-flex items-center justify-center rounded-[var(--button-radius,10px)] px-2.5 py-1.5 text-[12.5px] font-semibold cursor-pointer disabled:opacity-50";
 
 function Stat({ k, v, sub }: { k: string; v: string; sub?: string }) {
     return (
-        <div className="mui-referrals__stat">
-            <dt>{k}</dt>
-            <dd>{v}</dd>
-            {sub ? <p>{sub}</p> : null}
+        <div className="rounded-xl px-3 py-2.5" style={{ background: "color-mix(in srgb, var(--text-color, #18181b) 5%, transparent)" }}>
+            <dt className="text-[11.5px]" style={{ color: "color-mix(in srgb, var(--text-color, #18181b) 58%, transparent)" }}>{k}</dt>
+            <dd className="mt-0.5 text-[17px] font-semibold tabular-nums" style={{ color: "var(--text-color, #18181b)" }}>{v}</dd>
+            {sub ? <p className="text-[11px]" style={{ color: "color-mix(in srgb, var(--text-color, #18181b) 42%, transparent)" }}>{sub}</p> : null}
         </div>
     );
 }
 
 function Figure({ k, v }: { k: string; v: string }) {
     return (
-        <div className="mui-referrals__figure">
-            <span className="mui-referrals__figureKey">{k}</span>
-            <span className="mui-referrals__figureValue">{v}</span>
+        <div className="text-right">
+            <span className="block text-[11px]" style={{ color: "color-mix(in srgb, var(--text-color, #18181b) 58%, transparent)" }}>{k}</span>
+            <span className="text-[13.5px] font-semibold" style={{ color: "var(--text-color, #18181b)" }}>{v}</span>
         </div>
     );
 }
 
 function StatusPill({ status }: { status: ArtifactReferralLink["status"] }) {
-    const label =
-        status === "ACTIVE" ? "Active"
-            : status === "PENDING_STRIPE" ? "Not connected"
-                : "Off";
-    return <span className={`mui-referrals__pill mui-referrals__pill--${status.toLowerCase()}`}>{label}</span>;
+    const label = status === "ACTIVE" ? "Active" : status === "PENDING_STRIPE" ? "Not connected" : "Off";
+    const style = status === "ACTIVE"
+        ? { background: "#e7f5ee", color: "#147a4b" }
+        : status === "PENDING_STRIPE"
+            ? { background: "#fdf4e3", color: "#8a5a12" }
+            : { background: "color-mix(in srgb, var(--text-color, #18181b) 8%, transparent)", color: "color-mix(in srgb, var(--text-color, #18181b) 58%, transparent)" };
+    return <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={style}>{label}</span>;
 }
 
-/**
- * Initials, from the person's own name.
- *
- * The host passes `profileImage` where it has one. Where it does not, initials
- * beat a generic silhouette for telling two promoters apart in a list, which is
- * the only job this avatar has.
- */
+/** Initials beat a silhouette for telling two promoters apart. */
 function Avatar({ person }: { person: ArtifactReferralLink["owner"] }) {
-    if (person.profileImage) {
-        return <img className="mui-referrals__avatar" src={person.profileImage} alt="" />;
-    }
+    const cls = "h-9 w-9 shrink-0 rounded-full";
+    if (person.profileImage) return <img className={`${cls} object-cover`} src={person.profileImage} alt="" />;
     const source = person.name || person.usertag || "";
-    const initials = source
-        .split(/\s+/)
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((w) => w[0]!.toUpperCase())
-        .join("");
-    return <span className="mui-referrals__avatar mui-referrals__avatar--initials">{initials || "?"}</span>;
+    const initials = source.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
+    return (
+        <span className={`${cls} grid place-items-center text-[12.5px] font-semibold`}
+              style={{ background: "color-mix(in srgb, var(--brand-color, #c4834f) 18%, transparent)", color: "var(--text-color, #18181b)" }}>
+            {initials || "?"}
+        </span>
+    );
 }
 
 /** 0.085 -> "8.5%", 0.1 -> "10%". Never prints a trailing ".0". */

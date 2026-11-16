@@ -121,3 +121,12 @@ describe("formatPct", () => {
     expect(formatPct(0.08)).toBe("8%");
   });
 });
+
+describe("read-only (an ended item, or a viewer who cannot hand out links)", () => {
+  it("offers no Invite, and says nobody has a link yet", () => {
+    render(<ManageReferrals links={[]} copy={{ unit: "tickets" } as any} canManage={false} onInvite={() => {}} />);
+    expect(screen.queryByRole("button", { name: /invite someone/i })).toBeNull();
+    expect(screen.getByText(/nobody has a referral link for this yet/i)).toBeTruthy();
+  });
+});
+
