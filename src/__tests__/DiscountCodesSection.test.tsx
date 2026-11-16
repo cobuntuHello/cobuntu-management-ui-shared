@@ -4,8 +4,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { DiscountCodesSection } from "../discountCodes/DiscountCodesSection";
-import { discountLabel, money, optionsSummary, suggestCode, usesLabel } from "../discountCodes/format";
+import { DiscountCodesSection, changedFields } from "../discountCodes/DiscountCodesSection";
+import { dateInputToIso, discountLabel, lastValidDay, money, optionsSummary, suggestCode, toLocalDateInput, usesLabel } from "../discountCodes/format";
 import { MANAGEMENT_UI_MESSAGES_EN } from "../i18n/messages.en";
 
 const EP = { apiBaseUrl: "", communityTag: "pbn", item: { kind: "event" as const, id: "e1" } };
@@ -20,7 +20,8 @@ function reply(status: number, body: unknown) {
 
 const CODE = {
   id: "c1", code: "SUMMER20", mode: "PERCENT_OFF", value: 20, currency: null, tierIds: [], startsAt: null,
-  endsAt: "2026-12-15T00:00:00Z", maxRedemptions: 40, perBuyerLimit: null, isActive: true, archivedAt: null,
+  // The end is exclusive: a code that works through 15 Dec ends at midnight after it.
+  endsAt: "2026-12-16T00:00:00Z", maxRedemptions: 40, perBuyerLimit: null, isActive: true, archivedAt: null,
   uses: { used: 10, held: 2 }, lowestPrice: { amount: 5200, currency: "EUR", audience: "MEMBERS" },
 };
 
@@ -104,3 +105,69 @@ describe("<DiscountCodesSection />", () => {
     vi.useRealTimers();
   });
 });
+
+describe("Phase 3 review fixes", () => {
+  it("an end date is the last day the code works, in the seller's own time zone", () => {
+    // Saved as the next local midnight (the backend's end is exclusive)...
+    const end = dateInputToIso("2026-12-15", "end");
+    expect(new Date(end).getTime() - new Date(dateInputToIso("2026-12-15", "start")).getTime()).toBe(24 * 3600 * 1000);
+    // ...and shown back as the day picked, not the day after or (east of UTC) before.
+    expect(toLocalDateInput(lastValidDay(end))).toBe("2026-12-15");
+    expect(toLocalDateInput(dateInputToIso("2026-12-15", "start"))).toBe("2026-12-15");
+    // Same start and end day: a one-day code, which ends after it starts.
+    expect(new Date(dateInputToIso("2026-12-15", "end")) > new Date(dateInputToIso("2026-12-15", "start"))).toBe(true);
+  });
+
+  it("an edit sends only what changed, so a new end date on a used code is not new money terms", () => {
+    const existing = CODE as any;
+    const draft = { code: "SUMMER20", mode: "PERCENT_OFF" as const, value: 20, tierIds: [], startsAt: null, endsAt: "2027-01-01T00:00:00Z", maxRedemptions: 40, perBuyerLimit: null };
+    expect(changedFields(existing, draft)).toEqual({ endsAt: "2027-01-01T00:00:00Z" });
+    expect(changedFields(existing, { ...draft, endsAt: CODE.endsAt, value: 25 })).toEqual({ mode: "PERCENT_OFF", value: 25, tierIds: [] });
+    expect(changedFields({ ...existing, tierIds: ["a", "b"] }, { ...draft, endsAt: CODE.endsAt, tierIds: ["b", "a"] })).toEqual({});
+  });
+
+  it("asks before archiving, and Keep code goes back", async () => {
+    fetchMock.mockImplementation((url: string, init: RequestInit) => {
+      if (url.endsWith("/preview")) return reply(200, { tiers: [], warnings: [], lowestPrice: null });
+      if (init?.method === "DELETE") return reply(200, { code: { ...CODE, archivedAt: "x" } });
+      return reply(200, { codes: [CODE] });
+    });
+    render(<DiscountCodesSection endpoint={EP} itemName="Success Talks" tiers={[]} />);
+    fireEvent.click(await screen.findByText("SUMMER20"));
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    expect(fetchMock.mock.calls.some(([, i]) => (i as RequestInit)?.method === "DELETE")).toBe(false);
+    expect(screen.getByRole("alert").textContent).toContain("can't be brought back");
+    fireEvent.click(screen.getByRole("button", { name: "Keep code" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, i]) => (i as RequestInit)?.method === "DELETE")).toBe(true));
+  });
+
+  it("will not save before the preview for the terms on screen has answered", async () => {
+    let answer!: (r: Response) => void;
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/preview")) return new Promise<Response>((res) => { answer = res; });
+      return reply(200, { codes: [] });
+    });
+    render(<DiscountCodesSection endpoint={EP} itemName="Success Talks" tiers={[]} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Create a code" }));
+    const create = screen.getByRole("button", { name: "Create code" }) as HTMLButtonElement;
+    expect(create.disabled).toBe(true);
+    await waitFor(() => expect(answer).toBeTypeOf("function"));
+    await act(async () => { answer({ ok: true, status: 200, json: () => Promise.resolve({ tiers: [], warnings: [], lowestPrice: null }) } as Response); });
+    await waitFor(() => expect(create.disabled).toBe(false));
+  });
+
+  it("an amount off is in the currency of the tiers it covers", async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/preview")) return reply(200, { tiers: [], warnings: [], lowestPrice: null });
+      return reply(200, { codes: [] });
+    });
+    render(<DiscountCodesSection endpoint={EP} itemName="Tokyo Night" currency="EUR" tiers={[{ id: "t1", name: "Standard", currency: "JPY" }]} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Create a code" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Amount off each" }));
+    expect(screen.getByText("JPY off each")).toBeTruthy();
+  });
+});
+

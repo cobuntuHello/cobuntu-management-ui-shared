@@ -44,6 +44,8 @@ export const MANAGEMENT_UI_MESSAGES_EN = {
         pause: "Pause",
         resume: "Resume",
         archive: "Archive",
+        archiveConfirm: "Archived codes stop working and can't be brought back. This name can't be used again on this item.",
+        keepCode: "Keep code",
         close: "Close",
         save: "Save",
         createCode: "Create code",

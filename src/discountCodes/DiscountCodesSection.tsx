@@ -6,7 +6,7 @@ import { useSharedT } from "../i18n";
 import { cn } from "../lib/cn";
 import { ModalShell } from "../ui/ModalShell";
 import { discountCodesApi, DiscountCodeApiError, type DiscountCodesEndpoint } from "./api";
-import { CODE_PATTERN, discountLabel, minorUnits, money, optionsSummary, suggestCode, usesLabel } from "./format";
+import { CODE_PATTERN, dateInputToIso, discountLabel, lastValidDay, minorUnits, money, optionsSummary, shortDate, suggestCode, toLocalDateInput, usesLabel } from "./format";
 import type { DiscountCode, DiscountCodeDraft, DiscountCodeMode, DiscountPreview, DiscountTierOption } from "./types";
 
 /**
@@ -103,7 +103,7 @@ export function DiscountCodesSection({
                   </span>
                   <span className="block text-[12px] opacity-60">
                     {[discountLabel(c, t), c.lowestPrice && t(c.lowestPrice.audience === "MEMBERS" ? "membersFrom" : "from", { amount: money(c.lowestPrice.amount, c.lowestPrice.currency) }),
-                      c.endsAt && t("untilDate", { date: new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(new Date(c.endsAt)) })]
+                      c.endsAt && t("untilDate", { date: shortDate(lastValidDay(c.endsAt)) })]
                       .filter(Boolean).join(" · ")}
                   </span>
                   {c.isActive && c.maxRedemptions != null && (
@@ -168,35 +168,69 @@ export function DiscountCodeEditor({
   const [preview, setPreview] = React.useState<DiscountPreview | null>(null);
   const [checked, setChecked] = React.useState(false);
   const [showOptions, setShowOptions] = React.useState(false);
+  const [previewPending, setPreviewPending] = React.useState(false);
+  const [confirmArchive, setConfirmArchive] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const usedAlready = !!existing && existing.uses.used + existing.uses.held > 0;
 
   const set = (patch: Partial<DiscountCodeDraft>) => { setDraft((d) => ({ ...d, ...patch })); setChecked(false); setError(null); };
 
-  // The live preview: the backend's own maths, debounced while the seller types.
+  /*
+   * The live preview: the backend's own maths, debounced while the seller types.
+   * An answer for terms the seller has since changed is dropped (`live`), and
+   * saving waits for the answer for the terms on screen: the warnings and the
+   * tick belong to THOSE terms (Phase 3 review). A failed preview blocks saving
+   * too, rather than saving without the warnings it would have shown.
+   */
   React.useEffect(() => {
-    if (!(draft.value > 0)) { setPreview(null); return; }
+    let live = true;
+    if (!(draft.value > 0)) { setPreview(null); setPreviewPending(false); return; }
+    setPreviewPending(true);
     const timer = setTimeout(() => {
       discountCodesApi.preview(endpoint, { mode: draft.mode, value: draft.value, tierIds: draft.tierIds })
-        .then(setPreview).catch(() => setPreview(null));
+        .then((p) => { if (live) { setPreview(p); setPreviewPending(false); } })
+        .catch(() => { if (live) { setPreview(null); setPreviewPending(false); } });
     }, 250);
-    return () => clearTimeout(timer);
+    return () => { live = false; clearTimeout(timer); };
   }, [draft.mode, draft.value, draft.tierIds.join(","), endpoint.item.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /*
+   * The code's currency: an amount off is in the currency of the tiers it
+   * covers, not always the item's (an event's tiers each sell in their own).
+   * An edit that keeps the tiers keeps the code's saved currency.
+   */
+  const covered = draft.tierIds.length ? tiers.filter((x) => draft.tierIds.includes(x.id)) : tiers;
+  const sameTiersAsSaved = !!existing && sameIds(draft.tierIds, existing.tierIds);
+  const codeCurrency = (sameTiersAsSaved ? existing?.currency : null) ?? covered.find((x) => x.currency)?.currency ?? currency;
+  // An amount typed in one currency means nothing in another with other minor
+  // units (10 EUR = 1000 cents; 1000 JPY = 1000 yen): start the amount again.
+  const lastUnit = React.useRef(minorUnits(codeCurrency));
+  React.useEffect(() => {
+    const u = minorUnits(codeCurrency);
+    if (u !== lastUnit.current && draft.mode === "AMOUNT_OFF") set({ value: 10 * u });
+    lastUnit.current = u;
+  }, [codeCurrency]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const warnings = preview?.warnings ?? [];
   const codeValid = CODE_PATTERN.test(draft.code.trim());
-  const canSave = codeValid && draft.value > 0 && (warnings.length === 0 || checked) && !saving;
+  const canSave = codeValid && draft.value > 0 && !previewPending && preview !== null && (warnings.length === 0 || checked) && !saving;
 
   async function save() {
     setSaving(true);
     setError(null);
     try {
       const body = { ...draft, code: draft.code.trim() };
-      if (existing) await discountCodesApi.update(endpoint, existing.id, body, warnings.length > 0);
+      if (existing) await discountCodesApi.update(endpoint, existing.id, changedFields(existing, body), warnings.length > 0);
       else await discountCodesApi.create(endpoint, body, warnings.length > 0);
       onSaved();
     } catch (e) {
+      // The server found warnings the preview on screen did not show: show
+      // them, and ask for the tick again.
+      if (e instanceof DiscountCodeApiError && e.code === "CONFIRM_WARNINGS" && Array.isArray(e.body?.warnings)) {
+        setPreview((p) => (p ? { ...p, warnings: e.body.warnings } : p));
+        setChecked(false);
+      }
       setError(e instanceof DiscountCodeApiError && e.code && KNOWN_ERRORS.has(e.code) ? t(`errors.${e.code}`) : t("saveFailed"));
     } finally {
       setSaving(false);
@@ -215,8 +249,8 @@ export function DiscountCodeEditor({
     try { await discountCodesApi.archive(endpoint, existing.id); onSaved(); } catch { setError(t("saveFailed")); } finally { setSaving(false); }
   }
 
-  const unit = minorUnits(currency);
-  const summary = `${draft.code.trim() || "…"} · ${discountLabel({ mode: draft.mode, value: draft.value, currency }, t)}`;
+  const unit = minorUnits(codeCurrency);
+  const summary = `${draft.code.trim() || "…"} · ${discountLabel({ mode: draft.mode, value: draft.value, currency: codeCurrency }, t)}`;
 
   return (
     <ModalShell
@@ -227,13 +261,30 @@ export function DiscountCodeEditor({
       width="sm"
       footer={
         <div className="flex w-full flex-col gap-2">
-          {existing && (
+          {/* Archiving cannot be undone and keeps the name taken on this item:
+              one sentence and a second tap first (no browser dialogs). */}
+          {existing && confirmArchive && (
+            <div className="rounded-xl px-3 py-2.5 text-[12.5px]" style={{ background: "rgba(128,128,128,.10)" }} role="alert">
+              <p>{t("archiveConfirm")}</p>
+              <div className="mt-2 flex gap-2">
+                <button type="button" onClick={() => setConfirmArchive(false)}
+                  className="h-9 flex-1 rounded-[var(--radius-button,10px)] text-[13px] font-semibold" style={{ background: "rgba(128,128,128,.14)" }}>
+                  {t("keepCode")}
+                </button>
+                <button type="button" disabled={saving} onClick={archive}
+                  className="h-9 flex-1 rounded-[var(--radius-button,10px)] text-[13px] font-semibold text-white" style={{ background: "#b42318" }}>
+                  {t("archive")}
+                </button>
+              </div>
+            </div>
+          )}
+          {existing && !confirmArchive && (
             <div className="flex gap-2">
               <button type="button" disabled={saving} onClick={() => setActive(!existing.isActive)}
                 className="h-9 flex-1 rounded-[var(--radius-button,10px)] text-[13px] font-semibold" style={{ background: "rgba(128,128,128,.12)" }}>
                 {existing.isActive ? t("pause") : t("resume")}
               </button>
-              <button type="button" disabled={saving} onClick={archive}
+              <button type="button" disabled={saving} onClick={() => setConfirmArchive(true)}
                 className="h-9 flex-1 rounded-[var(--radius-button,10px)] text-[13px] font-semibold" style={{ background: "rgba(128,128,128,.12)" }}>
                 {t("archive")}
               </button>
@@ -307,7 +358,7 @@ export function DiscountCodeEditor({
               set({ value: draft.mode === "PERCENT_OFF" ? Math.min(100, Math.max(0, Math.round(n))) : Math.max(0, Math.round(n * unit)) });
             }}
             className="min-w-0 flex-1 bg-transparent outline-none tabular-nums" />
-          <span className="text-[12.5px] opacity-60">{draft.mode === "PERCENT_OFF" ? "%" : t("offEachIn", { currency })}</span>
+          <span className="text-[12.5px] opacity-60">{draft.mode === "PERCENT_OFF" ? "%" : t("offEachIn", { currency: codeCurrency })}</span>
         </div>
       )}
 
@@ -386,8 +437,8 @@ export function DiscountCodeEditor({
           )}
           <NumberRow label={t("maxUses")} hint={t("blankIsUnlimited")} value={draft.maxRedemptions} onChange={(v) => set({ maxRedemptions: v })} />
           <NumberRow label={t("perBuyer")} hint={t("blankIsUnlimited")} value={draft.perBuyerLimit} onChange={(v) => set({ perBuyerLimit: v })} />
-          <DateRow label={t("starts")} value={draft.startsAt} onChange={(v) => set({ startsAt: v })} />
-          <DateRow label={t("ends")} value={draft.endsAt} onChange={(v) => set({ endsAt: v })} />
+          <DateRow kind="start" label={t("starts")} value={draft.startsAt} onChange={(v) => set({ startsAt: v })} />
+          <DateRow kind="end" label={t("ends")} value={draft.endsAt} onChange={(v) => set({ endsAt: v })} />
         </div>
       )}
 
@@ -406,6 +457,28 @@ export function warningSentence(warnings: DiscountPreview["warnings"], t: (k: st
   return t("warnHalf", { n: warnings.length });
 }
 
+function sameIds(a: string[], b: string[]): boolean {
+  return [...a].sort().join(",") === [...b].sort().join(",");
+}
+
+/**
+ * An edit sends only what changed (Phase 3 review). The backend treats mode,
+ * value and tiers in a PATCH as new money terms, re-checking the warnings and
+ * refusing them on a used code; sending them unchanged turned a new end date on
+ * a used code into a refusal.
+ */
+export function changedFields(existing: DiscountCode, draft: DiscountCodeDraft): Partial<DiscountCodeDraft> {
+  const out: Partial<DiscountCodeDraft> = {};
+  if (draft.code !== existing.code) out.code = draft.code;
+  if (draft.mode !== existing.mode || draft.value !== existing.value || !sameIds(draft.tierIds, existing.tierIds)) {
+    out.mode = draft.mode; out.value = draft.value; out.tierIds = draft.tierIds;
+  }
+  for (const k of ["startsAt", "endsAt", "maxRedemptions", "perBuyerLimit"] as const) {
+    if (draft[k] !== existing[k]) (out as any)[k] = draft[k];
+  }
+  return out;
+}
+
 function NumberRow({ label, hint, value, onChange }: { label: string; hint: string; value: number | null; onChange: (v: number | null) => void }) {
   return (
     <label className="block">
@@ -417,12 +490,14 @@ function NumberRow({ label, hint, value, onChange }: { label: string; hint: stri
   );
 }
 
-function DateRow({ label, value, onChange }: { label: string; value: string | null; onChange: (v: string | null) => void }) {
+/** A day picker. An end is inclusive for the seller and exclusive for the backend (see format.ts). */
+function DateRow({ kind, label, value, onChange }: { kind: "start" | "end"; label: string; value: string | null; onChange: (v: string | null) => void }) {
+  const shown = value ? toLocalDateInput(kind === "end" ? lastValidDay(value) : value) : "";
   return (
     <label className="block">
       <span className="mb-1 block text-[12px] font-semibold opacity-75">{label}</span>
-      <input type="date" value={value ? value.slice(0, 10) : ""}
-        onChange={(e) => onChange(e.target.value ? new Date(`${e.target.value}T00:00:00`).toISOString() : null)}
+      <input type="date" value={shown}
+        onChange={(e) => onChange(e.target.value ? dateInputToIso(e.target.value, kind) : null)}
         className="w-full rounded-xl px-3 py-2.5 outline-none" style={{ background: "rgba(128,128,128,.10)" }} />
     </label>
   );

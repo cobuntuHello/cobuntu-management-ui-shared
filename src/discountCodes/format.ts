@@ -36,8 +36,35 @@ export function discountLabel(c: Pick<DiscountCode, "mode" | "value" | "currency
 export function optionsSummary(d: Pick<DiscountCodeDraft, "tierIds" | "maxRedemptions" | "endsAt">, t: (k: string, v?: Record<string, string | number>) => string, tierCount: number): string {
   const tiers = d.tierIds.length === 0 ? t("allTickets") : t("someTickets", { n: d.tierIds.length, total: tierCount });
   const uses = d.maxRedemptions == null ? t("unlimited") : t("usesLimit", { n: d.maxRedemptions });
-  const until = d.endsAt ? t("untilDate", { date: shortDate(d.endsAt) }) : t("always");
+  const until = d.endsAt ? t("untilDate", { date: shortDate(lastValidDay(d.endsAt)) }) : t("always");
   return `${tiers} · ${uses} · ${until}`;
+}
+
+/*
+ * Dates (Phase 3 review). The backend's window is [startsAt, endsAt): a code
+ * works while now < endsAt. A seller who picks "Ends 15 Dec" means the 15th is
+ * the LAST day it works, so the end is saved as the next local midnight, and
+ * shown back as the day before it. Both are read in the seller's own time zone,
+ * never by slicing the UTC string (which showed the previous day east of UTC).
+ */
+
+/** A saved instant as the yyyy-mm-dd of the seller's local calendar. */
+export function toLocalDateInput(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** The last day a code with this (exclusive) end still works. */
+export function lastValidDay(endsAt: string): string {
+  return new Date(new Date(endsAt).getTime() - 1).toISOString();
+}
+
+/** A picked day as the instant to save: its local midnight, or the next one for an end. */
+export function dateInputToIso(day: string, kind: "start" | "end"): string {
+  const d = new Date(`${day}T00:00:00`);
+  if (kind === "end") d.setDate(d.getDate() + 1);
+  return d.toISOString();
 }
 
 export function shortDate(iso: string, locale = "en-GB"): string {
