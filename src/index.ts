@@ -424,7 +424,7 @@ export {
 } from "./media/mediaFrame";
 
 // Discount codes (backend docs/features/discount-codes.md, Phase 3).
-export { DiscountCodesSection, DiscountCodeEditor, warningSentence } from "./discountCodes/DiscountCodesSection";
+export { DiscountCodesSection, DiscountCodeEditor, warningSentence, codeLinkFor } from "./discountCodes/DiscountCodesSection";
 export { discountCodesApi, DiscountCodeApiError } from "./discountCodes/api";
 export type { DiscountCodesEndpoint } from "./discountCodes/api";
 export { money as discountMoney, suggestCode, discountLabel, optionsSummary, usesLabel, minorUnits } from "./discountCodes/format";
