@@ -60,7 +60,9 @@ describe("<DiscountCodesSection />", () => {
   it("shows the empty state, then the list with uses, the lowest price and the meter", async () => {
     fetchMock.mockReturnValueOnce(reply(200, { codes: [] }));
     const { unmount } = render(<DiscountCodesSection endpoint={EP} itemName="Success Talks" tiers={[]} />);
-    expect(await screen.findByText("Reward people who share the word")).toBeTruthy();
+    expect(await screen.findByText("No codes yet")).toBeTruthy();
+    // The heading says what codes do, once.
+    expect(screen.getByText("Buyers type a code at checkout and pay less.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Create a code" })).toBeTruthy();
     unmount();
 
@@ -91,7 +93,8 @@ describe("<DiscountCodesSection />", () => {
     render(<DiscountCodesSection endpoint={EP} itemName="Success Talks" tiers={[{ id: "t1", name: "Standard" }]} />);
     fireEvent.click(await screen.findByRole("button", { name: "Create a code" }));
     await act(async () => { vi.advanceTimersByTime(300); });
-    expect(await screen.findByText("Standard, Community members")).toBeTruthy();
+    expect(await screen.findByText("Community members")).toBeTruthy();
+    expect(screen.getByText("What buyers pay")).toBeTruthy();
     expect(screen.getByText("81% off")).toBeTruthy();
     const create = screen.getByRole("button", { name: "Create code" }) as HTMLButtonElement;
     expect(create.disabled).toBe(true);
@@ -168,6 +171,59 @@ describe("Phase 3 review fixes", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Create a code" }));
     fireEvent.click(screen.getByRole("radio", { name: "Amount off each" }));
     expect(screen.getByText("JPY off each")).toBeTruthy();
+  });
+});
+
+describe("the amount box and the price cap (live feedback, 2026-11-16)", () => {
+  const previewFor = (listPrice: number) => reply(200, {
+    tiers: [{ tierId: "t1", name: "Standard", currency: "EUR", listPrice, perInstalmentOf: null,
+      everyone: { from: listPrice, price: Math.max(0, listPrice - 1000), warnings: [] }, members: [] }],
+    warnings: [], lowestPrice: null,
+  });
+
+  it("is a text box: no arrows, no leading 0, and a comma reads as a decimal point", async () => {
+    fetchMock.mockImplementation((url: string) => (url.endsWith("/preview") ? previewFor(27500) : reply(200, { codes: [] })));
+    render(<DiscountCodesSection endpoint={EP} itemName="Success Talks" tiers={[{ id: "t1", name: "Standard" }]} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Create a code" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Amount off each" }));
+    const box = screen.getByRole("textbox", { name: "Discount" }) as HTMLInputElement;
+    expect(box.type).toBe("text");
+    fireEvent.change(box, { target: { value: "" } });
+    expect(box.value).toBe("");
+    fireEvent.change(box, { target: { value: "010" } });
+    expect(box.value).toBe("10");
+    fireEvent.change(box, { target: { value: "12,505" } });
+    expect(box.value).toBe("12,50");
+    expect(screen.getByText(/€12\.50 off each/)).toBeTruthy();
+  });
+
+  it("refuses an amount above the highest price it covers, with the reason", async () => {
+    fetchMock.mockImplementation((url: string) => (url.endsWith("/preview") ? previewFor(27500) : reply(200, { codes: [] })));
+    render(<DiscountCodesSection endpoint={EP} itemName="Success Talks" tiers={[{ id: "t1", name: "Standard" }]} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Create a code" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Amount off each" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Discount" }), { target: { value: "10000" } });
+    expect((await screen.findByTestId("amount-above-price")).textContent).toBe("More than the price (€275). To make it free, use 100% off.");
+    expect((screen.getByRole("button", { name: "Create code" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByRole("textbox", { name: "Discount" }), { target: { value: "275" } });
+    await waitFor(() => expect(screen.queryByTestId("amount-above-price")).toBeNull());
+  });
+
+  it("caps a typed percentage at 100", async () => {
+    fetchMock.mockImplementation((url: string) => (url.endsWith("/preview") ? previewFor(27500) : reply(200, { codes: [] })));
+    render(<DiscountCodesSection endpoint={EP} itemName="Success Talks" tiers={[]} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Create a code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Other" }));
+    const box = screen.getByRole("textbox", { name: "Discount" }) as HTMLInputElement;
+    fireEvent.change(box, { target: { value: "150" } });
+    expect(box.value).toBe("100");
+  });
+
+  it("says Variants on products", async () => {
+    fetchMock.mockImplementation((url: string) => (url.endsWith("/preview") ? previewFor(27500) : reply(200, { codes: [] })));
+    render(<DiscountCodesSection endpoint={EP} itemName="Success Talks" tiers={[]} tierNoun="variant" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Create a code" }));
+    expect(screen.getByText("Variants, limits and dates")).toBeTruthy();
   });
 });
 

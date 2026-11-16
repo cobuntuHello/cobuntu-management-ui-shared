@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Check, Copy, Tag, TriangleAlert } from "lucide-react";
+import { Check, ChevronDown, Copy, TriangleAlert } from "lucide-react";
 import { useSharedT } from "../i18n";
 import { cn } from "../lib/cn";
 import { ModalShell } from "../ui/ModalShell";
+import { PricingSectionHeading } from "../ui/PricingSectionHeading";
 import { discountCodesApi, DiscountCodeApiError, type DiscountCodesEndpoint } from "./api";
 import { CODE_PATTERN, dateInputToIso, discountLabel, lastValidDay, minorUnits, money, optionsSummary, shortDate, suggestCode, toLocalDateInput, usesLabel } from "./format";
 import type { DiscountCode, DiscountCodeDraft, DiscountCodeMode, DiscountPreview, DiscountTierOption } from "./types";
@@ -32,6 +33,7 @@ export function DiscountCodesSection({
   tiers,
   currency = "EUR",
   onCopied,
+  tierNoun = "ticket",
 }: {
   endpoint: DiscountCodesEndpoint;
   /** For the suggested code ("SUMMER20"). */
@@ -42,6 +44,8 @@ export function DiscountCodesSection({
   currency?: string;
   /** The host shows its own toast. */
   onCopied?: (code: string) => void;
+  /** "variant" on products and courses, "ticket" (default) on events. */
+  tierNoun?: "ticket" | "variant";
 }) {
   const t = useSharedT("shared.managementUi.discountCodes");
   const [codes, setCodes] = React.useState<DiscountCode[] | null>(null);
@@ -64,23 +68,22 @@ export function DiscountCodesSection({
   if (hidden) return null;
 
   return (
-    <section className="mt-6" data-testid="discount-codes">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-[13px] font-semibold opacity-60">{t("title")}</h3>
-        {codes && codes.length > 0 && (
+    <section data-testid="discount-codes">
+      {/* The same heading as every other Pricing section (approved redesign, 2026-11-16). */}
+      <PricingSectionHeading
+        title={t("title")}
+        description={t("emptyBody")}
+        action={codes && codes.length > 0 ? (
           <button type="button" className="text-[13px] font-semibold" onClick={() => setEditing("new")}>{t("new")}</button>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       {loadError && <p className="text-[13px] opacity-70">{t("loadFailed")}</p>}
 
       {codes && codes.length === 0 && (
         <div className="rounded-2xl border border-dashed px-4 py-5 text-center" style={{ borderColor: "rgba(128,128,128,.35)" }}>
-          <div className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-xl" style={{ background: "rgba(128,128,128,.10)" }}>
-            <Tag size={18} aria-hidden />
-          </div>
-          <p className="font-semibold">{t("emptyTitle")}</p>
-          <p className="mt-0.5 mb-3 text-[12.5px] opacity-60">{t("emptyBody")}</p>
+          {/* The heading already says what codes do: the empty state only says there are none. */}
+          <p className="mb-3 font-semibold">{t("noCodes")}</p>
           <button type="button" onClick={() => setEditing("new")}
             className="h-8 rounded-[var(--radius-button,10px)] px-3 text-[12.5px] font-semibold text-white"
             style={{ background: "var(--brand-color, #18181b)" }}>
@@ -126,6 +129,7 @@ export function DiscountCodesSection({
           itemName={itemName}
           tiers={tiers}
           currency={currency}
+          tierNoun={tierNoun}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); void reload(); }}
           onCopied={onCopied}
@@ -138,7 +142,7 @@ export function DiscountCodesSection({
 const PRESETS = [10, 15, 20, 25];
 
 /** Refusals with their own sentence; anything else reads "could not be saved". */
-const KNOWN_ERRORS = new Set(["CODE_TAKEN", "CONFIRM_WARNINGS", "CODE_IN_USE", "CODE_ARCHIVED", "MIXED_CURRENCY", "NOTHING_TO_DISCOUNT"]);
+const KNOWN_ERRORS = new Set(["CODE_TAKEN", "CONFIRM_WARNINGS", "CODE_IN_USE", "CODE_ARCHIVED", "MIXED_CURRENCY", "NOTHING_TO_DISCOUNT", "AMOUNT_ABOVE_PRICE"]);
 
 function initialDraft(existing: DiscountCode | null, itemName: string): DiscountCodeDraft {
   if (existing) {
@@ -151,10 +155,12 @@ function initialDraft(existing: DiscountCode | null, itemName: string): Discount
 }
 
 export function DiscountCodeEditor({
-  endpoint, existing, itemName, tiers, currency, onClose, onSaved, onCopied,
+  endpoint, existing, itemName, tiers, currency, onClose, onSaved, onCopied, tierNoun = "ticket",
 }: {
   endpoint: DiscountCodesEndpoint;
   existing: DiscountCode | null;
+  /** "variant" on products and courses, "ticket" on events: the fold row's and the list's noun. */
+  tierNoun?: "ticket" | "variant";
   itemName: string;
   tiers: DiscountTierOption[];
   currency: string;
@@ -250,13 +256,28 @@ export function DiscountCodeEditor({
   }
 
   const unit = minorUnits(codeCurrency);
-  const summary = `${draft.code.trim() || "…"} · ${discountLabel({ mode: draft.mode, value: draft.value, currency: codeCurrency }, t)}`;
+  const decimals = Math.round(Math.log10(unit));
+  /*
+   * An amount off is never more than the highest price it covers (the server
+   * refuses it too: AMOUNT_ABOVE_PRICE). Read off the preview, which prices
+   * exactly the tiers the code covers; for a plan that is one instalment.
+   */
+  const maxPrice = preview && preview.tiers.length ? Math.max(...preview.tiers.map((x) => x.listPrice)) : null;
+  const amountTooHigh = draft.mode === "AMOUNT_OFF" && maxPrice != null && draft.value > maxPrice;
+  const saveReady = canSave && !amountTooHigh;
+  const label = discountLabel({ mode: draft.mode, value: draft.value, currency: codeCurrency }, t);
+  const subtitle = draft.value > 0 ? `${label} · ${optionsSummary(draft, t, tiers.length)}` : optionsSummary(draft, t, tiers.length);
+  const isVariant = tierNoun === "variant";
+  const muted = "color-mix(in srgb, var(--text-color, #18181b) 55%, transparent)";
+  const soft = "rgba(128,128,128,.10)";
 
   return (
     <ModalShell
       open
+      plain
       onClose={onClose}
-      title={existing ? t("editTitle") : t("newTitle")}
+      title={<span style={{ fontFamily: "var(--heading-font, inherit)" }}>{existing ? t("editTitle") : t("newTitle")}</span>}
+      subtitle={subtitle}
       hideCloseButton
       width="sm"
       footer={
@@ -264,7 +285,7 @@ export function DiscountCodeEditor({
           {/* Archiving cannot be undone and keeps the name taken on this item:
               one sentence and a second tap first (no browser dialogs). */}
           {existing && confirmArchive && (
-            <div className="rounded-xl px-3 py-2.5 text-[12.5px]" style={{ background: "rgba(128,128,128,.10)" }} role="alert">
+            <div className="rounded-xl px-3 py-2.5 text-[12.5px]" style={{ background: soft }} role="alert">
               <p>{t("archiveConfirm")}</p>
               <div className="mt-2 flex gap-2">
                 <button type="button" onClick={() => setConfirmArchive(false)}
@@ -294,17 +315,21 @@ export function DiscountCodeEditor({
             <button type="button" onClick={onClose} className="h-10 flex-1 rounded-[var(--radius-button,12px)] text-[13.5px] font-semibold" style={{ background: "rgba(128,128,128,.12)" }}>
               {t("close")}
             </button>
-            <button type="button" disabled={!canSave} onClick={save}
+            <button type="button" disabled={!saveReady} onClick={save}
               className="h-10 flex-[2] rounded-[var(--radius-button,12px)] text-[13.5px] font-semibold text-white disabled:opacity-40"
               style={{ background: "var(--brand-color, #18181b)" }}>
               {existing ? t("save") : t("createCode")}
             </button>
           </div>
+          {/* Why Create is not ready, when the reason is the tick. */}
+          {!saveReady && warnings.length > 0 && !checked && !previewPending && (
+            <p className="text-right text-[12px]" style={{ color: muted }} data-testid="create-hint">{t("tickToCreate")}</p>
+          )}
         </div>
       }
     >
-      <label className="mb-1.5 block text-[12px] font-semibold opacity-75" htmlFor="dc-code">{t("code")}</label>
-      <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: "rgba(128,128,128,.10)" }}>
+      <label className="mb-1.5 block text-[12px] font-semibold" style={{ color: muted }} htmlFor="dc-code">{t("code")}</label>
+      <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: soft }}>
         <input id="dc-code" value={draft.code} disabled={usedAlready} maxLength={32} autoCapitalize="characters" spellCheck={false}
           onChange={(e) => set({ code: e.target.value.replace(/\s/g, "").toUpperCase() })}
           className="min-w-0 flex-1 bg-transparent font-mono font-semibold tracking-wide outline-none" />
@@ -319,14 +344,14 @@ export function DiscountCodeEditor({
           </button>
         )}
       </div>
-      {usedAlready && <p className="mt-1 text-[12px] opacity-60">{t("usedKeepsName")}</p>}
+      {usedAlready && <p className="mt-1 text-[12px]" style={{ color: muted }}>{t("usedKeepsName")}</p>}
       {!codeValid && draft.code.length > 0 && <p className="mt-1 text-[12px]" style={{ color: "#b42318" }}>{t("codeRule")}</p>}
 
-      <p className="mt-4 mb-1.5 text-[12px] font-semibold opacity-75">{t("discount")}</p>
-      <div className="flex gap-[3px] rounded-xl p-[3px]" style={{ background: "rgba(128,128,128,.10)" }} role="radiogroup">
+      <p className="mt-4 mb-1.5 text-[12px] font-semibold" style={{ color: muted }}>{t("discount")}</p>
+      <div className="flex gap-[3px] rounded-xl p-[3px]" style={{ background: soft }} role="radiogroup">
         {(["PERCENT_OFF", "AMOUNT_OFF"] as DiscountCodeMode[]).map((m) => (
           <button key={m} type="button" role="radio" aria-checked={draft.mode === m}
-            onClick={() => set({ mode: m, value: m === "PERCENT_OFF" ? 20 : 10 * unit })}
+            onClick={() => { setCustomPercent(false); set({ mode: m, value: m === "PERCENT_OFF" ? 20 : 10 * unit }); }}
             className={cn("flex-1 rounded-[9px] py-1.5 text-[12.5px] font-semibold", draft.mode === m ? "bg-white shadow-sm" : "opacity-60")}>
             {m === "PERCENT_OFF" ? t("modePercent") : t("modeAmount")}
           </button>
@@ -335,57 +360,67 @@ export function DiscountCodeEditor({
 
       {draft.mode === "PERCENT_OFF" ? (
         <div className="mt-2 flex gap-1.5">
-          {PRESETS.map((p) => (
-            <button key={p} type="button" onClick={() => { setCustomPercent(false); set({ value: p }); }}
-              className={cn("flex-1 rounded-[10px] py-2 text-[13px] font-semibold", !customPercent && draft.value === p ? "text-white" : "")}
-              style={{ background: !customPercent && draft.value === p ? "var(--brand-color, #18181b)" : "rgba(128,128,128,.10)" }}>
-              {p}%
-            </button>
-          ))}
+          {/* Selected chips are dark: the brand colour is kept for the one main button. */}
+          {PRESETS.map((p) => {
+            const on = !customPercent && draft.value === p;
+            return (
+              <button key={p} type="button" onClick={() => { setCustomPercent(false); set({ value: p }); }}
+                className="flex-1 rounded-[10px] py-2 text-[13px] font-semibold"
+                style={on ? { background: "var(--text-color, #16181d)", color: "var(--bg-color, #fff)" } : { background: soft }}>
+                {p}%
+              </button>
+            );
+          })}
           <button type="button" onClick={() => setCustomPercent(true)}
-            className={cn("flex-1 rounded-[10px] py-2 text-[13px] font-semibold", customPercent && "text-white")}
-            style={{ background: customPercent ? "var(--brand-color, #18181b)" : "rgba(128,128,128,.10)" }}>
+            className="flex-1 rounded-[10px] py-2 text-[13px] font-semibold"
+            style={customPercent ? { background: "var(--text-color, #16181d)", color: "var(--bg-color, #fff)" } : { background: soft }}>
             {t("other")}
           </button>
         </div>
       ) : null}
       {(draft.mode === "AMOUNT_OFF" || customPercent) && (
-        <div className="mt-2 flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: "rgba(128,128,128,.10)" }}>
-          <input type="number" inputMode="decimal" min={0} aria-label={t("discount")}
-            value={draft.mode === "PERCENT_OFF" ? draft.value : draft.value / unit}
-            onChange={(e) => {
-              const n = Number(e.target.value);
-              set({ value: draft.mode === "PERCENT_OFF" ? Math.min(100, Math.max(0, Math.round(n))) : Math.max(0, Math.round(n * unit)) });
-            }}
-            className="min-w-0 flex-1 bg-transparent outline-none tabular-nums" />
-          <span className="text-[12.5px] opacity-60">{draft.mode === "PERCENT_OFF" ? "%" : t("offEachIn", { currency: codeCurrency })}</span>
-        </div>
+        <>
+          <NumberText
+            key={draft.mode}
+            value={draft.value}
+            decimals={draft.mode === "PERCENT_OFF" ? 0 : decimals}
+            max={draft.mode === "PERCENT_OFF" ? 100 : undefined}
+            onChange={(v) => set({ value: v })}
+            ariaLabel={t("discount")}
+            suffix={draft.mode === "PERCENT_OFF" ? "%" : t("offEachIn", { currency: codeCurrency })}
+            invalid={amountTooHigh}
+          />
+          {amountTooHigh && (
+            <p className="mt-1 text-[12px]" style={{ color: "#b42318" }} role="alert" data-testid="amount-above-price">
+              {t("amountAbovePrice", { price: money(maxPrice!, codeCurrency) })}
+            </p>
+          )}
+        </>
       )}
 
-      <div className="mt-4 rounded-2xl px-3.5 py-3 text-white" style={{ background: "var(--text-color, #16181d)" }}>
-        <p className="font-semibold">{summary}</p>
-        <p className="text-[12px] opacity-70">{optionsSummary(draft, t, tiers.length)}</p>
-      </div>
-
-      {preview && preview.tiers.length > 0 && (
-        <div className="mt-3">
+      {preview && preview.tiers.length > 0 && !amountTooHigh && (
+        <div className="mt-4">
+          <p className="mb-1 text-[12px] font-semibold" style={{ color: muted }}>{t("whatBuyersPay")}</p>
           {preview.tiers.flatMap((tier) => [
-            { key: `${tier.tierId}-e`, label: tier.name, row: tier.everyone, list: tier.listPrice, currency: tier.currency, perInstalment: tier.perInstalmentOf },
-            ...tier.members.map((m) => ({ key: `${tier.tierId}-${m.segmentId}`, label: t("tierForMembers", { tier: tier.name, segment: m.segmentName }), row: m, list: tier.listPrice, currency: tier.currency, perInstalment: tier.perInstalmentOf })),
+            { key: `${tier.tierId}-e`, name: tier.name, who: t("everyone"), row: tier.everyone, list: tier.listPrice, currency: tier.currency, perInstalment: tier.perInstalmentOf },
+            ...tier.members.map((m) => ({ key: `${tier.tierId}-${m.segmentId}`, name: tier.name, who: m.segmentName, row: m, list: tier.listPrice, currency: tier.currency, perInstalment: tier.perInstalmentOf })),
           ]).map((r, i) => (
-            <div key={r.key} className={cn("flex items-center justify-between gap-2 py-2 text-[13px]", i > 0 && "border-t")} style={{ borderColor: "rgba(128,128,128,.16)" }}>
+            <div key={r.key} className={cn("flex items-center justify-between gap-3 py-2.5 text-[13px]", i > 0 && "border-t")} style={{ borderColor: "rgba(128,128,128,.16)" }}>
               <span className="min-w-0">
-                {r.label}
-                {r.perInstalment && <span className="text-[11px] opacity-60"> {t("perInstalment", { n: r.perInstalment })}</span>}
-                {r.row.warnings.length > 0 && (
-                  <span className="ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold" style={{ background: "#fdf4e3", color: "#8a5a12" }}>
-                    {r.row.warnings.includes("FREE") ? t("badgeFree") : r.row.warnings.includes("BELOW_MINIMUM") ? t("badgeBelowMinimum")
-                      : t("badgePercent", { percent: Math.round((1 - r.row.price / Math.max(1, r.list)) * 100) })}
-                  </span>
-                )}
+                <span className="block">{r.name}{r.perInstalment && <span className="text-[11px]" style={{ color: muted }}> {t("perInstalment", { n: r.perInstalment })}</span>}</span>
+                <span className="block text-[12px]" style={{ color: muted }}>
+                  {r.who}
+                  {r.row.warnings.length > 0 && (
+                    <span className="ml-1.5 inline-flex items-center gap-1 font-semibold" style={{ color: "#8a5a12" }}>
+                      <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: "#d99a2b" }} aria-hidden />
+                      {r.row.warnings.includes("FREE") ? t("badgeFree") : r.row.warnings.includes("BELOW_MINIMUM") ? t("badgeBelowMinimum")
+                        : t("badgePercent", { percent: Math.round((1 - r.row.price / Math.max(1, r.list)) * 100) })}
+                    </span>
+                  )}
+                </span>
               </span>
               <span className="shrink-0 tabular-nums">
-                <span className="mr-1.5 text-[12px] line-through opacity-50">{money(r.row.from, r.currency)}</span>
+                <span className="mr-1.5 text-[12px] line-through" style={{ color: muted }}>{money(r.row.from, r.currency)}</span>
                 <span className="font-semibold">{money(r.row.price, r.currency)}</span>
               </span>
             </div>
@@ -393,33 +428,37 @@ export function DiscountCodeEditor({
         </div>
       )}
 
-      {warnings.length > 0 && (
-        <>
-          <div className="mt-3 flex items-start gap-2 rounded-xl px-3 py-2.5 text-[12.5px]" style={{ background: "#fdf4e3", color: "#8a5a12" }}>
+      {/* The warning, its sentence and its tick: one block. */}
+      {warnings.length > 0 && !amountTooHigh && (
+        <div className="mt-3 rounded-xl px-3 py-2.5 text-[12.5px]" style={{ background: "#fdf4e3", color: "#8a5a12" }}>
+          <div className="flex items-start gap-2">
             <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden />
             <span>{warningSentence(warnings, t)}</span>
           </div>
-          <label className="mt-2.5 flex cursor-pointer items-center gap-2 text-[12.5px]">
+          <label className="mt-2 flex cursor-pointer items-center gap-2 font-medium" style={{ color: "var(--text-color, #16181d)" }}>
             <input type="checkbox" className="sr-only" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
-            <span className="grid h-4 w-4 place-items-center rounded-[5px] border" style={checked ? { background: "var(--brand-color, #18181b)", borderColor: "transparent" } : { borderColor: "rgba(128,128,128,.5)" }}>
+            <span className="grid h-4 w-4 place-items-center rounded-[5px] border" style={checked ? { background: "var(--text-color, #18181b)", borderColor: "transparent" } : { borderColor: "rgba(138,90,18,.55)", background: "#fff" }}>
               {checked && <Check size={11} color="#fff" strokeWidth={3.5} aria-hidden />}
             </span>
             {t("checkedPrices")}
           </label>
-        </>
+        </div>
       )}
 
       <button type="button" onClick={() => setShowOptions((s) => !s)}
-        className="mt-3 flex w-full items-center justify-between border-t pt-3 text-[13px] font-semibold" style={{ borderColor: "rgba(128,128,128,.16)" }}
-        aria-expanded={showOptions}>
-        <span>{t("optionsRow")}</span>
-        <span className="text-[12px] font-normal opacity-60">{optionsSummary(draft, t, tiers.length)}</span>
+        className="mt-4 flex w-full items-center justify-between rounded-xl px-3.5 py-3 text-[13px] font-semibold"
+        style={{ background: soft }} aria-expanded={showOptions}>
+        <span>{isVariant ? t("optionsRowVariants") : t("optionsRow")}</span>
+        <span className="flex items-center gap-1.5 text-[12px] font-normal" style={{ color: muted }}>
+          {optionsSummary(draft, t, tiers.length)}
+          <ChevronDown size={14} aria-hidden className={cn("transition-transform", showOptions && "rotate-180")} />
+        </span>
       </button>
       {showOptions && (
-        <div className="mt-2 space-y-3">
+        <div className="mt-3 space-y-3">
           {tiers.length > 1 && (
             <fieldset>
-              <legend className="mb-1 text-[12px] font-semibold opacity-75">{t("tickets")}</legend>
+              <legend className="mb-1 text-[12px] font-semibold" style={{ color: muted }}>{isVariant ? t("variants") : t("tickets")}</legend>
               {tiers.map((tier) => {
                 const on = draft.tierIds.length === 0 || draft.tierIds.includes(tier.id);
                 return (
@@ -442,11 +481,10 @@ export function DiscountCodeEditor({
         </div>
       )}
 
-      {error && <p className="mt-3 text-[12.5px]" style={{ color: "#b42318" }}>{error}</p>}
+      {error && <p className="mt-3 text-[12.5px]" style={{ color: "#b42318" }} role="alert">{error}</p>}
     </ModalShell>
   );
 }
-
 
 /** One plain sentence for the confirm step, naming the worst case. */
 export function warningSentence(warnings: DiscountPreview["warnings"], t: (k: string, v?: Record<string, string | number>) => string): string {
@@ -477,6 +515,46 @@ export function changedFields(existing: DiscountCode, draft: DiscountCodeDraft):
     if (draft[k] !== existing[k]) (out as any)[k] = draft[k];
   }
   return out;
+}
+
+/**
+ * A number typed as TEXT, not <input type="number">: no spinner arrows, no
+ * leading "0" (an empty box is empty, not 0, so typing 10 gives "10", not
+ * "010"), and "12,50" reads like "12.50". `decimals` follows the currency
+ * (2 for EUR, 0 for JPY and for a percentage). Live feedback, 2026-11-16.
+ */
+export function NumberText({ value, decimals, max, onChange, ariaLabel, suffix, invalid = false }: {
+  value: number; decimals: number; max?: number; onChange: (v: number) => void;
+  ariaLabel: string; suffix?: React.ReactNode; invalid?: boolean;
+}) {
+  const shown = (v: number) => (v > 0 ? (decimals ? String(v / 10 ** decimals) : String(v)) : "");
+  const [text, setText] = React.useState(() => shown(value));
+  const last = React.useRef(value);
+  React.useEffect(() => {
+    if (value !== last.current) { last.current = value; setText(shown(value)); }
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className="mt-2 flex items-center gap-2 rounded-xl px-3 py-2.5"
+      style={{ background: "rgba(128,128,128,.10)", boxShadow: invalid ? "inset 0 0 0 1.5px #b42318" : undefined }}>
+      <input type="text" inputMode={decimals ? "decimal" : "numeric"} aria-label={ariaLabel} aria-invalid={invalid}
+        value={text} placeholder="0"
+        onChange={(e) => {
+          let next = e.target.value.replace(/[^\d.,]/g, "");
+          const sep = next.search(/[.,]/);
+          if (!decimals) next = next.replace(/[.,]/g, "");
+          else if (sep >= 0) next = next.slice(0, sep + 1) + next.slice(sep + 1).replace(/[.,]/g, "").slice(0, decimals);
+          next = next.replace(/^0+(?=\d)/, "");
+          const n = Number(next.replace(",", "."));
+          let v = next === "" || Number.isNaN(n) ? 0 : Math.round(n * 10 ** decimals);
+          if (max != null && v > max) { v = max; next = shown(max); }
+          setText(next);
+          last.current = v;
+          onChange(v);
+        }}
+        className="min-w-0 flex-1 bg-transparent outline-none tabular-nums" />
+      {suffix && <span className="text-[12.5px] opacity-60">{suffix}</span>}
+    </div>
+  );
 }
 
 function NumberRow({ label, hint, value, onChange }: { label: string; hint: string; value: number | null; onChange: (v: number | null) => void }) {

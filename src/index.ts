@@ -1,4 +1,5 @@
 export { ModalShell } from "./ui/ModalShell";
+export { PricingSectionHeading } from "./ui/PricingSectionHeading";
 export type { ModalShellProps, ModalShellWidth } from "./ui/ModalShell";
 
 export { ResponsiveDrawer } from "./ui/ResponsiveDrawer";
@@ -330,7 +331,7 @@ export type {
  * one at a time. See src/donations/ and T-123.
  */
 export {
-  DonationsField, DonationsSection,
+  DonationsField, DonationsSection, DonationsHeading,
 } from "./donations";
 export type {
   DonationsFieldProps, DonationsSectionProps, DonationsModalShell,
