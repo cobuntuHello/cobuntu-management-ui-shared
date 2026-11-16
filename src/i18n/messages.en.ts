@@ -58,6 +58,7 @@ export const MANAGEMENT_UI_MESSAGES_EN = {
         createCode: "Create code",
         code: "Code",
         copy: "Copy",
+        copied: "Copied",
         generate: "Generate",
         usedKeepsName: "Someone has used this code, so it keeps its name.",
         codeRule: "Use 3 to 32 letters or numbers.",

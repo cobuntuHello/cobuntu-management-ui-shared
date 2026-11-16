@@ -227,3 +227,19 @@ describe("the amount box and the price cap (live feedback, 2026-11-16)", () => {
   });
 });
 
+describe("copying a code", () => {
+  it("says Copied on the button itself, then goes back", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    fetchMock.mockImplementation((url: string) => (url.endsWith("/preview")
+      ? reply(200, { tiers: [], warnings: [], lowestPrice: null })
+      : reply(200, { codes: [CODE] })));
+    render(<DiscountCodesSection endpoint={EP} itemName="Success Talks" tiers={[]} />);
+    fireEvent.click(await screen.findByText("SUMMER20"));
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    expect(screen.getByRole("button", { name: "Copied" })).toBeTruthy();
+    await act(async () => { vi.advanceTimersByTime(2100); });
+    expect(screen.getByRole("button", { name: "Copy" })).toBeTruthy();
+    vi.useRealTimers();
+  });
+});
+

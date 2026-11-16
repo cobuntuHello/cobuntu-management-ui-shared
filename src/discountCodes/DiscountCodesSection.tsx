@@ -176,6 +176,7 @@ export function DiscountCodeEditor({
   const [showOptions, setShowOptions] = React.useState(false);
   const [previewPending, setPreviewPending] = React.useState(false);
   const [confirmArchive, setConfirmArchive] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const usedAlready = !!existing && existing.uses.used + existing.uses.held > 0;
@@ -334,9 +335,16 @@ export function DiscountCodeEditor({
           onChange={(e) => set({ code: e.target.value.replace(/\s/g, "").toUpperCase() })}
           className="min-w-0 flex-1 bg-transparent font-mono font-semibold tracking-wide outline-none" />
         {existing ? (
-          <button type="button" className="flex items-center gap-1 text-[12px] font-semibold"
-            onClick={() => { void navigator.clipboard?.writeText(existing.code).catch(() => undefined); onCopied?.(existing.code); }}>
-            <Copy size={13} aria-hidden />{t("copy")}
+          /* The button itself says "Copied" for a moment, in the buyer's
+             language, so no host has to raise an (English) toast. */
+          <button type="button" className="flex items-center gap-1 text-[12px] font-semibold" aria-live="polite"
+            onClick={() => {
+              void navigator.clipboard?.writeText(existing.code).catch(() => undefined);
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 2000);
+              onCopied?.(existing.code);
+            }}>
+            {copied ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}{copied ? t("copied") : t("copy")}
           </button>
         ) : (
           <button type="button" className="text-[12px] font-semibold" onClick={() => set({ code: suggestCode(itemName, draft.mode === "PERCENT_OFF" ? draft.value : null, Math.random()) })}>
