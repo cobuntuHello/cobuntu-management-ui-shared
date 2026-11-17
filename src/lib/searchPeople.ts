@@ -116,3 +116,38 @@ export async function searchPeople({
         return [];
     }
 }
+
+/**
+ * Someone OUTSIDE the community, found by their exact @usertag.
+ *
+ * A community surface searches its own members only, by design: a host should
+ * not be able to browse everyone on Cobuntu by name. But a surface that already
+ * takes people from outside by email (adding attendees, sending a gift,
+ * inviting) should also take them by the handle they were given, which is a
+ * deliberate, exact lookup rather than browsing. Uses the public global profile
+ * (`GET /api/users/:usertag`, no community), so it reveals nothing a visitor
+ * to that profile could not already see.
+ */
+export function looksLikeUsertag(query: string): boolean {
+    const q = query.trim().replace(/^@/, "");
+    return /^[a-z0-9][a-z0-9._-]{1,39}$/i.test(q) && !q.includes("@");
+}
+
+export async function lookupUsertag({
+    apiBaseUrl,
+    query,
+    headers,
+    signal,
+}: { apiBaseUrl: string; query: string; headers?: Record<string, string>; signal?: AbortSignal }): Promise<PersonSearchResult | null> {
+    if (!looksLikeUsertag(query)) return null;
+    const tag = query.trim().replace(/^@/, "").toLowerCase();
+    try {
+        const res = await fetch(`${apiBaseUrl}/api/users/${encodeURIComponent(tag)}`, { headers: headers ?? {}, signal });
+        if (!res.ok) return null;
+        const person = normalise(await res.json());
+        // Exact means exact: a profile route that resolves a near match is not this person.
+        return person && person.usertag && person.usertag.toLowerCase() === tag ? person : null;
+    } catch {
+        return null;
+    }
+}
