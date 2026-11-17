@@ -756,3 +756,79 @@ describe("outsiders", () => {
         expect(screen.queryByText("Malgorzata Grzasko")).not.toBeInTheDocument();
     });
 });
+
+describe("someone outside the community, by exact @usertag (2026-11-17)", () => {
+    const RUI = { id: "u-rui", name: "Rui Matos", usertag: "rui-matos", profileImage: null };
+
+    /** Members search finds nobody; the public profile answers for one exact handle. */
+    function outsiderApi(profile: any = RUI) {
+        return vi.fn(async (url: string) => {
+            const u = String(url);
+            if (u.includes("/memberships")) return { ok: true, json: async () => ({ members: ROSTER }) } as any;
+            if (u.includes("/members/search")) return { ok: true, json: async () => ({ members: [] }) } as any;
+            if (u.includes(`/api/users/${profile?.usertag}`)) return { ok: true, json: async () => profile } as any;
+            return { ok: false, status: 404, json: async () => ({}) } as any;
+        });
+    }
+
+    it("finds them by @usertag on a surface that takes outsiders, labelled as not a member, and stages their account", async () => {
+        const fetchMock = outsiderApi();
+        vi.stubGlobal("fetch", fetchMock);
+        const { onConfirm } = setup({ emails: EMAILS, multiple: true });
+        await screen.findByText("Ana Neto");
+
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "@rui-matos");
+        expect(await screen.findByText("Rui Matos")).toBeInTheDocument();
+        expect(screen.getByText("@rui-matos · Not a member")).toBeInTheDocument();
+        expect(fetchMock.mock.calls.some(([u]: any) => String(u).endsWith("/api/users/rui-matos"))).toBe(true);
+
+        await userEvent.click(screen.getByText("Rui Matos"));
+        await userEvent.click(screen.getByRole("button", { name: COPY.stepTwo }));
+        await userEvent.click(screen.getByRole("button", { name: COPY.confirm }));
+        await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+        expect(onConfirm.mock.calls[0][0][0]).toMatchObject({ id: "u-rui", usertag: "rui-matos" });
+    });
+
+    it("never looks outside on a members-only surface (no emails), so nobody can browse Cobuntu from there", async () => {
+        const fetchMock = outsiderApi();
+        vi.stubGlobal("fetch", fetchMock);
+        setup({ multiple: true });
+        await screen.findByText("Ana Neto");
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "rui-matos");
+        await waitFor(() => expect(screen.getByText(COPY.noMatches)).toBeInTheDocument());
+        expect(fetchMock.mock.calls.some(([u]: any) => String(u).includes("/api/users/"))).toBe(false);
+    });
+
+    it("does not look up a name with a space or an email address as a handle", async () => {
+        const fetchMock = outsiderApi();
+        vi.stubGlobal("fetch", fetchMock);
+        setup({ emails: EMAILS, multiple: true });
+        await screen.findByText("Ana Neto");
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "Rui Matos");
+        await waitFor(() => expect(fetchMock.mock.calls.some(([u]: any) => String(u).includes("/members/search"))).toBe(true));
+        await userEvent.clear(screen.getByPlaceholderText(COPY.searchPlaceholder));
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "rui@example.com");
+        await screen.findByText("Invite rui@example.com");
+        expect(fetchMock.mock.calls.some(([u]: any) => String(u).includes("/api/users/"))).toBe(false);
+    });
+
+    it("skips someone already on the list", async () => {
+        vi.stubGlobal("fetch", outsiderApi());
+        setup({ emails: EMAILS, multiple: true, excludeUserIds: ["u-rui"] });
+        await screen.findByText("Ana Neto");
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "@rui-matos");
+        await waitFor(() => expect(screen.getByText(COPY.noMatches)).toBeInTheDocument());
+        expect(screen.queryByText("Rui Matos")).not.toBeInTheDocument();
+    });
+});
+
+describe("looksLikeUsertag", () => {
+    it("accepts a handle with or without @, and refuses names with spaces and email addresses", async () => {
+        const { looksLikeUsertag } = await import("../lib/searchPeople");
+        expect(looksLikeUsertag("@rui-matos")).toBe(true);
+        expect(looksLikeUsertag("rui.matos_2")).toBe(true);
+        expect(looksLikeUsertag("Rui Matos")).toBe(false);
+        expect(looksLikeUsertag("rui@example.com")).toBe(false);
+        expect(looksLikeUsertag("r")).toBe(false);
+    });
+});

@@ -3,7 +3,7 @@
 import { useSharedT } from "../i18n";
 import * as React from "react";
 import { ActionModalShell } from "./ActionModalShell";
-import { searchPeople, minQueryLength, type PersonSearchResult } from "../lib/searchPeople";
+import { searchPeople, minQueryLength, type PersonSearchResult, lookupUsertag, looksLikeUsertag } from "../lib/searchPeople";
 import { fetchCommunityRoster, groupRoster, rosterRoles, type RosterPerson, type RosterGroup } from "../lib/communityRoster";
 import {
     addRecipients, fromPerson, looksLikeEmail, parseCsvEmails, parseCsvRecipientRows,
@@ -293,6 +293,10 @@ export function PersonPickerModal({
     const [rosterLoading, setRosterLoading] = React.useState(false);
     const [role, setRole] = React.useState<string>("");
     const [found, setFound] = React.useState<PersonSearchResult[]>([]);
+    /* Search results that are NOT members of this community (an exact @usertag
+       match on a surface that takes outsiders). Labelled so the host knows. */
+    const [outsideIds, setOutsideIds] = React.useState<Set<string>>(() => new Set());
+    const tPicker = useSharedT("shared.managementUi.personPicker");
     const [searching, setSearching] = React.useState(false);
     const [picked, setPicked] = React.useState<Recipient[]>([]);
     const [message, setMessage] = React.useState("");
@@ -411,13 +415,29 @@ export function PersonPickerModal({
         let cancelled = false;
         setSearching(true);
         const timer = setTimeout(async () => {
-            const people = await searchPeople({
+            let people = await searchPeople({
                 apiBaseUrl, communityTag: searchTag, query: q,
                 excludeUserIds: excludeKey ? excludeKey.split(",") : [],
                 currentUserId, headers: authHeaders(),
             });
+            /*
+             * Nobody in the community: on a surface that takes people from
+             * outside (it has `emails`), try the exact @usertag across Cobuntu.
+             * Never by name, so a host cannot browse every user (decided
+             * 2026-11-17). Someone already on the list, or the host, is skipped.
+             */
+            let outside = new Set<string>();
+            if (people.length === 0 && emails && searchTag && looksLikeUsertag(q)) {
+                const exact = await lookupUsertag({ apiBaseUrl, query: q, headers: authHeaders() });
+                const excluded = new Set(excludeKey ? excludeKey.split(",") : []);
+                if (exact && !excluded.has(exact.id) && exact.id !== currentUserId) {
+                    people = [exact];
+                    outside = new Set([exact.id]);
+                }
+            }
             if (cancelled) return;
             setFound(people);
+            setOutsideIds(outside);
             setSearching(false);
         }, 250);
         return () => { cancelled = true; clearTimeout(timer); };
@@ -845,7 +865,8 @@ export function PersonPickerModal({
                                 </div>
                             ) : showSearchResults ? (
                                 found.map((p) => (
-                                    <Row key={p.id} person={p} picked={isPicked(p.id)} onToggle={toggle} UserAvatar={UserAvatar} unknown={copy.unknown} />
+                                    <Row key={p.id} person={p} picked={isPicked(p.id)} onToggle={toggle} UserAvatar={UserAvatar} unknown={copy.unknown}
+                                        note={outsideIds.has(p.id) ? tPicker("notAMember") : undefined} />
                                 ))
                             ) : (
                                 groups.map((g) => (
@@ -1117,13 +1138,15 @@ export function PersonPickerModal({
 }
 
 function Row({
-    person, picked, onToggle, UserAvatar, unknown,
+    person, picked, onToggle, UserAvatar, unknown, note,
 }: {
     person: PersonSearchResult;
     picked: boolean;
     onToggle: (p: PersonSearchResult) => void;
     UserAvatar: React.ComponentType<{ user: any; className?: string }>;
     unknown: string;
+    /** A short fact after the @usertag, e.g. that they are not a member here. */
+    note?: string;
 }) {
     return (
         <button
@@ -1146,7 +1169,7 @@ function Row({
             <span className="min-w-0 flex-1">
                 <span className="block text-[13px] text-zinc-900 truncate">{person.name || unknown}</span>
                 {person.usertag && (
-                    <span className="block text-[11.5px] text-zinc-400 truncate">@{person.usertag}</span>
+                    <span className="block text-[11.5px] text-zinc-400 truncate">@{person.usertag}{note ? ` · ${note}` : ""}</span>
                 )}
             </span>
         </button>

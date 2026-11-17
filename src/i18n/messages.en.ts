@@ -111,6 +111,9 @@ export const MANAGEMENT_UI_MESSAGES_EN = {
         imagesInDescription: "Images in this description",
         removeImage: "Remove image {n}",
       },
+      personPicker: {
+        notAMember: "Not a member",
+      },
       modalChrome: {
         close: "Close",
         progress: "Progress",
