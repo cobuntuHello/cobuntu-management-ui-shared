@@ -832,3 +832,72 @@ describe("looksLikeUsertag", () => {
         expect(looksLikeUsertag("r")).toBe(false);
     });
 });
+
+/*
+ * Add vs Gift phase 5 (backend docs/features/add-vs-gift.md): an undo window
+ * before anything is sent, and a nudge when a guest has no name yet.
+ */
+describe("the undo window", () => {
+    const UNDO = {
+        seconds: 1,
+        counting: (n: number, s: number) => `Adding ${n} in ${s}s`,
+        undo: "Undo",
+        undone: "Not sent. Change anything and send again.",
+    };
+
+    async function stageAndConfirm() {
+        vi.stubGlobal("fetch", mockApi());
+        const out = setup({ emails: EMAILS, multiple: true, undo: UNDO });
+        await screen.findByText("Ana Neto");
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "rui@example.com");
+        await userEvent.click(await screen.findByText("Invite rui@example.com"));
+        await userEvent.click(screen.getByRole("button", { name: COPY.stepTwo }));
+        await userEvent.click(screen.getByRole("button", { name: COPY.confirm }));
+        return out;
+    }
+
+    it("holds the send while it counts down, then sends", async () => {
+        const { onConfirm } = await stageAndConfirm();
+        expect(screen.getByText("Adding 1 in 1s")).toBeInTheDocument();
+        expect(onConfirm).not.toHaveBeenCalled();
+        await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1), { timeout: 2500 });
+        expect(onConfirm.mock.calls[0][0]).toEqual([{ email: "rui@example.com" }]);
+    });
+
+    it("Undo sends nothing and goes back with everyone still staged", async () => {
+        const { onConfirm } = await stageAndConfirm();
+        await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+        expect(await screen.findByText(UNDO.undone)).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: COPY.confirm })).toBeInTheDocument();
+        await new Promise((r) => setTimeout(r, 1300));
+        expect(onConfirm).not.toHaveBeenCalled();
+        expect(screen.getAllByText(/rui@example\.com/).length).toBeGreaterThan(0);
+    });
+
+    it("leaving the page mid-countdown sends at once", async () => {
+        const { onConfirm } = await stageAndConfirm();
+        window.dispatchEvent(new Event("pagehide"));
+        await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1), { timeout: 500 });
+    });
+});
+
+describe("a guest with no name yet", () => {
+    it("is pointed out before sending, and the note goes once named; it never blocks", async () => {
+        vi.stubGlobal("fetch", mockApi());
+        const { onConfirm } = setup({
+            emails: { ...EMAILS, guestName: { label: "Their names", placeholder: "Their name", missing: (n) => `${n} person has no name yet. Add it, or send anyway.` } },
+            multiple: true,
+        });
+        await screen.findByText("Ana Neto");
+        await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), "rui@example.com");
+        await userEvent.click(await screen.findByText("Invite rui@example.com"));
+        await userEvent.click(screen.getByRole("button", { name: COPY.stepTwo }));
+
+        expect(screen.getByText("1 person has no name yet. Add it, or send anyway.")).toBeInTheDocument();
+        await userEvent.type(screen.getByPlaceholderText("Their name"), "Rui Barros");
+        expect(screen.queryByText(/has no name yet/)).not.toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: COPY.confirm }));
+        await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+        expect(onConfirm.mock.calls[0][0]).toEqual([{ email: "rui@example.com", name: "Rui Barros" }]);
+    });
+});
