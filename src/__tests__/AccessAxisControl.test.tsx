@@ -192,3 +192,40 @@ describe("the option rows read as cards", () => {
         expect(src).not.toContain("border-zinc-900 bg-zinc-900");
     });
 });
+
+describe("leading option (articles: Same as blog)", () => {
+  const leading = (selected: boolean, onSelect = vi.fn()) => ({
+    title: "Same as blog",
+    subtitle: "Blog is public",
+    selected,
+    onSelect,
+  });
+
+  it("renders as the first row and, while selected, is the only checked radio", () => {
+    setup({ mode: "public", tierIds: [] }, { leadingOption: leading(true) });
+    const radios = screen.getAllByRole("radio");
+    expect(radios[0]).toHaveTextContent("Same as blog");
+    expect(radios.filter((r) => r.getAttribute("aria-checked") === "true")).toHaveLength(1);
+    expect(radios[0]).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("keeps the tier list closed while selected, even when the resolved value is tiers", () => {
+    setup({ mode: "tiers", tierIds: ["t1"] }, { leadingOption: leading(true) });
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+  });
+
+  it("calls onSelect when tapped, and a mode row still calls onChange to leave it", async () => {
+    const onSelect = vi.fn();
+    const onChange = setup({ mode: "public", tierIds: [] }, { leadingOption: leading(true, onSelect) });
+    await userEvent.click(screen.getByText("Same as blog"));
+    expect(onSelect).toHaveBeenCalled();
+    await userEvent.click(screen.getByText("Public"));
+    expect(onChange).toHaveBeenCalledWith({ mode: "public", tierIds: [] });
+  });
+
+  it("is absent unless passed, so products and events are unchanged", () => {
+    setup({ mode: "all", tierIds: [] });
+    expect(screen.queryByText("Same as blog")).toBeNull();
+    expect(screen.getAllByRole("radio")).toHaveLength(3);
+  });
+});
