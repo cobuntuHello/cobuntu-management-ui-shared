@@ -50,6 +50,8 @@ const TRANSLATED_STATUSES = new Set([
     "ESCROW", "ELIGIBLE", "PAID", "HOLD",
     "COMPLETED", "PENDING", "FAILED",
     "DISPUTE_WON", "DISPUTE_LOST",
+    // Adds and free gifts (add-vs-gift.md phase 4).
+    "ADDED", "GIFTED", "OPENED", "AWAITING_ACCOUNT", "REVOKED", "CANCELLED",
 ]);
 
 /** SCREAMING_SNAKE to "Screaming snake". */
@@ -142,7 +144,7 @@ function groupByMonth(
     return out;
 }
 
-type KindFilter = "all" | "sale" | "refund" | "payout" | "dispute";
+type KindFilter = "all" | "sale" | "refund" | "payout" | "dispute" | "add" | "gift";
 type RangeFilter = "all" | "7" | "30" | "90";
 
 function matchesFilters(m: LedgerMovement, kind: KindFilter, range: RangeFilter, query: string): boolean {
@@ -154,7 +156,9 @@ function matchesFilters(m: LedgerMovement, kind: KindFilter, range: RangeFilter,
     }
     if (query.trim()) {
         const q = query.trim().toLowerCase();
-        const haystack = `${m.buyerName ?? ""} ${m.reason ?? ""}`.toLowerCase();
+        // The gift's recipient, the host who gave it, and the code are names
+        // a reader searches by too.
+        const haystack = `${m.buyerName ?? ""} ${m.reason ?? ""} ${m.giftRecipient ?? ""} ${m.byName ?? ""} ${m.discount?.code ?? ""}`.toLowerCase();
         if (!haystack.includes(q)) return false;
     }
     return true;
@@ -175,7 +179,20 @@ const TONE: Record<string, string> = {
     refund: "bg-red-50 text-red-700",
     payout: "bg-sky-50 text-sky-700",
     dispute: "bg-amber-50 text-amber-700",
+    add: "bg-zinc-100 text-zinc-700",
+    gift: "bg-violet-50 text-violet-700",
 };
+
+/** "SUMMER20, 20% off" (or "SUMMER20, €5.00 off" when the percent is unknown). */
+function discountLabel(m: LedgerMovement, cash: (n: number) => string, t: (key: string, vars?: Record<string, string | number>) => string): string | null {
+    if (!m.discount) return null;
+    return m.discount.percentOff != null
+        ? t("ledgerCodePercent", { code: m.discount.code, percent: m.discount.percentOff })
+        : t("ledgerCodeAmount", { code: m.discount.code, amount: cash(m.discount.amount) });
+}
+
+/** Given away by a host: no money on the row, ever. */
+const isFreeAccess = (m: LedgerMovement) => m.kind === "add" || m.kind === "gift";
 
 export function ManageLedger({
     ledger,
@@ -298,6 +315,8 @@ export function ManageLedger({
         { key: "refund", label: t("ledgerKind_refund") },
         { key: "payout", label: t("ledgerKind_payout") },
         { key: "dispute", label: t("ledgerKind_dispute") },
+        { key: "add", label: t("ledgerKind_add") },
+        { key: "gift", label: t("ledgerKind_gift") },
     ];
     const RANGE_OPTIONS: { key: RangeFilter; label: string }[] = [
         { key: "all", label: t("ledgerRangeAll") },
@@ -311,6 +330,8 @@ export function ManageLedger({
             t("ledgerColMovement"), "Date", "Status", t("ledgerColGross"),
             ...(showCommunity ? [t("ledgerColCommunity")] : []),
             t("ledgerColSeller"),
+            // Appended, so a sheet built on the columns above still lines up.
+            "Person", "Discount code", "Discount", "Percent off", "Gift for", "Given by",
         ];
         const lines = [header.map(csvCell).join(",")];
         for (const m of filtered) {
@@ -321,6 +342,12 @@ export function ManageLedger({
                 m.sign === -1 && !(m.kind === "dispute" && m.status === "DISPUTE_WON") ? -m.gross : m.gross,
                 ...(showCommunity ? [m.communityCut] : []),
                 m.sellerNet,
+                m.buyerName ?? "",
+                m.discount?.code ?? "",
+                m.discount ? m.discount.amount : "",
+                m.discount?.percentOff ?? "",
+                m.giftRecipient ?? "",
+                m.byName ?? "",
             ].map(csvCell).join(","));
         }
         const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -460,6 +487,7 @@ function Row({
     const won = m.kind === "dispute" && m.status === "DISPUTE_WON";
     const negative = m.sign === -1 && !won;
     const amount = (n: number) => (n === 0 ? "—" : `${negative ? "−" : ""}${cash(n)}`);
+    const free = isFreeAccess(m);
     const tone = negative ? "text-red-700" : "text-zinc-900";
     const expandable = hasBreakdown(m);
 
@@ -480,6 +508,12 @@ function Row({
         m.kind === "payout" && m.destination
             ? t("ledgerPaidTo", { account: destLabel(m.destination) })
             : null,
+        /* A bought gift is the buyer's sale; say who has it. */
+        m.kind === "sale" && m.giftRecipient ? t("ledgerGiftFor", { name: m.giftRecipient }) : null,
+        /* "SUMMER20, 20% off": the code is why this sale is smaller. */
+        m.kind === "sale" ? discountLabel(m, cash, t) : null,
+        /* Who gave it away. */
+        isFreeAccess(m) && m.byName ? t("ledgerGivenBy", { name: m.byName }) : null,
         m.reason,
     ].filter(Boolean).join(" · ");
 
@@ -533,8 +567,9 @@ function Row({
                 </div>
                 <p className="mt-0.5 text-[12px] text-zinc-500">{subline}</p>
             </td>
-            <td className={`px-4 py-3 text-right text-[13.5px] tabular-nums ${tone}`}>
-                {amount(m.gross)}
+            <td className={`px-4 py-3 text-right text-[13.5px] tabular-nums ${free ? "text-zinc-500" : tone}`}>
+                {/* Given away: "Free", not a dash that reads as a missing number. */}
+                {free ? t("ledgerFree") : amount(m.gross)}
             </td>
             {showCommunity && (
                 <td className={`px-4 py-3 text-right text-[13.5px] tabular-nums ${tone}`}>
@@ -688,6 +723,10 @@ function BreakdownPanel({
                                 <p className="text-[15px] font-semibold text-zinc-900 truncate">
                                     {m.buyerName || t("ledgerGuestBuyer")}
                                 </p>
+                                {/* A bought gift: the buyer paid, this person has it. */}
+                                {m.giftRecipient && (
+                                    <p className="text-[12.5px] text-zinc-500 truncate">{t("ledgerGiftFor", { name: m.giftRecipient })}</p>
+                                )}
                             </div>
                         </div>
 
@@ -710,6 +749,14 @@ function BreakdownPanel({
                                         <td className="px-4 py-2.5 text-zinc-500">{t("ledgerColGross")}</td>
                                         <td className="px-4 py-2.5 text-zinc-900 text-right tabular-nums">{cash(m.gross)}</td>
                                     </tr>
+                                    {/* What the code took off, before the gross above:
+                                        "SUMMER20, 20% off  -€5.00". */}
+                                    {m.discount && (
+                                        <tr className="border-b border-zinc-100">
+                                            <td className="px-4 py-2.5 text-zinc-500">{discountLabel(m, cash, t)}</td>
+                                            <td className="px-4 py-2.5 text-zinc-500 text-right tabular-nums">{`-${cash(m.discount.amount)}`}</td>
+                                        </tr>
+                                    )}
                                     {(m.vat ?? 0) > 0 && (
                                         <tr className="border-b border-zinc-100">
                                             <td className="px-4 py-2.5 text-zinc-500">{t("ledgerFeeVat")}</td>
