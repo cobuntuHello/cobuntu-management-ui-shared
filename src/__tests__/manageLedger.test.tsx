@@ -607,7 +607,8 @@ describe("a sale with a code, and a bought gift", () => {
     });
 
     it("shows the code's line in the drawer", () => {
-        renderIt([movement({ buyerName: "Ana", discount: { code: "SUMMER20", amount: 500, memberDiscount: 0, listUnitPrice: null, percentOff: 20 } })]);
+        // A sale opens its drawer when it carries its fee lines.
+        renderIt([movement({ buyerName: "Ana", vat: 0, stripeFee: 40, cobuntuFee: 170, communityFee: 0, discount: { code: "SUMMER20", amount: 500, memberDiscount: 0, listUnitPrice: null, percentOff: 20 } })]);
         fireEvent.click(screen.getByText("Ana").closest("tr")!);
         expect(screen.getAllByText(/SUMMER20, 20% off/).length).toBeGreaterThan(1);
         expect(screen.getByText("-€5.00")).toBeInTheDocument();
