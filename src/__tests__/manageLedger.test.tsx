@@ -558,3 +558,59 @@ describe("host refund action", () => {
         expect(screen.queryByText("Refund", { selector: "button" })).not.toBeInTheDocument();
     });
 });
+
+/*
+ * Add vs Gift phase 4 (backend docs/features/add-vs-gift.md): a host giving the
+ * item away is on the ledger, as a zero row, and never moves a number.
+ */
+describe("adds and free gifts", () => {
+    const add = movement({ kind: "add", gross: 0, communityCut: 0, sellerNet: 0, status: "ADDED", buyerName: "Malgo", byName: "Stella" });
+    const gift = movement({ kind: "gift", gross: 0, communityCut: 0, sellerNet: 0, status: "OPENED", buyerName: "Bea", byName: "Stella" });
+
+    it("are listed as Added and Gift, Free, with who gave them", () => {
+        renderIt([add, gift]);
+        expect(screen.getAllByText("Added").length).toBeGreaterThan(0);
+        expect(screen.getByText("Gift")).toBeInTheDocument();
+        expect(screen.getAllByText("Free")).toHaveLength(2);
+        expect(screen.getAllByText(/by Stella/, { selector: "p" })).toHaveLength(2);
+        expect(screen.getByText("Malgo")).toBeInTheDocument();
+        expect(screen.getByText(/Opened/)).toBeInTheDocument();
+    });
+
+    it("never move the totals", () => {
+        renderIt([movement({ sellerNet: 1642 }), add, gift]);
+        expect(screen.getByText("Net earned").nextElementSibling).toHaveTextContent("€16.42");
+    });
+
+    it("have their own filter", () => {
+        renderIt([movement({ buyerName: "A buyer" }), add]);
+        const before = screen.getAllByText("Added").length;
+        fireEvent.click(screen.getAllByText("All")[0].closest("button")!);
+        expect(screen.getAllByText("Added")).toHaveLength(before + 1);
+        expect(screen.getAllByText("Gift").length).toBeGreaterThan(0);
+    });
+});
+
+describe("a sale with a code, and a bought gift", () => {
+    it("says the code and its percent, and who the gift is for", () => {
+        renderIt([
+            movement({ buyerName: "Ana", discount: { code: "SUMMER20", amount: 500, memberDiscount: 0, listUnitPrice: null, percentOff: 20 } }),
+            movement({ buyerName: "Joao", giftRecipient: "Rita" }),
+        ]);
+        expect(screen.getByText(/SUMMER20, 20% off/)).toBeInTheDocument();
+        expect(screen.getByText(/Gift for Rita/)).toBeInTheDocument();
+    });
+
+    it("falls back to the amount when the percent is unknown", () => {
+        renderIt([movement({ discount: { code: "FIVER", amount: 500, memberDiscount: 0, listUnitPrice: null, percentOff: null } })]);
+        expect(screen.getByText(/FIVER, €5\.00 off/)).toBeInTheDocument();
+    });
+
+    it("shows the code's line in the drawer", () => {
+        // A sale opens its drawer when it carries its fee lines.
+        renderIt([movement({ buyerName: "Ana", vat: 0, stripeFee: 40, cobuntuFee: 170, communityFee: 0, discount: { code: "SUMMER20", amount: 500, memberDiscount: 0, listUnitPrice: null, percentOff: 20 } })]);
+        fireEvent.click(screen.getByText("Ana").closest("tr")!);
+        expect(screen.getAllByText(/SUMMER20, 20% off/).length).toBeGreaterThan(1);
+        expect(screen.getByText("-€5.00")).toBeInTheDocument();
+    });
+});

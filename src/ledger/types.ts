@@ -12,7 +12,12 @@ import type { StripeDestination } from "../overview/types";
 
 export interface LedgerMovement {
     key: string;
-    kind: "sale" | "refund" | "payout" | "dispute";
+    /**
+     * "add" and "gift" (add-vs-gift.md phase 4): a host gave the item away, as
+     * a plain add or a free gift. No money moved: every amount is 0 and they
+     * never reach a total. A BOUGHT gift is a "sale" carrying `giftRecipient`.
+     */
+    kind: "sale" | "refund" | "payout" | "dispute" | "add" | "gift";
     /** ISO. Refunds and disputes carry their OWN date, not their sale's. */
     at: string;
     currency: string;
@@ -67,6 +72,15 @@ export interface LedgerMovement {
      *  credit notes no permanent link) -- still worth showing, just don't be
      *  surprised if an old one 404s. Null when none was issued. */
     creditNoteUrl?: string | null;
+    /** Sale only: a discount code on it. Amount in the smallest unit; percent
+     *  is the code's share of the price before it, null when unknown. */
+    discount?: { code: string; amount: number; memberDiscount: number; listUnitPrice: number | null; percentOff?: number | null };
+    /** Sale only: who a BOUGHT gift went to. The buyer stays `buyerName`. */
+    giftRecipient?: string | null;
+    /** "add" / "gift" only: the host who gave it. The person is `buyerName`. */
+    byName?: string | null;
+    /** "gift" only: when the person opened it. */
+    openedAt?: string | null;
 }
 
 export interface ItemLedger {
