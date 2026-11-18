@@ -53,6 +53,21 @@ export interface AccessAxisControlProps {
    */
   ceiling?: TierAccessCeiling;
   disabled?: boolean;
+  /**
+   * An extra first row that is not one of the three modes: articles use it
+   * for "Same as blog" (the setting follows the blog page). While it is
+   * selected the three rows below show as unselected and the tier list stays
+   * closed, and `value` should hold what the leading option resolves to, so
+   * a ceiling computed from it stays honest. The caller owns the copy; this
+   * component adds no strings for it.
+   */
+  leadingOption?: {
+    title: string;
+    subtitle: string;
+    selected: boolean;
+    onSelect: () => void;
+    disabled?: boolean;
+  };
 }
 
 export function AccessAxisControl({
@@ -64,7 +79,9 @@ export function AccessAxisControl({
   allLabel: allLabelProp,
   ceiling,
   disabled = false,
+  leadingOption,
 }: AccessAxisControlProps) {
+  const leading = !!leadingOption?.selected;
   const t = useSharedT("shared.managementUi.accessAxisControl");
   const allLabel = allLabelProp ?? t("allSubtitle");
   const showPublic = ceiling ? ceiling.allowPublic : true;
@@ -92,17 +109,26 @@ export function AccessAxisControl({
       </div>
 
       <div className="flex flex-col gap-1">
+      {leadingOption && (
+        <Row
+          title={leadingOption.title}
+          subtitle={leadingOption.subtitle}
+          selected={leading}
+          disabled={disabled || !!leadingOption.disabled}
+          onClick={leadingOption.onSelect}
+        />
+      )}
       <Row
         title={t("public")}
         subtitle={publicLabel}
-        selected={value.mode === "public"}
+        selected={!leading && value.mode === "public"}
         disabled={disabled || !showPublic}
         onClick={() => onChange({ mode: "public", tierIds: [] })}
       />
       <Row
         title={t("allMembers")}
         subtitle={allLabel}
-        selected={value.mode === "all"}
+        selected={!leading && value.mode === "all"}
         disabled={disabled || !showAll}
         onClick={() => onChange({ mode: "all", tierIds: [] })}
       />
@@ -110,7 +136,7 @@ export function AccessAxisControl({
         <Row
           title={t("specificTiers")}
           subtitle={t("specificTiersSubtitle")}
-          selected={value.mode === "tiers"}
+          selected={!leading && value.mode === "tiers"}
           disabled={disabled}
           onClick={pickTiers}
           trailing={
@@ -121,7 +147,7 @@ export function AccessAxisControl({
               fill="none"
               stroke="currentColor"
               strokeWidth="2.2"
-              className={`shrink-0 text-zinc-300 transition-transform ${value.mode === "tiers" ? "rotate-90" : ""}`}
+              className={`shrink-0 text-zinc-300 transition-transform ${!leading && value.mode === "tiers" ? "rotate-90" : ""}`}
             >
               <polyline points="9 6 15 12 9 18" />
             </svg>
@@ -130,7 +156,7 @@ export function AccessAxisControl({
       )}
       </div>
 
-      {value.mode === "tiers" && canChooseTiers && (
+      {!leading && value.mode === "tiers" && canChooseTiers && (
         <div className="mt-1">
           {choosable.map((tier, i) => {
             const checked = tierIsIncluded(value, tier.id);
