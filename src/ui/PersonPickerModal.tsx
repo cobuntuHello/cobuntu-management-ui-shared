@@ -126,7 +126,17 @@ export interface PersonPickerEmails {
      * who knows who that is. Shown for the first {@link GUEST_NAME_LIMIT}
      * addresses; a long CSV import is not a form to fill in by hand.
      */
-    guestName?: { label: string; placeholder: string };
+    guestName?: {
+        label: string;
+        placeholder: string;
+        /**
+         * Said under the names when some are still empty, before sending
+         * (add-vs-gift.md phase 5): a host who forgets a name otherwise finds
+         * the guest on the list as their address (Ana Barros, 2026-11-18).
+         * A nudge, never a block. Given the count of empty names.
+         */
+        missing?: (count: number) => string;
+    };
 }
 
 /** How many name fields the confirm step offers before it stops asking. */
@@ -255,6 +265,22 @@ export interface PersonPickerModalProps {
     /** Performs the write. Throw an Error to surface its message. */
     onConfirm: (recipients: Recipient[], message: string | null) => Promise<void>;
     onAdded?: (recipients: Recipient[]) => void;
+    /**
+     * An undo window before the write (add-vs-gift.md phase 5), like Gmail's:
+     * after Confirm the footer counts down "Adding 3 people in 8s · Undo" and
+     * nothing is sent until it runs out. Undo returns to the confirm step with
+     * everything kept, so a forgotten name or a wrong person is fixed before
+     * anyone is emailed. Closing the window, or the page going away, sends at
+     * once: a host who walks off has still added them. Omit for no window.
+     */
+    undo?: {
+        seconds: number;
+        /** "Adding 3 people in 8s" / "Sending 1 gift in 5s". */
+        counting: (count: number, secondsLeft: number) => string;
+        undo: string;
+        /** Shown after Undo: nothing was sent. */
+        undone: string;
+    };
 }
 
 const CHEVRON = (
@@ -267,7 +293,7 @@ const CHEVRON = (
 export function PersonPickerModal({
     open, onClose, apiBaseUrl, authHeaders, communityTag, searchEveryone = false, excludeUserIds,
     currentUserId, UserAvatar, multiple = false, copy, stepTwo, emails, suggestions,
-    outsiders, tierStep, onConfirm, onAdded,
+    outsiders, tierStep, onConfirm, onAdded, undo,
 }: PersonPickerModalProps) {
     /* Where a query goes once the roster has nobody for it. Null means global
        user search; see searchPeople. */
@@ -530,10 +556,58 @@ export function PersonPickerModal({
         setPlan(null);
     }
 
+    /*
+     * The undo window. `hold` settles the wait: true sends, false is Undo.
+     * A ref, so a close or a pagehide in the middle of the countdown can reach
+     * it without re-rendering first.
+     */
+    const [countdown, setCountdown] = React.useState<number | null>(null);
+    const [undoNotice, setUndoNotice] = React.useState<string | null>(null);
+    const hold = React.useRef<((send: boolean) => void) | null>(null);
+    function waitForUndo(seconds: number): Promise<boolean> {
+        return new Promise((resolve) => {
+            let left = Math.max(1, Math.round(seconds));
+            setCountdown(left);
+            const tick = setInterval(() => {
+                left -= 1;
+                if (left <= 0) settle(true);
+                else setCountdown(left);
+            }, 1000);
+            function settle(send: boolean) {
+                clearInterval(tick);
+                hold.current = null;
+                setCountdown(null);
+                resolve(send);
+            }
+            hold.current = settle;
+        });
+    }
+    // Leaving the page mid-countdown sends now (the caller's request should be
+    // keepalive), the way Gmail sends a held email when you close the tab.
+    React.useEffect(() => {
+        const flush = () => hold.current?.(true);
+        window.addEventListener("pagehide", flush);
+        return () => {
+            window.removeEventListener("pagehide", flush);
+            // Unmounted mid-countdown (the host app closed the modal): send.
+            hold.current?.(true);
+        };
+    }, []);
+    /* Closing during the countdown sends at once rather than discarding. */
+    const closeOrSend = () => {
+        if (hold.current) { hold.current(true); return; }
+        onClose();
+    };
+
     async function confirm() {
-        if (picked.length === 0 || submitting) return;
-        setSubmitting(true);
+        if (picked.length === 0 || submitting || countdown !== null) return;
         setError(null);
+        setUndoNotice(null);
+        if (undo && undo.seconds > 0) {
+            const send = await waitForUndo(undo.seconds);
+            if (!send) { setUndoNotice(undo.undone); return; }
+        }
+        setSubmitting(true);
         try {
             /*
              * The chosen tier is stamped ONCE, here — never as people are
@@ -574,14 +648,15 @@ export function PersonPickerModal({
     return (
         <ActionModalShell
             isOpen={open}
-            onClose={onClose}
+            onClose={closeOrSend}
             title={copy.title}
             subtitle={
                 step === 'people' ? copy.searchSubtitle
                     : step === 'tier' ? (tierStep?.copy.subtitle ?? copy.pickedSubtitle)
                         : copy.pickedSubtitle
             }
-            unsavedCount={picked.length > 0 ? picked.length : 0}
+            // Mid-countdown, closing SENDS (closeOrSend): never ask "discard?".
+            unsavedCount={picked.length > 0 && countdown === null ? picked.length : 0}
             unsavedMessage={copy.discardConfirm ? () => copy.discardConfirm! : undefined}
             footer={
                 <div className="flex items-center gap-3">
@@ -596,7 +671,7 @@ export function PersonPickerModal({
                             {/* Muted plate, never a transparent ghost — same
                                 treatment as the shell's circular dismiss. */}
                             <button
-                                onClick={onClose}
+                                onClick={closeOrSend}
                                 className="px-4 py-2.5 text-[13px] rounded-lg cursor-pointer bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
                             >
                                 {copy.cancel}
@@ -622,13 +697,27 @@ export function PersonPickerModal({
                     ) : (
                         /* No Back button: the breadcrumb above owns that, the
                            way it does on the detail pages. */
-                        <button
-                            onClick={confirm}
-                            disabled={submitting}
-                            className="px-5 py-2.5 text-[13px] font-medium bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                        >
-                            {submitting ? copy.confirming : copy.confirm}
-                        </button>
+                        countdown !== null && undo ? (
+                            <div className="flex items-center gap-3" role="status" aria-live="polite">
+                                <span className="text-[13px] text-zinc-600 tabular-nums">
+                                    {undo.counting(picked.length, countdown)}
+                                </span>
+                                <button
+                                    onClick={() => hold.current?.(false)}
+                                    className="px-4 py-2.5 text-[13px] font-medium rounded-lg cursor-pointer bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
+                                >
+                                    {undo.undo}
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={confirm}
+                                disabled={submitting}
+                                className="px-5 py-2.5 text-[13px] font-medium bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                                {submitting ? copy.confirming : copy.confirm}
+                            </button>
+                        )
                     )}
                 </div>
             }
@@ -1096,6 +1185,12 @@ export function PersonPickerModal({
                                         </label>
                                     ))}
                                 </div>
+                                {/* A nudge, never a block: they can still send. */}
+                                {emails.guestName.missing && guestsToName.some((r) => !r.name?.trim()) && (
+                                    <p className="m-0 mt-1.5 text-[12px] text-amber-700">
+                                        {emails.guestName.missing(guestsToName.filter((r) => !r.name?.trim()).length)}
+                                    </p>
+                                )}
                             </div>
                         )}
 
@@ -1129,6 +1224,7 @@ export function PersonPickerModal({
                             </>
                         )}
 
+                        {undoNotice && !error && <p className="text-[12px] text-zinc-600">{undoNotice}</p>}
                         {error && <p className="text-[12px] text-red-600">{error}</p>}
                     </div>
                 )}
