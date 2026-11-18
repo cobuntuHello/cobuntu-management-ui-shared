@@ -562,7 +562,7 @@ export function PersonPickerModal({
      * it without re-rendering first.
      */
     const [countdown, setCountdown] = React.useState<number | null>(null);
-    const [notice, setNotice] = React.useState<string | null>(null);
+    const [undoNotice, setUndoNotice] = React.useState<string | null>(null);
     const hold = React.useRef<((send: boolean) => void) | null>(null);
     function waitForUndo(seconds: number): Promise<boolean> {
         return new Promise((resolve) => {
@@ -602,10 +602,10 @@ export function PersonPickerModal({
     async function confirm() {
         if (picked.length === 0 || submitting || countdown !== null) return;
         setError(null);
-        setNotice(null);
+        setUndoNotice(null);
         if (undo && undo.seconds > 0) {
             const send = await waitForUndo(undo.seconds);
-            if (!send) { setNotice(undo.undone); return; }
+            if (!send) { setUndoNotice(undo.undone); return; }
         }
         setSubmitting(true);
         try {
@@ -1224,7 +1224,7 @@ export function PersonPickerModal({
                             </>
                         )}
 
-                        {notice && !error && <p className="text-[12px] text-zinc-600">{notice}</p>}
+                        {undoNotice && !error && <p className="text-[12px] text-zinc-600">{undoNotice}</p>}
                         {error && <p className="text-[12px] text-red-600">{error}</p>}
                     </div>
                 )}
