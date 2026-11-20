@@ -23,6 +23,25 @@ describe("GatePage", () => {
     );
   });
 
+  it("wears the 404/403 family look: 401 signed out, 403 once signed in or on the wrong tier", () => {
+    const { rerender } = render(<GatePage gate={{ kind: "community_private", communityName: "PBN" }} returnTo="/feed" />);
+    expect(screen.getByText("401")).toBeInTheDocument();
+    rerender(<GatePage gate={{ kind: "community_private", communityName: "PBN" }} returnTo="/feed" viewerLoggedIn />);
+    expect(screen.getByText("403")).toBeInTheDocument();
+    rerender(
+      <GatePage
+        gate={{ kind: "wrong_tier", communityName: "PBN", requiredTiers: [{ id: "t1", name: "Gold" }] }}
+        returnTo="/feed"
+      />,
+    );
+    expect(screen.getByText("403")).toBeInTheDocument();
+  });
+
+  it("shows a monogram when the community has no logo", () => {
+    render(<GatePage gate={{ kind: "community_private", communityName: "PBN" }} returnTo="/feed" />);
+    expect(screen.getByText("P")).toBeInTheDocument();
+  });
+
   it("community_private: shows secondary 'Apply to join' CTA for anonymous viewers", () => {
     render(
       <GatePage

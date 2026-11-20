@@ -245,34 +245,65 @@ export function GatePage(props: GatePageProps) {
   const softBorder = "color-mix(in srgb, currentColor 16%, transparent)";
   const softDivide = "color-mix(in srgb, currentColor 10%, transparent)";
 
+  // Which stop this is, as the community's 404 and manage-403 pages show it.
+  // Signed out on a member-gated page is "sign in first" (401); everyone else
+  // here is signed in or past the sign-in step and simply not allowed (403).
+  // The page itself still returns HTTP 200 (see the doc above), the number is
+  // only the visitor-facing label.
+  const code = gate.kind === "wrong_tier" || props.viewerLoggedIn ? "403" : "401";
+
+  // Shared button shape: one solid primary, everything else outlined. Real
+  // buttons rather than text links, like the rest of the app's error pages.
+  const buttonBase =
+    "block w-full text-center px-4 py-3 text-[14px] font-semibold transition-opacity hover:opacity-90 cursor-pointer";
+  const buttonRadius = { borderRadius: "var(--button-radius, 8px)" } as const;
+
   return (
     <div
       className="min-h-screen flex items-center justify-center px-6 py-16"
       style={{ backgroundColor: surfaceBg, color: surfaceText }}
     >
-      <div className="w-full max-w-md">
-        {communityLogoUrl && (
-          <a href={homeHref} className="block w-fit mx-auto mb-6" aria-label={t("backTo", { community: gate.communityName })}>
+      <div className="w-full max-w-md flex flex-col items-center text-center">
+        {/* Logo, or a tinted monogram when the community has none: the same
+            treatment as the community 404 so the two read as one family. */}
+        {communityLogoUrl ? (
+          <a href={homeHref} className="block w-fit mb-6" aria-label={t("backTo", { community: gate.communityName })}>
             <img
               src={communityLogoUrl}
               alt={t("logoAlt", { community: gate.communityName })}
-              className="h-12 w-12 rounded-xl object-cover"
+              className="h-14 w-14 rounded-2xl object-cover"
             />
           </a>
+        ) : (
+          // Not a link: the "Back to" button below is the way home, and a
+          // second link here would be a duplicate for keyboard and screen
+          // reader users.
+          <div
+            aria-hidden
+            className="h-14 w-14 rounded-2xl flex items-center justify-center mb-6 text-lg font-semibold"
+            style={{ backgroundColor: softBg, color: accent }}
+          >
+            {gate.communityName.charAt(0).toUpperCase()}
+          </div>
         )}
-        <div className="text-center">
-          <h1 className="text-[20px] font-semibold leading-tight" style={{ fontFamily: headingFont }}>
-            {copy.headline}
-          </h1>
-          <p className="mt-2 text-[14px] leading-relaxed opacity-65">
-            {copy.subhead}
-          </p>
-        </div>
+
+        <p
+          className="font-bold leading-none mb-3 select-none"
+          style={{ fontFamily: headingFont, fontSize: "64px", opacity: 0.12 }}
+          aria-hidden
+        >
+          {code}
+        </p>
+
+        <h1 className="text-xl sm:text-2xl font-semibold mb-2" style={{ fontFamily: headingFont }}>
+          {copy.headline}
+        </h1>
+        <p className="max-w-sm text-sm leading-relaxed opacity-60">{copy.subhead}</p>
 
         {copy.showTierList && gate.kind === "wrong_tier" && (
           <ul
-            className="mt-5 rounded-xl overflow-hidden"
-            style={{ border: `1px solid ${softBorder}`, backgroundColor: softBg }}
+            className="mt-5 w-full max-w-sm overflow-hidden text-left"
+            style={{ border: `1px solid ${softBorder}`, backgroundColor: softBg, borderRadius: "var(--button-radius, 12px)" }}
           >
             {gate.requiredTiers.map((tier, i) => (
               <li
@@ -280,49 +311,40 @@ export function GatePage(props: GatePageProps) {
                 className="flex items-center justify-between px-4 py-3"
                 style={i > 0 ? { borderTop: `1px solid ${softDivide}` } : undefined}
               >
-                <span className="text-[13px] font-medium">
-                  {tier.name}
-                </span>
-                {tier.priceLabel && (
-                  <span className="text-[12px] opacity-60">
-                    {tier.priceLabel}
-                  </span>
-                )}
+                <span className="text-[13px] font-medium">{tier.name}</span>
+                {tier.priceLabel && <span className="text-[12px] opacity-60">{tier.priceLabel}</span>}
               </li>
             ))}
           </ul>
         )}
 
-        <div className="mt-6 flex flex-col gap-2">
+        <div className="mt-7 flex w-full max-w-xs flex-col gap-2.5">
           <a
             href={copy.primaryCtaHref}
-            className="block w-full text-center px-4 py-2.5 rounded-lg text-[13px] font-medium hover:opacity-90 transition-opacity cursor-pointer"
-            style={{ backgroundColor: accent, color: onBrand }}
+            className={buttonBase}
+            style={{ backgroundColor: accent, color: onBrand, ...buttonRadius }}
           >
             {copy.primaryCtaLabel}
           </a>
           {copy.secondaryCta && (
             <a
               href={copy.secondaryCta.href}
-              className="block w-full text-center px-4 py-2.5 rounded-lg text-[13px] font-medium opacity-75 hover:opacity-100 transition-opacity cursor-pointer"
+              className={`${buttonBase} border hover:opacity-80`}
+              style={{ borderColor: softBorder, ...buttonRadius }}
             >
               {copy.secondaryCta.label}
             </a>
           )}
-          {/* Escape hatch — the gate is a full-screen takeover with no
-              header/nav, so without this a visitor who won't sign in/join is
-              stuck. Muted (tertiary) button back to the community home. */}
+          {/* Escape hatch. The gate is a full-screen takeover with no header or
+              nav, so a visitor who will not sign in or join needs a way out. */}
           <a
             href={homeHref}
-            className="block w-full text-center px-4 py-2.5 rounded-lg text-[13px] font-medium opacity-55 hover:opacity-100 transition-opacity cursor-pointer"
+            className={`${buttonBase} border hover:opacity-80`}
+            style={{ borderColor: softBorder, ...buttonRadius }}
           >
             {t("backTo", { community: gate.communityName })}
           </a>
         </div>
-
-        <p className="mt-6 text-center text-[11px] opacity-45">
-          {t("noAccessFootnote")}
-        </p>
       </div>
     </div>
   );

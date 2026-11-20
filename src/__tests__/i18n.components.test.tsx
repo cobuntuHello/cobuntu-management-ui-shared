@@ -32,7 +32,7 @@ describe("with a host translator", () => {
     withHost(<GatePage gate={{ kind: "community_private", communityName: "PBN" }} returnTo="/feed" />);
     expect(screen.getByRole("heading", { name: "PT:shared.managementUi.gatePage.privateHeadline" })).toBeInTheDocument();
     expect(screen.getAllByText("PT:shared.managementUi.gatePage.signIn").length).toBeGreaterThan(0);
-    expect(screen.getByText("PT:shared.managementUi.gatePage.noAccessFootnote")).toBeInTheDocument();
+    expect(screen.getByText("PT:shared.managementUi.gatePage.backTo")).toBeInTheDocument();
   });
 
   it("DiscardPrompt defaults come from the host; explicit props still win", () => {
@@ -63,7 +63,7 @@ describe("without a host translator (English defaults, unchanged)", () => {
     expect(screen.getByRole("heading", { name: "PBN is a private community" })).toBeInTheDocument();
     expect(screen.getByText("Sign in to access content for members, or join instantly.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Join PBN" })).toBeInTheDocument();
-    expect(screen.getByText("You're seeing this because you don't have access to this content yet.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to PBN" })).toBeInTheDocument();
   });
 
   it("GatePage renders English with no provider mounted at all", () => {
