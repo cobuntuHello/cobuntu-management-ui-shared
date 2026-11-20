@@ -63,7 +63,7 @@ describe("without a host translator (English defaults, unchanged)", () => {
     expect(screen.getByRole("heading", { name: "PBN is a private community" })).toBeInTheDocument();
     expect(screen.getByText("Sign in to access content for members, or join instantly.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Join PBN" })).toBeInTheDocument();
-    expect(screen.getByText("You're seeing this because you don't have access to this content yet.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to PBN" })).toBeInTheDocument();
   });
 
   it("GatePage renders English with no provider mounted at all", () => {

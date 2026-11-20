@@ -275,14 +275,16 @@ export function GatePage(props: GatePageProps) {
             />
           </a>
         ) : (
-          <a
-            href={homeHref}
-            aria-label={t("backTo", { community: gate.communityName })}
+          // Not a link: the "Back to" button below is the way home, and a
+          // second link here would be a duplicate for keyboard and screen
+          // reader users.
+          <div
+            aria-hidden
             className="h-14 w-14 rounded-2xl flex items-center justify-center mb-6 text-lg font-semibold"
             style={{ backgroundColor: softBg, color: accent }}
           >
             {gate.communityName.charAt(0).toUpperCase()}
-          </a>
+          </div>
         )}
 
         <p
