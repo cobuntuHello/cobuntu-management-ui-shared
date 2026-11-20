@@ -32,7 +32,7 @@ describe("with a host translator", () => {
     withHost(<GatePage gate={{ kind: "community_private", communityName: "PBN" }} returnTo="/feed" />);
     expect(screen.getByRole("heading", { name: "PT:shared.managementUi.gatePage.privateHeadline" })).toBeInTheDocument();
     expect(screen.getAllByText("PT:shared.managementUi.gatePage.signIn").length).toBeGreaterThan(0);
-    expect(screen.getByText("PT:shared.managementUi.gatePage.noAccessFootnote")).toBeInTheDocument();
+    expect(screen.getByText("PT:shared.managementUi.gatePage.backTo")).toBeInTheDocument();
   });
 
   it("DiscardPrompt defaults come from the host; explicit props still win", () => {
