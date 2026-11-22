@@ -46,6 +46,13 @@ export interface OverviewListing {
     net: number;
     /** What the carrying COMMUNITY keeps, after Cobuntu's slice of it. */
     communityNet?: number;
+    /**
+     * This listing's own weekly series, oldest first, weeks with activity only.
+     * Optional so the package keeps compiling against a backend that does not
+     * send it yet: without it the community filter falls back to totals and the
+     * per-community chart is simply not drawn.
+     */
+    weekly?: Array<{ week: string; sold: number; net: number; views: number }>;
 }
 
 /**
@@ -132,8 +139,16 @@ export interface OverviewMoney {
     breakdown?: FeeBreakdown;
 }
 
+/**
+ * Who is looking, as the page should name it. Display only: access is decided
+ * by the server. Absent on an older backend, where the page names nobody.
+ */
+export type OverviewViewerRole = "owner" | "co-owner" | "community-leader" | "carrier" | "admin";
+
 export interface OverviewStats {
     kind: "product" | "event";
+    /** Who is looking. See OverviewViewerRole. */
+    viewerRole?: OverviewViewerRole;
     money: OverviewMoney;
     sold: number;
     views: {
