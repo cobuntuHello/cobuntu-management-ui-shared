@@ -385,6 +385,17 @@ export { MarkdownEditor, renderEditorOverlay } from "./editor/MarkdownEditor";
 export type { MarkdownEditorProps } from "./editor/MarkdownEditor";
 export { DescriptionDialog } from "./editor/DescriptionDialog";
 export type { DescriptionDialogProps } from "./editor/DescriptionDialog";
+// Autosave for an inline editor (the manage pages' Details tab description):
+// the debounce / single-flight / flush rules, and the status line they report to.
+export { useAutosave, AUTOSAVE_DELAY_MS } from "./editor/useAutosave";
+export type {
+  AutosaveState,
+  AutosaveSaveOptions,
+  UseAutosaveOptions,
+  UseAutosaveResult,
+} from "./editor/useAutosave";
+export { AutosaveStatus } from "./editor/AutosaveStatus";
+export type { AutosaveStatusProps } from "./editor/AutosaveStatus";
 export {
   RichTextServicesProvider,
   useRichTextServices,
