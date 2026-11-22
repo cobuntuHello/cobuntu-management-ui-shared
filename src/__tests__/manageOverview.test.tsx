@@ -208,29 +208,19 @@ describe("the listings section", () => {
     });
 
     /*
-     * The whole card is the target, via ONE stretched link rather than a
-     * wrapping anchor: one tab stop, one accessible name, a real href, and the
-     * figures stay selectable. The hit area is extended with a pseudo-element
-     * that must resolve against the CARD, so the card is positioned and the
-     * anchor is not. A positioned anchor would confine the hit area to the
-     * button and quietly undo the whole change.
+     * One real link per listing, in the row. The card version stretched a single
+     * link over the whole card; a table row cannot be one anchor, so the row
+     * carries one plain link instead. The rule that survives is the one that
+     * mattered: exactly one link per listing, with a real href.
      */
-    it("stretches the manage link over the card without nesting anchors", () => {
-        const { container } = renderIt(stats());
-        const link = screen.getByText("Manage listing").closest("a");
-        expect(link).toBeTruthy();
-        expect(link!.className).toContain("after:absolute");
-        expect(link!.className).toContain("after:inset-0");
-        expect(link!.className).not.toMatch(/(^|\s)relative(\s|$)/);
-
-        const card = link!.closest("div.group");
-        expect(card).toBeTruthy();
-        expect(card!.className).toContain("relative");
-
-        // One link per card: a wrapping anchor plus the button would be two.
-        expect(container.querySelectorAll("a").length).toBe(
-            screen.getAllByText("Manage listing").length,
+    it("gives each listing exactly one real link", () => {
+        const { container } = renderIt(
+            stats({ listings: [listing({ listingId: "a" }), listing({ listingId: "b", communityName: "Cobuntu", communityId: "c2" })] }),
+            { listingHref: (l: { listingId: string }) => `/listings/${l.listingId}` },
         );
+        const links = [...container.querySelectorAll("a")];
+        expect(links.map((a) => a.getAttribute("href"))).toEqual(["/listings/a", "/listings/b"]);
+        expect(links.every((a) => a.textContent === "Manage listing")).toBe(true);
     });
 });
 

@@ -101,3 +101,63 @@ export function daysUntil(iso: string | null | undefined, now: Date = new Date()
 export function isSellable(stats: OverviewStats): boolean {
     return (stats.listings ?? []).some((l) => l.status === "ACTIVE");
 }
+
+/** The ranges the trend can be sliced to. "all" is every week the API returned. */
+export type OverviewRange = "4" | "11" | "all";
+
+/**
+ * The weeks inside a range, counted back from the LATEST week in the series.
+ *
+ * Counted from the series' own last week and not from today's date: the series
+ * is sparse (weeks with no activity are absent), so a date cutoff would
+ * silently drop a quiet-but-recent tail and show a seller less than they have.
+ * The cutoff is measured in calendar weeks so a gap still counts as a week.
+ */
+export function sliceRange<T extends { week: string }>(weekly: T[], range: OverviewRange): T[] {
+    if (range === "all" || weekly.length === 0) return weekly;
+    const weeks = range === "4" ? 4 : 11;
+    const last = new Date(weekly[weekly.length - 1].week).getTime();
+    const cutoff = last - (weeks - 1) * 7 * 86400000;
+    return weekly.filter((w) => new Date(w.week).getTime() >= cutoff);
+}
+
+export type ListingSort = "sold" | "views" | "converts" | "keep";
+
+type Row = { sold: number; views: number; net: number };
+
+/** Sort descending by the chosen measure. Ties keep their given order. */
+export function sortListings<L extends Row>(rows: L[], by: ListingSort): L[] {
+    const key = (l: L): number => {
+        if (by === "views") return l.views;
+        if (by === "keep") return l.net;
+        if (by === "converts") return l.views > 0 ? l.sold / l.views : -1;
+        return l.sold;
+    };
+    return rows
+        .map((l, i) => ({ l, i }))
+        .sort((a, b) => key(b.l) - key(a.l) || a.i - b.i)
+        .map((x) => x.l);
+}
+
+/** Count listings per status, for "8 live, 1 in review". Skips zero counts. */
+export function countByStatus(rows: Array<{ status: string }>): Array<{ status: string; count: number }> {
+    const m = new Map<string, number>();
+    for (const r of rows) m.set(r.status, (m.get(r.status) ?? 0) + 1);
+    return [...m.entries()].map(([status, count]) => ({ status, count }));
+}
+
+/**
+ * Past a handful of communities a table stops being scannable: show the top few
+ * and fold the rest into one row of totals, with the rest a press away.
+ */
+export const LISTING_TOP_N = 5;
+export const LISTING_PICKER_MIN = 4;
+
+export function rollupOthers<L extends { sold: number; views: number; gross: number; net: number }>(
+    rest: L[],
+): { sold: number; views: number; gross: number; net: number; count: number } {
+    return rest.reduce(
+        (a, l) => ({ sold: a.sold + l.sold, views: a.views + l.views, gross: a.gross + l.gross, net: a.net + l.net, count: a.count + 1 }),
+        { sold: 0, views: 0, gross: 0, net: 0, count: 0 },
+    );
+}
