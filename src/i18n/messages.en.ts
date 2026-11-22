@@ -111,6 +111,13 @@ export const MANAGEMENT_UI_MESSAGES_EN = {
         imagesInDescription: "Images in this description",
         removeImage: "Remove image {n}",
       },
+      // The status beside an editor that saves itself (AutosaveStatus).
+      autosave: {
+        saving: "Saving...",
+        saved: "Saved",
+        failed: "Couldn't save.",
+        retry: "Retry",
+      },
       personPicker: {
         notAMember: "Not a member",
       },

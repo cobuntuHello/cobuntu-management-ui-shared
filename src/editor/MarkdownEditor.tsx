@@ -42,6 +42,14 @@ export interface MarkdownEditorProps {
    * dialog needs one row under the text rather than two.
    */
   actions?: React.ReactNode;
+  /**
+   * A small status beside the counter, e.g. <AutosaveStatus> on an editor
+   * that saves itself (the manage pages' Details tab). In the bottom row, not
+   * above the field, so it never claims a row of its own.
+   */
+  status?: React.ReactNode;
+  /** The text field lost focus. An autosaving host saves right away on it. */
+  onBlur?: () => void;
 }
 
 /**
@@ -175,6 +183,8 @@ export function MarkdownEditor({
   images = true,
   fill = false,
   actions,
+  status,
+  onBlur,
 }: MarkdownEditorProps) {
   const t = useSharedT("shared.managementUi.markdownEditor");
   const services = useRichTextServices();
@@ -418,7 +428,7 @@ export function MarkdownEditor({
           onKeyDown={onKeyDown}
           onScroll={handleScroll}
           onFocus={() => setFocused(true)}
-          onBlur={() => { setFocused(false); setTimeout(() => setMentionAt(null), 150); }}
+          onBlur={() => { setFocused(false); setTimeout(() => setMentionAt(null), 150); onBlur?.(); }}
           onPaste={(e) => {
             const img = canImage ? imageFrom(e.clipboardData?.files) : null;
             if (img) { e.preventDefault(); void addImage(img); }
@@ -524,9 +534,16 @@ export function MarkdownEditor({
             </>
           )}
           {actions && counter}
+          {actions && status}
           {imageError && <p role="alert" className="min-w-0 truncate text-[11.5px] text-red-500">{imageError}</p>}
         </div>
-        {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : counter}
+        {actions ? (
+          <div className="flex shrink-0 items-center gap-2">{actions}</div>
+        ) : status ? (
+          <div className="flex shrink-0 items-center gap-3">{status}{counter}</div>
+        ) : (
+          counter
+        )}
       </div>
     </div>
   );
