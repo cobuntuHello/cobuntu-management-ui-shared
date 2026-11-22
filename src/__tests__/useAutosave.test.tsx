@@ -243,13 +243,14 @@ describe("leaving", () => {
     expect(save).toHaveBeenCalledWith("Half a thought", { keepalive: false });
   });
 
-  it.each(["pagehide", "beforeunload"])("flushes on %s, with keepalive so the request outlives the page", (event) => {
+  it.each(["pagehide", "beforeunload"])("flushes on %s, with keepalive so the request outlives the page", async (event) => {
     const save = vi.fn<Save>().mockResolvedValue(undefined);
     render(<Harness save={save} />);
     type("Closing the tab");
     act(() => { window.dispatchEvent(new Event(event)); });
     expect(save).toHaveBeenCalledTimes(1);
     expect(save).toHaveBeenCalledWith("Closing the tab", { keepalive: true });
+    await settle();
   });
 
   it("unmounting with nothing unsaved sends nothing", () => {
