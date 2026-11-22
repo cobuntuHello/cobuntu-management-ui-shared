@@ -88,19 +88,19 @@ function SplitBar({ slices, gross, label }: { slices: Slice[]; gross: number; la
     // Nothing sold yet: a quiet empty track, so the card keeps its shape and
     // the seller can still read the structure of the deal off the legend.
     if (gross <= 0 || drawn.length === 0) {
-        return <div className="mt-3 h-2.5 rounded-full bg-zinc-100" aria-hidden="true" />;
+        return <div className="h-3 rounded-full bg-zinc-200/70" aria-hidden="true" />;
     }
 
     return (
         <div
             role="img"
             aria-label={label}
-            className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-zinc-100"
+            className="flex h-3 overflow-hidden rounded-full bg-zinc-200/70"
         >
             {drawn.map((s) => (
                 <span
                     key={s.key}
-                    className={`${s.swatch} h-full border-r-2 border-white last:border-r-0`}
+                    className={`${s.swatch} h-full border-r-2 border-zinc-50 last:border-r-0`}
                     style={{ width: `${Math.max((s.amount / gross) * 100, 1.5)}%` }}
                 />
             ))}
@@ -111,24 +111,24 @@ function SplitBar({ slices, gross, label }: { slices: Slice[]; gross: number; la
 /** A legend entry: swatch, what it is, and what it cost. */
 function LegendItem({ slice }: { slice: Slice }) {
     return (
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-baseline gap-2.5 border-t border-zinc-200/70 py-2.5 first:border-t-0 first:pt-0">
             <span
-                className={`mt-[1px] h-2 w-2 shrink-0 self-center rounded-full ${
+                className={`h-3 w-3 shrink-0 self-center rounded-[3px] ${
                     slice.hollow ? "bg-transparent ring-1 ring-zinc-300" : slice.swatch
                 }`}
             />
             {/* Wraps rather than truncates: a clipped "Community commissi..."
                 hides which line the amount beside it belongs to. */}
-            <span className="min-w-0 flex-1 text-[12.5px] leading-snug text-zinc-600">
+            <span className="min-w-0 flex-1 text-[14px] leading-snug text-zinc-700">
                 {slice.label}
                 {slice.note ? <span className="ml-1 text-zinc-400">{slice.note}</span> : null}
                 {slice.sub ? (
-                    <span className="mt-0.5 block text-[11.5px] text-zinc-400">{slice.sub}</span>
+                    <span className="mt-0.5 block text-[12px] text-zinc-500">{slice.sub}</span>
                 ) : null}
             </span>
             <span
-                className={`shrink-0 text-[12.5px] font-semibold tabular-nums ${
-                    slice.hollow ? "text-zinc-400" : "text-zinc-800"
+                className={`shrink-0 text-[14px] font-semibold tabular-nums ${
+                    slice.hollow ? "text-zinc-400" : "text-zinc-900"
                 }`}
             >
                 {slice.display}
@@ -221,46 +221,51 @@ export function PayoutsAndFees({
         .join(", ");
 
     return (
-        <div className="rounded-2xl border border-zinc-200/70 bg-white p-5">
-            {/* The answer, at the size of an answer. */}
-            <p className="text-[11px] font-bold uppercase tracking-[.1em] text-zinc-400">
-                {t(isMember ? "feesYouKeep" : "feesCommunityNet")}
-            </p>
-            <p className="mt-1.5 text-[30px] font-bold leading-none tracking-tight tabular-nums text-emerald-700">
-                {cash(b.net)}
-            </p>
-            <p className="mt-1.5 text-[12.5px] text-zinc-500">
-                {money.gross > 0 ? t("feesFromGross", { amount: cash(money.gross) }) : t("feesNothingTakenYet")}
-            </p>
+        /*
+         * WHERE THE MONEY GOES, as approved (Overview redesign, board 9): the
+         * split on the left with where it lands, the exact lines on the right.
+         * The big "you keep" figure that used to open this card is gone: the
+         * Overview hero above already says it, and saying it twice made the two
+         * read as different numbers.
+         */
+        <div className="grid gap-6 rounded-2xl border border-zinc-200/70 bg-zinc-50 p-5 sm:p-7 lg:grid-cols-2 lg:gap-10">
+            <div className="flex min-w-0 flex-col gap-4">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 className="m-0 text-[16px] font-bold tracking-tight text-zinc-900">{t("overviewMoneyTitle")}</h3>
+                    <span className="text-[13px] text-zinc-500">
+                        {money.gross > 0 ? t("feesFromGross", { amount: cash(money.gross) }) : t("feesNothingTakenYet")}
+                    </span>
+                </div>
 
-            <SplitBar slices={slices} gross={money.gross} label={barLabel} />
+                <SplitBar slices={slices} gross={money.gross} label={barLabel} />
 
-            {/* Exact figures, so nothing is lost to the picture. */}
-            <div className="mt-3 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
-                {slices.map((s) => <LegendItem key={s.key} slice={s} />)}
+                {/* Where, and when. */}
+                <div className="space-y-1 border-t border-zinc-200/70 pt-3.5">
+                    <p className="m-0 text-[13px] text-zinc-600">
+                        {destination && destination.connected ? (
+                            <>
+                                {t("feesLandsIn", { account: accountLine(destination, t) })}
+                                <span className={`ml-1.5 font-medium ${destination.payoutsEnabled ? "text-emerald-700" : "text-amber-700"}`}>
+                                    {destination.payoutsEnabled ? t("feesDestReady") : t("feesDestPayoutsOff")}
+                                </span>
+                            </>
+                        ) : (
+                            <span className="font-medium text-amber-700">{t("feesDestNone")}</span>
+                        )}
+                    </p>
+                    <p className="m-0 text-[13px] text-zinc-500">
+                        {money.held > 0 && money.nextPayoutAt
+                            ? t("feesHeldUntil", { amount: cash(money.held), date: day(money.nextPayoutAt) })
+                            : money.due > 0
+                                ? t("feesReadyToPayOut", { amount: cash(money.due) })
+                                : t("feesNextPayoutNone")}
+                    </p>
+                </div>
             </div>
 
-            {/* Where, and when. */}
-            <div className="mt-4 space-y-1 rounded-xl bg-zinc-50 px-3.5 py-3">
-                <p className="text-[12.5px] text-zinc-600">
-                    {destination && destination.connected ? (
-                        <>
-                            {t("feesLandsIn", { account: accountLine(destination, t) })}
-                            <span className={`ml-1.5 font-medium ${destination.payoutsEnabled ? "text-emerald-700" : "text-amber-700"}`}>
-                                {destination.payoutsEnabled ? t("feesDestReady") : t("feesDestPayoutsOff")}
-                            </span>
-                        </>
-                    ) : (
-                        <span className="font-medium text-amber-700">{t("feesDestNone")}</span>
-                    )}
-                </p>
-                <p className="text-[12.5px] text-zinc-500">
-                    {money.held > 0 && money.nextPayoutAt
-                        ? t("feesHeldUntil", { amount: cash(money.held), date: day(money.nextPayoutAt) })
-                        : money.due > 0
-                            ? t("feesReadyToPayOut", { amount: cash(money.due) })
-                            : t("feesNextPayoutNone")}
-                </p>
+            {/* Exact figures, one divided row each, so nothing is lost to the picture. */}
+            <div className="min-w-0">
+                {slices.map((s) => <LegendItem key={s.key} slice={s} />)}
             </div>
         </div>
     );

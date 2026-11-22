@@ -122,6 +122,7 @@ describe("one to three communities stay a plain list", () => {
     it("shows no picker, sort or summary, and no heading", () => {
         renderIt(stats());
         expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "All communities" })).not.toBeInTheDocument();
         expect(screen.queryByText(/^\d+ communities$/)).not.toBeInTheDocument();
     });
 });
@@ -151,8 +152,8 @@ describe("ten communities", () => {
 
     it("picking one community rescopes the whole page to it", () => {
         renderIt(ten());
-        const picker = screen.getByRole("combobox", { name: "All communities" });
-        fireEvent.change(picker, { target: { value: "l3" } });
+        fireEvent.click(screen.getByRole("button", { name: "All communities" }));
+        fireEvent.click(screen.getByRole("button", { name: "Community 3" }));
         // Community 3: 7 sold, 700 views. The hero is its net, not the item's.
         expect(screen.getAllByText("€560.00").length).toBeGreaterThan(0);
         expect(screen.queryByText("€1,284.00")).not.toBeInTheDocument();
@@ -234,5 +235,57 @@ describe("the list helpers", () => {
     });
     it("counts statuses", () => {
         expect(countByStatus(rows)).toEqual([{ status: "ACTIVE", count: 2 }, { status: "PENDING", count: 1 }]);
+    });
+});
+
+describe("the community picker searches", () => {
+    const ten = () => stats({ listings: Array.from({ length: 10 }, (_, i) => listing(i + 1, { communityName: i === 6 ? "Porto Founders" : `Community ${i + 1}` })) });
+    it("filters as you type and picks the match", () => {
+        renderIt(ten());
+        fireEvent.click(screen.getByRole("button", { name: "All communities" }));
+        fireEvent.change(screen.getByRole("searchbox", { name: "Search communities" }), { target: { value: "porto" } });
+        const dialog = screen.getByRole("dialog", { name: "Search communities" });
+        expect(within(dialog).getByRole("button", { name: "Porto Founders" })).toBeInTheDocument();
+        expect(within(dialog).queryByRole("button", { name: "Community 1" })).not.toBeInTheDocument();
+        fireEvent.click(within(dialog).getByRole("button", { name: "Porto Founders" }));
+        expect(screen.getByRole("button", { name: "All communities" })).toHaveTextContent("Porto Founders");
+    });
+    it("says so when nothing matches", () => {
+        renderIt(ten());
+        fireEvent.click(screen.getByRole("button", { name: "All communities" }));
+        fireEvent.change(screen.getByRole("searchbox", { name: "Search communities" }), { target: { value: "zzz" } });
+        expect(screen.getByText("No community matches")).toBeInTheDocument();
+    });
+});
+
+describe("the ownership line names the owner", () => {
+    it("names someone else's item and its owner", () => {
+        renderIt(stats({ viewerRole: "carrier", owner: { kind: "user", name: "Nina Simone", imageUrl: null } }));
+        expect(screen.getByText("Owned by Nina Simone")).toBeInTheDocument();
+        expect(screen.getByText("You moderate the listing")).toBeInTheDocument();
+    });
+    it("names the community for a community-owned item", () => {
+        renderIt(stats({ viewerRole: "community-leader", owner: { kind: "community", name: "Finance Social Club", imageUrl: null } }));
+        expect(screen.getByText("Owned by Finance Social Club")).toBeInTheDocument();
+    });
+    it("still says 'Owned by you' on your own item, never your own name", () => {
+        renderIt(stats({ viewerRole: "owner", owner: { kind: "user", name: "Diogo Cesar", imageUrl: null } }));
+        expect(screen.getByText("Owned by you")).toBeInTheDocument();
+        expect(screen.queryByText("Owned by Diogo Cesar")).not.toBeInTheDocument();
+    });
+});
+
+describe("where the money goes", () => {
+    it("is titled and does not repeat the hero's big number", () => {
+        renderIt(stats({
+            ownership: "member",
+            money: {
+                net: 128400, gross: 164000, held: 0, due: 0, paid: 0, nextPayoutAt: null, currency: "EUR",
+                breakdown: { vat: 9990, stripe: 5930, cobuntu: 6560, community: 13120, net: 128400 },
+            } as any,
+        }));
+        expect(screen.getByText("Where the money goes")).toBeInTheDocument();
+        // €1,284.00 appears in the hero and once as the "You keep" line, not a third time as a headline.
+        expect(screen.getAllByText("€1,284.00").length).toBe(2);
     });
 });

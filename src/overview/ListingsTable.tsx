@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { OverviewListing, OverviewViewerRole } from "./types";
+import { CommunityPicker } from "./CommunityPicker";
 import {
     LISTING_PICKER_MIN, LISTING_TOP_N,
     conversion, countByStatus, formatCount, rollupOthers, sortListings, type ListingSort,
@@ -150,15 +151,7 @@ export function ListingsTable({
                         ))}
                     </p>
                     <div className="flex flex-wrap items-center gap-2 text-[13px]">
-                        <select
-                            aria-label={t("overviewAllCommunities")}
-                            value={scopeId ?? ""}
-                            onChange={(e) => onScope(e.target.value || null)}
-                            className="min-h-[40px] cursor-pointer rounded-lg border border-zinc-200 bg-white px-3 font-semibold text-zinc-800"
-                        >
-                            <option value="">{t("overviewAllCommunities")} ({listings.length})</option>
-                            {listings.map((l) => <option key={l.listingId} value={l.listingId}>{l.communityName}</option>)}
-                        </select>
+                        <CommunityPicker listings={listings} value={scopeId} onChange={onScope} t={t} />
                         <select
                             aria-label={t("overviewSortBy")}
                             value={sort}

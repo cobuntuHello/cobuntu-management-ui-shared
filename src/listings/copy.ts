@@ -470,7 +470,11 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     overviewShowFewer: "Show fewer",
     overviewByCommunityTitle: "Sold per week, by community",
     overviewOtherCommunities: "{count} others",
-    overviewNoFigures: "No figures while it is not live"
+    overviewNoFigures: "No figures while it is not live",
+    overviewMoneyTitle: "Where the money goes",
+    overviewOwnedBy: "Owned by {name}",
+    overviewSearchCommunities: "Search communities",
+    overviewNoCommunityMatch: "No community matches",
 };
 
 /**

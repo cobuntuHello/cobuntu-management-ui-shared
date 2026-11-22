@@ -149,6 +149,12 @@ export interface OverviewStats {
     kind: "product" | "event";
     /** Who is looking. See OverviewViewerRole. */
     viewerRole?: OverviewViewerRole;
+    /**
+     * Who OWNS the item: the community for a community-owned item, the person
+     * otherwise. Name and image only. Absent on an older backend, where the
+     * ownership line falls back to naming the role alone.
+     */
+    owner?: { kind: "community" | "user"; name: string; imageUrl: string | null } | null;
     money: OverviewMoney;
     sold: number;
     views: {
