@@ -407,6 +407,7 @@ function Result({ say, seat, kind, m, parties }: MoneyStepProps & { m: ListingMo
     if (!r) return null;
     const cur = m.currency;
     const unit = kind === "event" ? say("unitTicket") : say("unitSale");
+    const units = kind === "event" ? say("unitTickets") : say("unitSales");
     const community = parties.community.name;
     if (r.kind === "breakEven") {
         return (
@@ -416,22 +417,22 @@ function Result({ say, seat, kind, m, parties }: MoneyStepProps & { m: ListingMo
                     <span>{say("resultBreakEvenSum", { unit, amount: money(r.perSale, cur) })}</span>
                     <small>{say("resultBreakEvenNote", { amount: money(r.upfront, cur) })}</small>
                 </div>
-                <strong>{say("resultBreakEvenAmount", { count: r.sales, unit })}</strong>
+                <strong>{say("resultBreakEvenAmount", { count: r.sales, units })}</strong>
             </div>
         );
     }
     if (r.kind === "sellerSoFar") {
         const after = r.afterNext;
         const note = after == null || !r.nextDueAt ? "" : r.salesToCover
-            ? say("resultSellerNote", { date: shortDate(r.nextDueAt), after: signed(after, cur), count: r.salesToCover, unit })
+            ? say("resultSellerNote", { date: shortDate(r.nextDueAt), after: signed(after, cur), count: r.salesToCover, units })
             : say("resultSellerNoteCovered", { date: shortDate(r.nextDueAt), after: signed(after, cur) });
         return (
             <div className="cbtl-result" data-live="">
                 <div>
-                    <b>{say("resultSellerSoFar", { kind: kind === "event" ? "event" : "item" })}</b>
+                    <b>{kind === "event" ? say("resultSellerSoFarEvent") : say("resultSellerSoFarItem")}</b>
                     <span>{r.upfrontPaid > 0
-                        ? say("resultSellerSum", { sales: money(r.fromSales, cur), unit, upfront: money(r.upfrontPaid, cur) })
-                        : say("resultSellerSumNoUpfront", { sales: money(r.fromSales, cur), unit })}</span>
+                        ? say("resultSellerSum", { sales: money(r.fromSales, cur), units, upfront: money(r.upfrontPaid, cur) })
+                        : say("resultSellerSumNoUpfront", { sales: money(r.fromSales, cur), units })}</span>
                     {note && <small>{note}</small>}
                 </div>
                 <strong>{signed(r.amount, cur)}</strong>
