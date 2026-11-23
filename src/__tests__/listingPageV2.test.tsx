@@ -227,3 +227,27 @@ describe("the talk", () => {
         await waitFor(() => expect(t.setTopicDone).toHaveBeenCalledWith("tp", true));
     });
 });
+
+describe("every sentence is filled", () => {
+    it.each(["seller", "community"] as const)("shows no raw {placeholder} on any step, live, from the %s's seat", async (seat) => {
+        mount(transport(seat, { status: "ACTIVE" }), seat);
+        await screen.findByRole("heading", { level: 1 });
+        for (const step of [/Step 1 of 4/, /Step 2 of 4/, /Step 3 of 4/, /Step 4 of 4/]) {
+            openStep(step);
+            expect(document.querySelector(".cbtl-inner")?.textContent ?? "").not.toMatch(/\{[a-zA-Z]+\}/);
+        }
+    });
+
+    it("says what came from commission without an empty upfront figure", async () => {
+        const t = transport("community", { status: "ACTIVE" });
+        const m = money("community", true);
+        m.upfront = null;
+        m.result = { kind: "communitySoFar", fromSales: 2096, upfrontIn: 0, amount: 2096, toCome: 0, nextDueAt: null };
+        (t.money as any).mockResolvedValue(m);
+        mount(t, "community");
+        await screen.findByRole("heading", { level: 1 });
+        openStep(/Step 2 of 4/);
+        expect(screen.getByText("€20.96 from commission")).toBeTruthy();
+        expect(screen.queryByText(/€0.00 upfront/)).toBeNull();
+    });
+});

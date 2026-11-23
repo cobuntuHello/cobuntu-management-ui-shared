@@ -444,7 +444,9 @@ function Result({ say, seat, kind, m, parties }: MoneyStepProps & { m: ListingMo
         <div className="cbtl-result" data-live="">
             <div>
                 <b>{say("resultCommunitySoFar", { community })}</b>
-                <span>{say("resultCommunitySum", { upfront: money(r.upfrontIn, cur), commission: money(r.fromSales, cur) })}</span>
+                <span>{r.upfrontIn > 0
+                    ? say("resultCommunitySum", { upfront: money(r.upfrontIn, cur), commission: money(r.fromSales, cur) })
+                    : say("resultCommunitySumNoUpfront", { commission: money(r.fromSales, cur) })}</span>
                 {r.toCome > 0 && r.nextDueAt && <small>{say("resultCommunityNote", { amount: money(r.toCome, cur), seller: parties.seller.name, date: shortDate(r.nextDueAt) })}</small>}
             </div>
             <strong>{money(r.amount, cur)}</strong>
