@@ -11,6 +11,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { ListingPageV2 } from "../listings/v2/ListingPageV2";
+import { LISTING_PAGE_CSS } from "../listings/v2/styles";
 import type { ListingTransport } from "../listings/v2/transport";
 import type { ListingMoney, BookingView } from "../listings/v2/types";
 
@@ -249,5 +250,20 @@ describe("every sentence is filled", () => {
         openStep(/Step 2 of 4/);
         expect(screen.getByText("€20.96 from commission")).toBeTruthy();
         expect(screen.queryByText(/€0.00 upfront/)).toBeNull();
+    });
+});
+
+describe("a host's own page background", () => {
+    // The admin and the app pass a transparent background so their own page
+    // shows around the cards. It once also emptied the ring's hole, so the
+    // amount sat on top of the coloured wedges.
+    it("shows through around the cards, never through the ring's hole or the tinted tiles inside them", async () => {
+        mount(transport("community", { status: "ACTIVE" }), "community", { theme: { background: "transparent" } });
+        await screen.findByRole("heading", { level: 1 });
+        const root = document.querySelector<HTMLElement>(".cbtl")!;
+        expect(root.style.getPropertyValue("--cbtl-page")).toBe("transparent");
+        expect(root.style.getPropertyValue("--cbtl-bg")).toBe("");
+        expect(LISTING_PAGE_CSS).toMatch(/\.cbtl\{[^}]*background:var\(--cbtl-page,var\(--cbtl-bg\)\)/);
+        expect(LISTING_PAGE_CSS).toMatch(/\.cbtl-donut-hole\{[^}]*background:var\(--cbtl-bg\)/);
     });
 });

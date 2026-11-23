@@ -27,7 +27,12 @@ export interface ListingTheme {
     radius?: string;
     /** "Bold" text. A site whose only face has one weight sets 400 here. */
     strong?: number;
-    /** The page background behind the cards. */
+    /**
+     * The page background behind the cards; "transparent" shows the host's own.
+     * It paints the page only: the tinted surfaces inside the cards (the ring's
+     * hole, tiles, inputs) keep `--cbtl-bg`, so a see-through page never makes
+     * them see-through too.
+     */
     background?: string;
 }
 
@@ -40,7 +45,7 @@ export function themeVars(t: ListingTheme | undefined): Record<string, string> {
     if (t.body) v["--cbtl-body"] = t.body;
     if (t.radius) v["--cbtl-radius"] = t.radius;
     if (t.strong) v["--cbtl-strong"] = String(t.strong);
-    if (t.background) v["--cbtl-bg"] = t.background;
+    if (t.background) v["--cbtl-page"] = t.background;
     return v;
 }
 
@@ -49,7 +54,7 @@ export const LISTING_PAGE_CSS = `
 --cbtl-green:#4e9c78;--cbtl-green-ink:#3d7d5f;--cbtl-green-soft:#e9f2ed;--cbtl-amber:#e0a94e;--cbtl-amber-ink:#8a6420;--cbtl-amber-soft:#fbf1de;--cbtl-amber-tint:#fffaf0;
 --cbtl-blue-ink:#3d5a80;--cbtl-blue-soft:#eef1f7;--cbtl-blue-line:#b9c4d6;--cbtl-red:#a8443c;--cbtl-red-line:#ecc9c5;--cbtl-sand:#f1eee9;
 --cbtl-commit:#191714;--cbtl-accent:#6E1A2B;--cbtl-display:Fraunces,Georgia,serif;--cbtl-body:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;--cbtl-radius:16px;--cbtl-strong:600;
-container-type:inline-size;font-family:var(--cbtl-body);color:var(--cbtl-ink);background:var(--cbtl-bg);font-size:14px;line-height:1.4;box-sizing:border-box}
+container-type:inline-size;font-family:var(--cbtl-body);color:var(--cbtl-ink);background:var(--cbtl-page,var(--cbtl-bg));font-size:14px;line-height:1.4;box-sizing:border-box}
 .cbtl *,.cbtl *::before,.cbtl *::after{box-sizing:border-box}
 .cbtl button{font:inherit;color:inherit}
 .cbtl-inner{display:flex;flex-direction:column;gap:18px;max-width:900px;margin:0 auto;padding:24px 0 48px}
