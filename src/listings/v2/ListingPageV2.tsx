@@ -296,7 +296,7 @@ export function ListingPageV2(props: ListingPageV2Props) {
         left = <MoneyRing say={say} seat={seat} kind={kind} money={m} parties={parties} agreedOn={(agreed as any)?.respondedAt ?? agreed?.createdAt ?? listing.approvedAt} />;
         right = <MoneyStep say={say} seat={seat} kind={kind} money={m} parties={parties} premium={props.premium} busy={busy} {...handlers} />;
         const commission = m?.oneSale?.lines.find((l) => l.key === "commission")?.amount;
-        if (live) hint = seat === "seller" ? say("moneyHintLiveSeller", { community: names.community }) : say("moneyHintLiveCommunity", { seller: names.seller });
+        if (live) hint = seat === "seller" ? say("moneyHintLiveSeller", { community: names.community }) : say("moneyHintLiveCommunity", { community: names.community, seller: names.seller });
         else if (d.offer && d.offer.by !== seat) hint = say("moneyHintOffer", { who: other, rate: percent(toRate(d.offer.proposal.commissionRate) ?? 0) });
         else if (rate == null && paid) hint = say("moneyHintNoTerms");
         else hint = [commission === 0 && kind === "event" ? say("moneyHintNoCommission") : "", d.myAddons.length ? say("moneyHintAddons") : ""].filter(Boolean).join(" ");
@@ -424,6 +424,7 @@ export function ListingPageV2(props: ListingPageV2Props) {
                         const s = d.steps[id];
                         const prevDone = i > 0 && ["done", "live"].includes(d.steps[ORDER[i - 1]].tone);
                         const label = [say("stepRequest"), say("stepMoney"), say("stepTalk"), say("stepLive")][i];
+                        const short = [say("stepRequestShort"), say("stepMoneyShort"), say("stepTalkShort"), say("stepLiveShort")][i];
                         return (
                             <span className="cbtl-node" key={id}>
                                 {i > 0 && <span className="cbtl-node-line" data-done={prevDone ? "" : undefined} />}
@@ -431,7 +432,10 @@ export function ListingPageV2(props: ListingPageV2Props) {
                                     <Icon d={STEP_ICON[id]} size={24} />
                                     {s.badge !== undefined && <span className="cbtl-badge" data-done={s.badge === "done" ? "" : undefined}>{s.badge === "done" ? "✓" : s.badge}</span>}
                                 </button>
-                                <span className="cbtl-node-label" data-on={id === active ? "" : undefined}>{`${i + 1}. ${label}`}</span>
+                                {/* The full label, or a short one when the page is narrow (the canvas' phone boards). */}
+                                <span className="cbtl-node-label" data-on={id === active ? "" : undefined}>
+                                    <span className="cbtl-l-long">{`${i + 1}. ${label}`}</span><span className="cbtl-l-short">{short}</span>
+                                </span>
                                 <span className="cbtl-node-sub" data-tone={s.tone}>{s.sub}</span>
                             </span>
                         );

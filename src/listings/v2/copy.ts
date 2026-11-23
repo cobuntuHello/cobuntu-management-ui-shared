@@ -15,6 +15,10 @@ export const LISTING_PAGE_COPY = {
     stepMoney: "The money",
     stepTalk: "The talk",
     stepLive: "Go live",
+    stepRequestShort: "Request",
+    stepMoneyShort: "Money",
+    stepTalkShort: "Talk",
+    stepLiveShort: "Go live",
     stepOf: "Step {n} of 4",
     you: "You",
 
@@ -170,6 +174,7 @@ export const LISTING_PAGE_COPY = {
     resultSellerNoteCovered: "After the next payment on {date}: {after}.",
     resultCommunitySoFar: "This listing has brought {community}, so far",
     resultCommunitySum: "{upfront} upfront · {commission} from commission",
+    resultCommunitySumNoUpfront: "{commission} from commission",
     resultCommunityNote: "Plus {amount} when {seller} pays the next payment on {date}.",
     moneyHintLiveSeller: "Ticket money pays out after the event. Upfront payments go to {community} as they fall due.",
     moneyHintLiveCommunity: "The upfront payments are {community}'s. Ticket money goes to {seller} after the event.",
