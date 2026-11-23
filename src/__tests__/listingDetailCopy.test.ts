@@ -49,7 +49,9 @@ describe("the package's own English", () => {
         const walk = (d: string) => {
             for (const e of readdirSync(d, { withFileTypes: true })) {
                 const full = join(d, e.name);
-                if (e.isDirectory()) walk(full);
+                // listings/v2 (the listing page v2) has its own copy and its own
+                // scan (listingPageV2Copy.test.ts); its keys are not this panel's.
+                if (e.isDirectory()) { if (e.name !== "v2") walk(full); }
                 else if (/\.tsx?$/.test(e.name) && e.name !== "copy.ts") files.push(full);
             }
         };

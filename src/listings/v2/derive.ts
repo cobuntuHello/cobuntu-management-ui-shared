@@ -128,7 +128,10 @@ export function derive(s: Snapshot, say: Say): Derived {
     if (bookingAwaitsCommunity) blockers.push({ step: 1, text: s.seat === "community" ? say("checkAcceptBooking") : say("checkCommunityAccepts", { community: s.names.community }) });
     if (approveNeedsTerms) blockers.push({ step: 2, text: say("checkTermsMissing") });
     const waitingAddons = addonsWaitingOn(addons, "community").length + addonsWaitingOn(addons, "seller").length;
-    if (waitingAddons > 0) blockers.push({ step: 2, text: s.seat === "community" ? say("checkAddons", { count: waitingAddons }) : say("checkAddonsYou", { count: waitingAddons }) });
+    const addonText = s.seat === "community"
+        ? (waitingAddons === 1 ? say("checkAddon") : say("checkAddons", { count: waitingAddons }))
+        : (waitingAddons === 1 ? say("checkAddonYou") : say("checkAddonsYou", { count: waitingAddons }));
+    if (waitingAddons > 0) blockers.push({ step: 2, text: addonText });
 
     // ── 4. go live ──
     let goLive: StepState;
@@ -154,8 +157,8 @@ export function derive(s: Snapshot, say: Say): Derived {
             const terms = s.rate === 0 ? (s.kind === "event" ? say("lineCommissionNone") : say("lineCommissionNoneProduct")) : percent(s.rate);
             checks.push({ ok: true, text: say("checkTerms", { terms }), step: 2 });
         } else if (s.paid) checks.push({ ok: false, text: say("checkTermsMissing"), step: 2 });
-        if (waitingAddons > 0) checks.push({ ok: false, step: 2, text: s.seat === "community" ? say("checkAddons", { count: waitingAddons }) : say("checkAddonsYou", { count: waitingAddons }) });
-        if (topics.length > 0) checks.push({ ok: false, step: 3, text: say("checkTopics", { count: topics.length }) });
+        if (waitingAddons > 0) checks.push({ ok: false, step: 2, text: addonText });
+        if (topics.length > 0) checks.push({ ok: false, step: 3, text: topics.length === 1 ? say("checkTopic") : say("checkTopics", { count: topics.length }) });
     }
 
     return {

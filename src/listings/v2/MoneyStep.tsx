@@ -317,7 +317,7 @@ function Upfront(p: MoneyStepProps & { m: ListingMoney }) {
                             {r.card && (
                                 <span className="cbtl-card-line">
                                     <Icon d={ICON.card} size={14} />
-                                    {seat === "seller" ? (card?.last4 ? say("upYourCard", { last4: card.last4 }) : say("upFromYourCardNoLast4")) : say("upTheirCard", { seller })}
+                                    <span>{seat === "seller" ? (card?.last4 ? say("upYourCard", { last4: card.last4 }) : say("upFromYourCardNoLast4")) : say("upTheirCard", { seller })}</span>
                                     {seat === "seller" && p.onChangeCard && <button type="button" className="cbtl-link" onClick={p.onChangeCard}>{say("upChangeCard")}</button>}
                                 </span>
                             )}
