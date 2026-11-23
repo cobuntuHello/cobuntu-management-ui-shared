@@ -48,6 +48,13 @@ export interface ListingPageV2Props {
     backHref: string;
     /** The trail, innermost last; the item's name is appended. */
     breadcrumbs?: Array<{ label: string; href?: string }>;
+    /** Makes the item's crumb a link (the seller's manage page for it). */
+    itemHref?: string;
+    /**
+     * Close the trail with the community's name: a seller may list one item in
+     * several communities and the last crumb says which request this is.
+     */
+    endWithCommunity?: boolean;
     /** Buttons beside the title; a function gets the listed item (links need its slug). */
     tools?: ReactNode | ((item: { id?: string; slug?: string; name?: string | null; live: boolean }) => ReactNode);
     /** The signed-in user, for their avatar on the talk. */
@@ -392,7 +399,8 @@ export function ListingPageV2(props: ListingPageV2Props) {
                     {crumbs.map((c, i) => (
                         <span key={i}>{c.href ? <a href={c.href}>{c.label}</a> : <b>{c.label}</b>} <span aria-hidden="true">›</span></span>
                     ))}
-                    <b>{itemName}</b>
+                    {props.itemHref ? <a href={props.itemHref}>{itemName}</a> : <b>{itemName}</b>}
+                    {props.endWithCommunity && names.community && <><span aria-hidden="true">›</span><b>{names.community}</b></>}
                 </nav>
 
                 <header className="cbtl-head">
