@@ -69,7 +69,8 @@ describe("the overlay", () => {
 
   it("does not italicise the underscores inside an image URL or a user id", () => {
     const html = renderEditorOverlay("![](https://x.test/a_b_c.png) @[A](user:x_y_z)");
-    expect(html).not.toContain("<em>");
+    // "<em" not "<em>": emphasis carries attributes now (drawn upright, T-398).
+    expect(html).not.toContain("<em");
   });
 });
 
