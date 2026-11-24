@@ -362,7 +362,7 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     ledgerTileEarned: "Net earned",
     ledgerTileEscrow: "In escrow",
     ledgerTilePaidOut: "Paid out",
-    ledgerExportCsv: "Export CSV",
+    ledgerExportCsv: "Export",
     ledgerFilterAll: "All",
     ledgerRangeAll: "All time",
     ledgerRange7: "Last 7 days",

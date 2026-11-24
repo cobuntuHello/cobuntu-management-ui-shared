@@ -2,6 +2,8 @@ import { Fragment, useState } from "react";
 import type { ItemLedger, LedgerMovement } from "./types";
 import type { StripeDestination } from "../overview/types";
 import { formatMoney } from "../overview/format";
+import { downloadTable, type ExportColumn, type ExportFormat } from "../export/tableExport";
+import { ExportMenu } from "../export/ExportMenu";
 import { EmptyState, LedgerIcon } from "../overview/EmptyState";
 import { LAYERS } from "../ui/layers";
 
@@ -164,12 +166,6 @@ function matchesFilters(m: LedgerMovement, kind: KindFilter, range: RangeFilter,
     return true;
 }
 
-/** One cell in a CSV row — quoted, with embedded quotes doubled per RFC 4180. */
-function csvCell(v: string | number): string {
-    const s = String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
 function statusLabel(status: string, t: (key: string) => string): string {
     return TRANSLATED_STATUSES.has(status) ? t(`ledgerStatus_${status}`) : humanise(status);
 }
@@ -325,51 +321,53 @@ export function ManageLedger({
         { key: "90", label: t("ledgerRange90") },
     ];
 
-    function exportCsv() {
-        const header = [
-            t("ledgerColMovement"), "Date", "Status", t("ledgerColGross"),
-            ...(showCommunity ? [t("ledgerColCommunity")] : []),
-            t("ledgerColSeller"),
+    /*
+     * The ledger as a file (T-397): Excel or CSV, same columns. Money goes out
+     * in the currency's units (the rows hold cents: a €339.48 sale used to
+     * export as 33948), dates as real dates, and a refund or a lost dispute
+     * as a negative amount so the gross column sums to what came in.
+     */
+    function exportLedger(format: ExportFormat) {
+        const money = (cents: number | null | undefined) => (cents == null ? null : cents / 100);
+        const columns: ExportColumn[] = [
+            { header: t("ledgerColMovement") },
+            { header: "Date", kind: "date" },
+            { header: "Status" },
+            { header: t("ledgerColGross"), kind: "money" },
+            ...(showCommunity ? [{ header: t("ledgerColCommunity"), kind: "money" } as ExportColumn] : []),
+            { header: t("ledgerColSeller"), kind: "money" },
+            { header: "Currency" },
             // Appended, so a sheet built on the columns above still lines up.
-            "Person", "Discount code", "Discount", "Percent off", "Gift for", "Given by",
+            { header: "Person" }, { header: "Discount code" }, { header: "Discount", kind: "money" },
+            { header: "Percent off", kind: "number" }, { header: "Gift for" }, { header: "Given by" },
         ];
-        const lines = [header.map(csvCell).join(",")];
-        for (const m of filtered) {
-            lines.push([
-                t(`ledgerKind_${m.kind}`),
-                day(m.at),
-                statusLabel(m.status, t),
-                m.sign === -1 && !(m.kind === "dispute" && m.status === "DISPUTE_WON") ? -m.gross : m.gross,
-                ...(showCommunity ? [m.communityCut] : []),
-                m.sellerNet,
-                m.buyerName ?? "",
-                m.discount?.code ?? "",
-                m.discount ? m.discount.amount : "",
-                m.discount?.percentOff ?? "",
-                m.giftRecipient ?? "",
-                m.byName ?? "",
-            ].map(csvCell).join(","));
-        }
-        const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `ledger-${new Date().toISOString().slice(0, 10)}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
+        const rows = filtered.map((m) => [
+            t(`ledgerKind_${m.kind}`),
+            new Date(m.at),
+            statusLabel(m.status, t),
+            money(m.sign === -1 && !(m.kind === "dispute" && m.status === "DISPUTE_WON") ? -m.gross : m.gross),
+            ...(showCommunity ? [money(m.communityCut)] : []),
+            money(m.sellerNet),
+            m.currency ?? currency,
+            m.buyerName ?? "",
+            m.discount?.code ?? "",
+            m.discount ? money(m.discount.amount) : null,
+            m.discount?.percentOff ?? null,
+            m.giftRecipient ?? "",
+            m.byName ?? "",
+        ]);
+        downloadTable({ sheetName: t("ledgerTitle"), columns, rows }, format, `ledger-${new Date().toISOString().slice(0, 10)}`);
     }
 
     return (
         <div className="space-y-4">
             <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
                 <h2 className="text-[16px] font-semibold text-zinc-900">{t("ledgerTitle")}</h2>
-                <button
-                    type="button"
-                    onClick={exportCsv}
+                <ExportMenu
+                    label={t("ledgerExportCsv")}
+                    onExport={exportLedger}
                     className="cursor-pointer text-[12.5px] font-semibold text-zinc-500 hover:text-zinc-800"
-                >
-                    {t("ledgerExportCsv")}
-                </button>
+                />
             </div>
 
             {/* Summary band, mirroring the admin ledger's SummaryTile row.
