@@ -24,8 +24,6 @@ export const LISTING_PAGE_COPY = {
 
     // ── header ──
     withCommunity: "with {community}",
-    sentOn: "sent {date}",
-    toolHistory: "History",
     crumbYours: "Your listings",
     crumbRequests: "Listing requests",
 

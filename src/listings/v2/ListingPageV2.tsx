@@ -95,7 +95,7 @@ export function ListingPageV2(props: ListingPageV2Props) {
     const [failed, setFailed] = useState(false);
     const [focus, setFocus] = useState<StepId | null>(null);
     const [confirm, setConfirm] = useState<ConfirmSpec | null>(null);
-    const [sheet, setSheet] = useState<null | "card" | "request" | "compose" | "history" | { price: UpfrontAddon }>(null);
+    const [sheet, setSheet] = useState<null | "card" | "request" | "compose" | { price: UpfrontAddon }>(null);
     const [drawer, setDrawer] = useState<string | null>(null);
     const [toast, setToast] = useState("");
     const [busy, setBusy] = useState(false);
@@ -185,6 +185,8 @@ export function ListingPageV2(props: ListingPageV2Props) {
     const cur = m?.currency ?? listing.listingPrice?.currency ?? "EUR";
     const other = seat === "seller" ? names.community : names.seller;
     const otherImage = seat === "seller" ? parties.community.icon : parties.seller.image;
+    /** The seller's @usertag, beside their name in the community's header. */
+    const sellerTag: string | null = listing.requestedBy?.usertag ?? null;
     const toolsNode = typeof props.tools === "function"
         ? props.tools({ id: item?.id, slug: item?.slug, name: itemName, live: status === "ACTIVE" })
         : props.tools ?? null;
@@ -398,28 +400,46 @@ export function ListingPageV2(props: ListingPageV2Props) {
         <div className="cbtl" style={rootStyle} data-seat={seat}>
             <style>{LISTING_PAGE_CSS}</style>
             <div className="cbtl-inner">
+                {/* The trail is the way back (the header carries no Back
+                    button), so its first link wears a back chevron. */}
                 <nav className="cbtl-crumb" aria-label="Breadcrumb">
                     {crumbs.map((c, i) => (
-                        <span key={i}>{c.href ? <a href={c.href}>{c.label}</a> : <b>{c.label}</b>} <span aria-hidden="true">›</span></span>
+                        <span key={i}>
+                            {c.href
+                                ? <a href={c.href} className={i === 0 ? "cbtl-crumb-back" : undefined}>{i === 0 && <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>}{c.label}</a>
+                                : <b>{c.label}</b>}{" "}
+                            <span aria-hidden="true">›</span>
+                        </span>
                     ))}
                     {props.itemHref ? <a href={props.itemHref}>{itemName}</a> : <b>{itemName}</b>}
                     {props.endWithCommunity && names.community && <><span aria-hidden="true">›</span><b>{names.community}</b></>}
                 </nav>
 
+                {/*
+                  The header (option A, 2026-11-24): the item's name, who is on
+                  the other side, and the host's buttons, nothing else. No item
+                  picture, no sent date, no History, no status: those belong to
+                  the steps below (the request step, later). The other side is
+                  the seller for the community (photo, name, @usertag) and the
+                  community for the seller (its icon, "with <community>"). The
+                  buttons are the host's (`tools`), drawn with .cbtl-hbtn so
+                  both apps' buttons match: Preview on the site outlined, once
+                  live; Details solid.
+                */}
                 <header className="cbtl-head">
-                    {image ? <img className="cbtl-head-img" src={image} alt="" /> : <span className="cbtl-head-img">{(itemName || "?")[0]}</span>}
                     <span style={{ flex: "1 1 0", minWidth: 0 }}>
                         <h1 className="cbtl-title">{itemName}</h1>
                         <span className="cbtl-sub">
                             <Avatar image={otherImage} name={other} size={24} />
-                            <span>{seat === "seller" ? say("withCommunity", { community: names.community }) : names.seller}</span>
-                            {listing.createdAt && <><span aria-hidden="true">·</span><span>{say("sentOn", { date: shortDate(listing.createdAt) })}</span></>}
+                            {seat === "seller"
+                                ? <span>{say("withCommunity", { community: names.community })}</span>
+                                : <>
+                                    <span className="cbtl-sub-name">{names.seller}</span>
+                                    {sellerTag && <span className="cbtl-sub-tag">@{sellerTag}</span>}
+                                </>}
                         </span>
                     </span>
-                    <span className="cbtl-tools">
-                        <button type="button" className="cbtl-tool" onClick={() => setSheet("history")}><Icon d={ICON.history} /><span>{say("toolHistory")}</span></button>
-                        {toolsNode}
-                    </span>
+                    {toolsNode && <span className="cbtl-tools">{toolsNode}</span>}
                 </header>
 
                 <section className="cbtl-card cbtl-track" aria-label="Steps">
@@ -502,12 +522,6 @@ export function ListingPageV2(props: ListingPageV2Props) {
             )}
             {sheet === "compose" && (
                 <Compose say={say} transport={transport} community={names.community} onClose={() => setSheet(null)} onSent={() => { setSheet(null); void after(say("saved")); }} />
-            )}
-            {sheet === "history" && (
-                <Sheet title={say("moreHistory")} onClose={() => setSheet(null)}>
-                    <History say={say} proposals={proposals} sellerId={listing.requestedBy?.id ?? null} names={names} />
-                    <div className="cbtl-sheet-foot"><button type="button" className="cbtl-btn" onClick={() => setSheet(null)}>{say("done")}</button></div>
-                </Sheet>
             )}
             {sheet && typeof sheet === "object" && "price" in sheet && eventId && transport.decideAddon && (
                 <PriceSheet say={say} name={sheet.price.name} currency={cur} onClose={() => setSheet(null)}

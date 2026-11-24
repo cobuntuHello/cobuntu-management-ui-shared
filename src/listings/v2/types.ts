@@ -174,7 +174,8 @@ export interface ListingDetail {
     listingPrice?: { amount: number; currency: string } | null;
     community?: { id: string; name: string; communityTag?: string; tagLower?: string; iconUrl?: string | null } | null;
     communities?: { id: string; name: string; communityTag?: string; tagLower?: string; iconUrl?: string | null } | null;
-    requestedBy?: { id: string; name?: string | null; profileImage?: string | null } | null;
+    /** The seller who asked; core sends usertag with it (shown as @usertag in the community's header). */
+    requestedBy?: { id: string; name?: string | null; usertag?: string | null; profileImage?: string | null } | null;
     event?: any;
     events?: any;
     products?: any;

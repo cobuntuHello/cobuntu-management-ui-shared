@@ -64,7 +64,7 @@ function transport(seat: "seller" | "community", opts: { status?: string; bookin
             id: "lst", status, isHidden: false, commissionRate: 0, isPaid: true, listingPrice: { amount: 18, currency: "EUR" },
             createdAt: "2026-11-18T09:00:00Z", approvedAt: live ? "2026-11-24T10:00:00Z" : null,
             community: { id: "teja", name: "TEJÁ House", communityTag: "tejahouse", iconUrl: null },
-            requestedBy: { id: "marta", name: "Marta Silva", profileImage: null },
+            requestedBy: { id: "marta", name: "Marta Silva", usertag: "marta-silva", profileImage: null },
             event: { id: "evt", name: "Slow Records: a vinyl listening evening", slug: "slow-records", startDate: "2026-12-09T18:00:00Z", endDate: "2026-12-09T21:00:00Z", capacity: 40 },
         })),
         proposals: vi.fn(async () => []),
@@ -291,5 +291,60 @@ describe("a host's own page background", () => {
         expect(root.style.getPropertyValue("--cbtl-bg")).toBe("");
         expect(LISTING_PAGE_CSS).toMatch(/\.cbtl\{[^}]*background:var\(--cbtl-page,var\(--cbtl-bg\)\)/);
         expect(LISTING_PAGE_CSS).toMatch(/\.cbtl-donut-hole\{[^}]*background:var\(--cbtl-bg\)/);
+    });
+});
+
+/*
+ * The header (option A, 2026-11-24): the item's name, the other side, and
+ * the host's buttons. No item picture, no sent date, no History, no status.
+ */
+describe("the header", () => {
+    const header = (c: HTMLElement) => c.querySelector(".cbtl-head") as HTMLElement;
+
+    it("shows the community the seller's photo, name and @usertag, and nothing else", async () => {
+        const { container } = mount(transport("community"), "community");
+        await waitFor(() => expect(header(container)).not.toBeNull());
+        const h = header(container);
+        await waitFor(() => expect(within(h).getByText("Marta Silva")).toBeTruthy());
+        expect(within(h).getByText("@marta-silva")).toBeTruthy();
+        expect(h.textContent).not.toMatch(/sent /i);
+        expect(within(h).queryByRole("button", { name: /history/i })).toBeNull();
+        // No item picture: any image in the header is the seller's avatar.
+        expect([...h.querySelectorAll("img")].filter((i) => !i.closest(".cbtl-avatar"))).toHaveLength(0);
+    });
+
+    it("shows the seller the community, with no @usertag", async () => {
+        const { container } = mount(transport("seller"), "seller");
+        await waitFor(() => expect(within(header(container)).getByText("with TEJÁ House")).toBeTruthy());
+        expect(header(container).textContent).not.toContain("@");
+    });
+
+    it("carries the host's buttons, and no button row without them", async () => {
+        const first = mount(transport("community"), "community", {
+            tools: <a className="cbtl-hbtn" data-kind="primary" href="/item">Details</a>,
+        });
+        await waitFor(() => expect(first.container.querySelector(".cbtl-tools .cbtl-hbtn")).not.toBeNull());
+        first.unmount();
+        const { container } = mount(transport("community"), "community");
+        await waitFor(() => expect(header(container)).not.toBeNull());
+        expect(container.querySelector(".cbtl-tools")).toBeNull();
+    });
+
+    it("puts the way back on the trail: its first link wears a back chevron", async () => {
+        const { container } = mount(transport("community"), "community");
+        await waitFor(() => expect(container.querySelector(".cbtl-crumb a")).not.toBeNull());
+        const back = container.querySelector(".cbtl-crumb a") as HTMLAnchorElement;
+        expect(back.getAttribute("href")).toBe("/back");
+        expect(back.classList.contains("cbtl-crumb-back")).toBe(true);
+        expect(back.querySelector("svg")).not.toBeNull();
+    });
+
+    it("gives both hosts one button style: outlined, and solid for the primary", () => {
+        expect(LISTING_PAGE_CSS).toContain(".cbtl-hbtn{");
+        expect(LISTING_PAGE_CSS).toContain('.cbtl-hbtn[data-kind="primary"]{');
+        // View live is always in the header; before the listing is live it is
+        // drawn disabled (aria-disabled), never as a link to a page not there.
+        expect(LISTING_PAGE_CSS).toContain('.cbtl-hbtn[aria-disabled="true"]{');
+        expect(LISTING_PAGE_CSS).not.toContain(".cbtl-head-img");
     });
 });
