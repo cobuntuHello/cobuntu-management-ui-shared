@@ -67,11 +67,35 @@ export interface MarkdownEditorProps {
  * apart. Both packages now re-export this.
  *
  * @mentions and images (T-321) are TEXT conventions (see richText.ts), so the
- * overlay styles them with colour only: anything that changed glyph widths
- * would pull the overlay out of line with the caret underneath it.
+ * overlay styles them with colour only.
+ *
+ * THE ONE RULE OF THE OVERLAY: it may change colour, background and stroke,
+ * never a glyph's size, width or line height. The caret, the selection and
+ * every click land on the invisible textarea underneath, so the moment the
+ * overlay draws a character wider or taller than the textarea does, they
+ * drift off the words. That is how this editor used to break (T-398): headings
+ * drawn at 1.15em pushed every line below them down, real bold and monospace
+ * code widened their lines, and selecting text looked like highlighting blank
+ * space next to a ghost copy of the words. So bold is a faux bold (a hairline
+ * stroke, same advance widths), headings are that bold at body size, code
+ * keeps the body font on a tint, and the overlay copies the textarea's own
+ * computed typography (see syncOverlayBox) so a host stylesheet that resizes
+ * text fields (the community app forces 16px on phones) cannot split them.
  */
 
 const MAX_GROW_PX = 200;
+/**
+ * Bold that keeps every advance width: the stroke thickens the glyph in place
+ * instead of switching to the wider bold face. `font-weight: inherit` undoes
+ * the browser's `strong { font-weight: bolder }`.
+ */
+const FAUX_BOLD = "font-weight:inherit;-webkit-text-stroke:0.35px currentColor";
+/** The textarea properties that decide where each character lands. */
+const OVERLAY_MIRRORED = [
+  "font-family", "font-size", "font-weight", "font-stretch", "font-feature-settings", "font-variation-settings",
+  "line-height", "letter-spacing", "word-spacing", "tab-size", "text-transform",
+  "padding-top", "padding-bottom", "padding-left",
+] as const;
 const SEARCH_DEBOUNCE_MS = 180;
 const ACCEPTED_IMAGES = "image/jpeg,image/png,image/webp,image/gif";
 
@@ -116,30 +140,35 @@ function formatLine(raw: string, mentionPattern: RegExp | null, imagePattern: Re
       `${lead}${mask(`<span style="color: var(--brand-color, #2563eb)">@${label}</span>`)}`,
     );
   }
+  // Code keeps the body font (`font: inherit` undoes the browser's monospace
+  // and the 0.9em it used to be drawn at) and no padding: a tint marks it.
   line = line.replace(/`([^`\n]+)`/g, (_, inner) =>
-    mask(`<span class="text-zinc-300">\`</span><code class="font-mono text-[0.9em] bg-zinc-900/5 rounded px-1">${inner}</code><span class="text-zinc-300">\`</span>`),
+    mask(`<span class="text-zinc-300">\`</span><code class="bg-zinc-900/5 rounded" style="font:inherit">${inner}</code><span class="text-zinc-300">\`</span>`),
   );
   line = line.replace(/\*\*(.+?)\*\*/g, (_, inner) =>
-    mask(`<span class="text-zinc-300">**</span><strong class="text-zinc-900">${inner}</strong><span class="text-zinc-300">**</span>`),
+    mask(`<span class="text-zinc-300">**</span><strong class="text-zinc-900" style="${FAUX_BOLD}">${inner}</strong><span class="text-zinc-300">**</span>`),
   );
   line = line.replace(/__(.+?)__/g, (_, inner) =>
-    mask(`<span class="text-zinc-300">__</span><strong class="text-zinc-900">${inner}</strong><span class="text-zinc-300">__</span>`),
+    mask(`<span class="text-zinc-300">__</span><strong class="text-zinc-900" style="${FAUX_BOLD}">${inner}</strong><span class="text-zinc-300">__</span>`),
   );
   line = line.replace(/~~(.+?)~~/g, (_, inner) =>
     mask(`<span class="text-zinc-300">~~</span><del class="text-zinc-500">${inner}</del><span class="text-zinc-300">~~</span>`),
   );
 
+  // Italic stays a real <em>: the apps load their text faces upright only, so
+  // the browser slants the upright glyphs and every width is unchanged.
   line = line
     .replace(/(?<![*\w])\*(?!\s)(.+?)(?<!\s)\*(?!\w)/g, '<span class="text-zinc-300">*</span><em>$1</em><span class="text-zinc-300">*</span>')
     .replace(/(?<![_\w])_(?!\s)(.+?)(?<!\s)_(?!\w)/g, '<span class="text-zinc-300">_</span><em>$1</em><span class="text-zinc-300">_</span>');
 
   line = line.replace(/\u0000(\d+)\u0000/g, (_, i) => tokens[Number(i)]);
 
+  // A heading is bold at the body size, whatever its level: a bigger heading
+  // here pushed every line under it out from under the caret. The published
+  // page still renders it as a real heading.
   const heading = line.match(/^(#{1,3})(\s+)(.*)$/);
   if (heading) {
-    const level = heading[1].length;
-    const sizeClass = level === 1 ? "font-bold text-[1.15em]" : level === 2 ? "font-bold text-[1.08em]" : "font-semibold";
-    return `<span class="text-zinc-300">${heading[1]}</span>${heading[2]}<span class="${sizeClass}">${heading[3]}</span>`;
+    return `<span class="text-zinc-300">${heading[1]}</span>${heading[2]}<span class="text-zinc-900" style="${FAUX_BOLD}">${heading[3]}</span>`;
   }
   const quote = line.match(/^(&gt;)(\s+)(.*)$/);
   if (quote) {
@@ -268,9 +297,49 @@ export function MarkdownEditor({
     el.style.overflowY = el.scrollHeight > MAX_GROW_PX ? "auto" : "hidden";
   }, [fill]);
 
+  /**
+   * Give the overlay the textarea's own computed typography and text box, so
+   * the two always lay text out identically. The classes set the same values
+   * on both, but a host stylesheet can restyle text fields without knowing
+   * about the overlay: the community app forces every textarea to 16px on
+   * phones (no iOS focus zoom) while the overlay stayed at 14.5px, which put
+   * every line out of step with the caret.
+   */
+  const syncOverlayBox = useCallback(() => {
+    const ta = textareaRef.current;
+    const ov = overlayRef.current;
+    if (!ta || !ov) return;
+    const cs = window.getComputedStyle(ta);
+    for (const prop of OVERLAY_MIRRORED) {
+      const v = cs.getPropertyValue(prop);
+      if (v) ov.style.setProperty(prop, v);
+    }
+    // An always-visible scrollbar narrows the textarea's text column once it
+    // scrolls; the overlay has none, so it takes that width as extra padding.
+    const padRight = parseFloat(cs.getPropertyValue("padding-right"));
+    if (!Number.isNaN(padRight)) {
+      const borders = (parseFloat(cs.getPropertyValue("border-left-width")) || 0) + (parseFloat(cs.getPropertyValue("border-right-width")) || 0);
+      const scrollbar = Math.max(0, ta.offsetWidth - ta.clientWidth - borders);
+      ov.style.setProperty("padding-right", `${padRight + scrollbar}px`);
+    }
+  }, []);
+
   useLayoutEffect(() => {
     resize();
-  }, [value, resize]);
+    // After resize: it decides whether the textarea scrolls (and so whether a
+    // scrollbar takes width).
+    syncOverlayBox();
+  }, [value, resize, syncOverlayBox]);
+
+  // A width change (rotation, a breakpoint the host restyles fields at) can
+  // change the textarea's computed typography or its scrollbar.
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => syncOverlayBox());
+    ro.observe(ta);
+    return () => ro.disconnect();
+  }, [syncOverlayBox]);
 
   // The overlay is pinned on top of the textarea, not inside it, so once the
   // textarea scrolls internally the overlay has to be scrolled with it.
@@ -445,7 +514,12 @@ export function MarkdownEditor({
           spellCheck
           aria-autocomplete={canMention ? "list" : undefined}
           aria-expanded={canMention ? pickerOpen : undefined}
-          className={`${fill ? "absolute inset-0 h-full" : "relative"} w-full resize-none whitespace-pre-wrap break-words border-0 bg-transparent px-4 py-3.5 text-[14.5px] leading-relaxed text-transparent caret-zinc-900 outline-none placeholder:text-zinc-300`}
+          // selection:text-transparent: a browser paints selected text in
+          // its own highlight colour, even text that is transparent, so
+          // selecting used to reveal the hidden copy as a second, offset
+          // layer of words. Only the highlight shows now; the words stay the
+          // overlay's.
+          className={`${fill ? "absolute inset-0 h-full" : "relative"} w-full resize-none whitespace-pre-wrap break-words border-0 bg-transparent px-4 py-3.5 text-[14.5px] leading-relaxed text-transparent caret-zinc-900 outline-none placeholder:text-zinc-300 selection:bg-blue-500/25 selection:text-transparent`}
         />
       </div>
 
