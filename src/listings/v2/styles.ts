@@ -67,7 +67,7 @@ container-type:inline-size;font-family:var(--cbtl-body);color:var(--cbtl-ink);ba
 .cbtl-sub{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--cbtl-muted);margin-top:8px}
 .cbtl-sub-name{font-weight:500;color:var(--cbtl-ink)}.cbtl-sub-tag{color:var(--cbtl-faint)}
 .cbtl-tools{flex:none;display:flex;gap:8px;align-items:center;margin-left:auto}
-/* The header's buttons, for both hosts' `tools`: one size, outlined, or solid with data-kind="primary". */
+/* The header's buttons, for both hosts' tools: one size, outlined, or solid with data-kind="primary". */
 .cbtl-hbtn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:40px;padding:0 14px;box-sizing:border-box;font:inherit;font-size:13px;font-weight:500;color:var(--cbtl-ink);background:var(--cbtl-card);border:1px solid var(--cbtl-line);border-radius:10px;text-decoration:none;cursor:pointer;white-space:nowrap}
 .cbtl-hbtn:hover{background:var(--cbtl-sand)}
 .cbtl-hbtn[data-kind="primary"]{color:#fff;background:var(--cbtl-commit);border-color:var(--cbtl-commit);font-weight:600;padding:0 16px}
