@@ -71,6 +71,14 @@ export type { GatePageProps, GateReason } from "./ui/GatePage";
 
 export { cn } from "./lib/cn";
 
+// Manage-page exports (T-397): one table, written as Excel (.xlsx) or CSV.
+export {
+  toCsv, toXlsx, exportFile, downloadTable, columnLetter, excelSerial, safeSheetName, safeFileBase, crc32, zipStored,
+} from "./export/tableExport";
+export type { ExportTable, ExportColumn, ExportCell, ExportFormat } from "./export/tableExport";
+export { ExportMenu } from "./export/ExportMenu";
+export type { ExportMenuProps } from "./export/ExportMenu";
+
 export { resolveSubmitActions, willAutoApprove } from "./lib/submitActions";
 export { fitWithin, drawFitted, MAX_IMAGE_EDGE, IMAGE_QUALITY, type Sized } from "./lib/image";
 export type {
