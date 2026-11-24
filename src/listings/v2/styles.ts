@@ -72,6 +72,7 @@ container-type:inline-size;font-family:var(--cbtl-body);color:var(--cbtl-ink);ba
 .cbtl-hbtn:hover{background:var(--cbtl-sand)}
 .cbtl-hbtn[data-kind="primary"]{color:#fff;background:var(--cbtl-commit);border-color:var(--cbtl-commit);font-weight:600;padding:0 16px}
 .cbtl-hbtn[data-kind="primary"]:hover{opacity:.9;background:var(--cbtl-commit)}
+.cbtl-hbtn[aria-disabled="true"]{color:var(--cbtl-faint);border-color:var(--cbtl-line-soft);background:var(--cbtl-card);cursor:not-allowed}
 .cbtl-card{background:var(--cbtl-card);border:1px solid var(--cbtl-line);border-radius:var(--cbtl-radius)}
 .cbtl-track{padding:22px 24px 18px;display:flex;align-items:flex-start}
 .cbtl-node{position:relative;flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center}

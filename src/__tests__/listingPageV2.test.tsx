@@ -342,6 +342,9 @@ describe("the header", () => {
     it("gives both hosts one button style: outlined, and solid for the primary", () => {
         expect(LISTING_PAGE_CSS).toContain(".cbtl-hbtn{");
         expect(LISTING_PAGE_CSS).toContain('.cbtl-hbtn[data-kind="primary"]{');
+        // View live is always in the header; before the listing is live it is
+        // drawn disabled (aria-disabled), never as a link to a page not there.
+        expect(LISTING_PAGE_CSS).toContain('.cbtl-hbtn[aria-disabled="true"]{');
         expect(LISTING_PAGE_CSS).not.toContain(".cbtl-head-img");
     });
 });
