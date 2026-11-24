@@ -99,14 +99,14 @@ describe("the overlay follows the textarea's computed typography", () => {
   it("takes a host stylesheet's text-field size (the app's 16px on phones)", () => {
     const style = document.createElement("style");
     style.setAttribute("data-test-host", "");
-    style.textContent = "textarea { font-size: 16px; line-height: 26px; letter-spacing: 0.01em; }";
+    style.textContent = "textarea { font-size: 16px; line-height: 26px; letter-spacing: 0.25px; }";
     document.head.appendChild(style);
 
     const { container } = render(<MarkdownEditor value="# Title\nBody" onChange={() => {}} />);
     const overlay = overlayOf(container);
     expect(overlay.style.fontSize).toBe("16px");
     expect(overlay.style.lineHeight).toBe("26px");
-    expect(overlay.style.letterSpacing).toBe("0.01em");
+    expect(overlay.style.letterSpacing).toBe("0.25px");
   });
 
   it("follows the textarea in fill mode too", () => {
