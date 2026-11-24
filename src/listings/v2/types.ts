@@ -73,7 +73,7 @@ export interface ListingMoney {
         paid: number;
         toCome: number;
         total: number;
-        next: null | { amount: number; dueAt: string | null; what: "second" | "addon" };
+        next: null | { amount: number; dueAt: string | null; what: "first" | "second" | "addon" };
     };
     result: null
         | { kind: "breakEven"; perSale: number; upfront: number; sales: number }

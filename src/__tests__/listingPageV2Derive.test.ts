@@ -95,6 +95,14 @@ describe("going live", () => {
         const d = derive(snap({ status: "ACTIVE", approvedAt: "2026-11-24T10:00:00Z", money: money([], 25), booking: booking("ACCEPTED") }), say);
         expect(d.checks.map((c) => c.text)).toEqual(["On TEJÁ House's page since 24 Nov", "25 of 40 tickets sold", "Room confirmed"]);
     });
+
+    // Seen live on TEJÁ's "test avi cass" (paused): a tick beside "On TEJÁ House's page" while it was not on it.
+    it("never ticks 'on the page' while the listing is off the shelf", () => {
+        for (const o of [{ status: "PAUSED" }, { status: "ACTIVE", isHidden: true }] as const) {
+            const d = derive(snap({ ...o, approvedAt: "2026-11-24T10:00:00Z", money: money([], 0) }), say);
+            expect(d.checks[0]).toMatchObject({ ok: false, text: "Off TEJÁ House's page" });
+        }
+    });
 });
 
 describe("where the page opens", () => {

@@ -146,7 +146,10 @@ export function derive(s: Snapshot, say: Say): Derived {
     // ── the go-live checklist ──
     const checks: Derived["checks"] = [];
     if (live) {
-        checks.push({ ok: true, text: say("checkOnShelf", { community: s.names.community, date: shortDate(s.approvedAt) || "" }).replace(/ since $/, "") });
+        // Paused (or hidden) has been live but is not on the page now: say so, never a tick.
+        checks.push(s.status === "ACTIVE" && !s.isHidden
+            ? { ok: true, text: say("checkOnShelf", { community: s.names.community, date: shortDate(s.approvedAt) || "" }).replace(/ since $/, "") }
+            : { ok: false, text: say("checkOffShelf", { community: s.names.community }) });
         checks.push({ ok: true, text: s.capacity ? say("checkSoldOf", { sold, capacity: s.capacity }) : say("checkSold", { sold }) });
         if (bookingLive) checks.push({ ok: true, text: say("checkBooking") });
     } else {
