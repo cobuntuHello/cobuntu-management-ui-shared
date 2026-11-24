@@ -253,6 +253,33 @@ describe("every sentence is filled", () => {
     });
 });
 
+describe("off the shelf, and free", () => {
+    // Both seen live on TEJÁ's "test avi cass": paused, free, a booking waiting for its payment.
+    it("never says Selling while the listing is paused", async () => {
+        const t = transport("community", { status: "PAUSED" });
+        const m = money("community", true);
+        m.status = "PAUSED";
+        (t.money as any).mockResolvedValue(m);
+        mount(t, "community");
+        await screen.findByRole("heading", { level: 1 });
+        openStep(/Step 2 of 4/);
+        expect(screen.queryByText(/Selling/)).toBeNull();
+        expect(screen.getAllByText("25 sold").length).toBeGreaterThan(0);
+    });
+
+    it("gives a free event's money the full width, with no empty ring column", async () => {
+        const t = transport("community", { status: "ACTIVE" });
+        const m = money("community", true);
+        m.oneSale = null;
+        (t.money as any).mockResolvedValue(m);
+        mount(t, "community");
+        await screen.findByRole("heading", { level: 1 });
+        openStep(/Step 2 of 4/);
+        expect(document.querySelector(".cbtl-body[data-single]")).not.toBeNull();
+        expect(document.querySelector(".cbtl-col-left")).toBeNull();
+    });
+});
+
 describe("a host's own page background", () => {
     // The admin and the app pass a transparent background so their own page
     // shows around the cards. It once also emptied the ring's hole, so the

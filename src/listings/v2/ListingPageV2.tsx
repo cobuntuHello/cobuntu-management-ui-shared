@@ -293,7 +293,8 @@ export function ListingPageV2(props: ListingPageV2Props) {
             onChangeCard: seat === "seller" && transport.startCardChange && d.bookingLive ? () => setSheet("card") : undefined,
         } : {};
         const agreed = proposals.find((p) => p.status === "ACCEPTED");
-        left = <MoneyRing say={say} seat={seat} kind={kind} money={m} parties={parties} agreedOn={(agreed as any)?.respondedAt ?? agreed?.createdAt ?? listing.approvedAt} />;
+        // A free event has no sale to draw: no ring, and the money takes the full width.
+        left = m?.oneSale ? <MoneyRing say={say} seat={seat} kind={kind} money={m} parties={parties} agreedOn={(agreed as any)?.respondedAt ?? agreed?.createdAt ?? listing.approvedAt} /> : null;
         right = <MoneyStep say={say} seat={seat} kind={kind} money={m} parties={parties} premium={props.premium} busy={busy} {...handlers} />;
         const commission = m?.oneSale?.lines.find((l) => l.key === "commission")?.amount;
         if (live) hint = seat === "seller" ? say("moneyHintLiveSeller", { community: names.community }) : say("moneyHintLiveCommunity", { community: names.community, seller: names.seller });
@@ -387,7 +388,9 @@ export function ListingPageV2(props: ListingPageV2Props) {
     const step = d.steps[active];
     const you = step.tone === "done" || step.tone === "live" ? "ok" : step.tone === "you" ? "wait" : step.tone === "them" ? "ok" : "off";
     const them = step.tone === "done" || step.tone === "live" ? "ok" : step.tone === "them" ? "wait" : step.tone === "you" ? "ok" : "off";
-    const pillText = active === "money" && live && m?.soldSoFar ? say("stateSelling", { count: m.soldSoFar.count }) : cap(step.sub);
+    // "Selling" only while it is on sale: a paused or hidden listing still
+    // shows what it sold, and its pill just counts it ("25 sold").
+    const pillText = active === "money" && status === "ACTIVE" && !listing.isHidden && m?.soldSoFar ? say("stateSelling", { count: m.soldSoFar.count }) : cap(step.sub);
     const crumbs = props.breadcrumbs ?? [{ label: seat === "seller" ? say("crumbYours") : say("crumbRequests"), href: props.backHref }];
     const returnUrl = typeof window !== "undefined" ? (() => { const u = new URL(window.location.href); u.searchParams.set("card", "done"); return u.toString(); })() : "";
 
@@ -458,8 +461,8 @@ export function ListingPageV2(props: ListingPageV2Props) {
                             <span className="cbtl-pill" data-tone={PILL[step.tone]}>{pillText}</span>
                         </span>
                     </div>
-                    <div className="cbtl-body">
-                        <div className="cbtl-col cbtl-col-left">{left}</div>
+                    <div className="cbtl-body" data-single={left == null ? "" : undefined}>
+                        {left != null && <div className="cbtl-col cbtl-col-left">{left}</div>}
                         <div className="cbtl-col">{right}</div>
                     </div>
                     {(hint || actions.length > 0) && (

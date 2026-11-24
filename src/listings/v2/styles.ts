@@ -104,6 +104,7 @@ container-type:inline-size;font-family:var(--cbtl-body);color:var(--cbtl-ink);ba
 .cbtl-pill[data-tone=ok]{background:var(--cbtl-green-soft);color:var(--cbtl-green-ink)}
 .cbtl-pill[data-tone=them]{background:var(--cbtl-blue-soft);color:var(--cbtl-blue-ink)}
 .cbtl-body{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px;padding:22px 24px}
+.cbtl-body[data-single]{grid-template-columns:minmax(0,1fr)}
 .cbtl-col{display:flex;flex-direction:column;gap:18px;min-width:0}
 .cbtl-col-left{gap:8px}
 .cbtl-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#fbfaf7;border-top:1px solid var(--cbtl-line-soft);padding:16px 24px}

@@ -222,6 +222,7 @@ export const LISTING_PAGE_COPY = {
 
     // ── step 4: go live ──
     checkOnShelf: "On {community}'s page since {date}",
+    checkOffShelf: "Off {community}'s page",
     checkSold: "{sold} sold",
     checkSoldOf: "{sold} of {capacity} tickets sold",
     checkBooking: "Room confirmed",
