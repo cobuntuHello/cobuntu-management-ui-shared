@@ -255,16 +255,15 @@ describe("every sentence is filled", () => {
 
 describe("off the shelf, and free", () => {
     // Both seen live on TEJÁ's "test avi cass": paused, free, a booking waiting for its payment.
-    it("never says Selling while the listing is paused", async () => {
-        const t = transport("community", { status: "PAUSED" });
+    it.each([["ACTIVE", true], ["PAUSED", false]] as const)("says Selling on the money step only while on sale (%s)", async (status, selling) => {
+        const t = transport("community", { status });
         const m = money("community", true);
-        m.status = "PAUSED";
+        m.status = status;
         (t.money as any).mockResolvedValue(m);
         mount(t, "community");
         await screen.findByRole("heading", { level: 1 });
         openStep(/Step 2 of 4/);
-        expect(screen.queryByText(/Selling/)).toBeNull();
-        expect(screen.getAllByText("25 sold").length).toBeGreaterThan(0);
+        expect(screen.queryByText("Selling · 25 sold") != null).toBe(selling);
     });
 
     it("gives a free event's money the full width, with no empty ring column", async () => {
