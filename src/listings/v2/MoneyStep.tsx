@@ -225,7 +225,7 @@ type SchedRow =
     | { type: "pay"; key: string; tone: "paid" | "next" | "off" | "bad"; date: string | null; title: string; sub: string; amount: number; state: string; card?: boolean }
     | { type: "addon"; key: string; a: UpfrontAddon; tone: "act" | "plain" | "incl"; sub: string; action: "accept" | "decide" | "pill" | "incl" | "next"; pill?: string };
 
-function Upfront(p: MoneyStepProps & { m: ListingMoney }) {
+export function Upfront(p: MoneyStepProps & { m: ListingMoney }) {
     const { say, seat, m, parties, busy } = p;
     const cur = m.currency;
     const u = m.upfront;
@@ -402,7 +402,7 @@ function DateTile({ iso, next }: { iso: string | null; next: boolean }) {
     return <span className="cbtl-dtile" data-next={next ? "" : undefined}><b>{t.mon}</b><span>{t.day}</span></span>;
 }
 
-function Result({ say, seat, kind, m, parties }: MoneyStepProps & { m: ListingMoney }) {
+export function Result({ say, seat, kind, m, parties }: MoneyStepProps & { m: ListingMoney }) {
     const r = m.result;
     if (!r) return null;
     const cur = m.currency;

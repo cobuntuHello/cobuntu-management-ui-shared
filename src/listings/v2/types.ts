@@ -10,7 +10,15 @@ export type Seat = "seller" | "community";
 export type ListingKind = "event" | "product";
 export type ListingStatus = "PENDING" | "ACTIVE" | "PAUSED" | "CANCELLED" | "REVOKED";
 
-export type LineKey = "price" | "stripe" | "commission" | "cobuntu" | "seller" | "keep";
+/*
+ * WHO SEES WHICH COBUNTU CUT (core ListingMoneyService.linesFor, 24 Nov 2026):
+ * the community also reads Cobuntu's fee on a member (`sellerFee`) and what
+ * the member keeps (`sellerNet`); the seller of a community-owned item also
+ * reads Cobuntu's cut of the commission (`commissionCut`) and what the
+ * community keeps (`communityNet`). A member never gets those two.
+ */
+export type LineKey = "price" | "stripe" | "commission" | "cobuntu" | "seller" | "keep"
+    | "sellerFee" | "sellerNet" | "commissionCut" | "communityNet";
 export interface MoneyLine { key: LineKey; amount: number }
 
 export interface UpfrontPayment {
@@ -62,6 +70,16 @@ export interface ListingMoney {
         lines: MoneyLine[];
     };
     soldSoFar: null | { count: number; lines: MoneyLine[] };
+    /**
+     * Every price of the item split, in the seller's order: each ticket tier
+     * or variant (`label` its name; null for one price). A free one has no
+     * lines. Absent from an older backend: the page then shows `oneSale` only.
+     */
+    prices?: Array<{ productId: string; label: string | null; gross: number; vat: number; free: boolean; lines: MoneyLine[] }>;
+    /** An example donation split, when the item takes donations (the community's commission at the same rate; Cobuntu nothing). */
+    donation?: null | { amount: number; lines: MoneyLine[] };
+    /** The package this read previews (money({ packageId })), or null: the listing's own terms. */
+    previewPackage?: null | { id: string; name: string; rate: number };
     upfront: null | {
         /** What was booked, from the booking's first line ("The Sound Room"). */
         room: string | null;

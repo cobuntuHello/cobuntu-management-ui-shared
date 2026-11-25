@@ -50,7 +50,7 @@ export function addonIcon(name: string, slot?: string | null): string {
  * the package's Tailwind StripeMark: a venue site without Tailwind would draw
  * that one as a bare glyph on nothing.
  */
-function StripeGlyph({ size }: { size: number }) {
+export function StripeGlyph({ size }: { size: number }) {
     return (
         <span role="img" aria-label="Stripe" style={{ width: size, height: size, borderRadius: 5, background: "#635BFF", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
             <svg width={size * 0.62} height={size * 0.62} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
