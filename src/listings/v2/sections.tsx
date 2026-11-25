@@ -123,10 +123,15 @@ export function DecisionBar({ decision, onMove, busy }: { decision: Decision; on
 // Party marks: the community, Cobuntu and Stripe square; people round; no rings
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Who = "seller" | "community" | "cobuntu" | "stripe";
+type Who = "seller" | "community" | "cobuntu" | "stripe" | "owner";
 
 function Mark({ who, parties, size = 28 }: { who: Who; parties: Parties; size?: number }) {
     const box = { width: size, height: size };
+    if (who === "owner") {
+        // The community that owns the item: square, its own icon.
+        const o = parties.owner ?? parties.community;
+        return <span className="cbtl-mk" data-sq="" data-pad={o.icon ? "" : undefined} style={box}>{o.icon ? <img src={o.icon} alt="" /> : <i>{initials(o.name)}</i>}</span>;
+    }
     if (who === "stripe") return <span className="cbtl-mk" data-sq="" style={box}><StripeGlyph size={size} /></span>;
     if (who === "cobuntu") return <span className="cbtl-mk" data-sq="" data-pad="" style={box}><CobuntuMark size={size - 8} /></span>;
     if (who === "community") {
@@ -158,13 +163,74 @@ export function cheapestPaid(prices: Price[]): number {
     return at < 0 ? 0 : at;
 }
 
-interface Row { key: string; who: Who; label: string; note?: string; amount: number; color: string; mine?: boolean }
+interface Row {
+    key: string; who: Who; label: string; note?: string; amount: number; color: string; mine?: boolean;
+    /** No figure to show yet (a commission before any package is picked): a dash, no slice. */
+    blank?: boolean;
+}
+
+/** What Cobuntu takes from this stream, as the line's note: "8% of event sales". */
+function cobuntuRateNote(say: Say, kind: "event" | "product", meta: PanelMeta): string | undefined {
+    const pct = meta.cobuntuPct ?? (meta.platformFeeRate ? meta.platformFeeRate * 100 : null);
+    if (pct == null) return undefined;
+    const stream = say(kind === "event" ? "streamEvents" : "streamProducts");
+    return pct === 0 ? say("lineCobuntuZero", { stream }) : say("lineCobuntuRate", { rate: percent(pct), stream });
+}
+
+/**
+ * What this seat keeps, whichever way the lines are cut. A community selling
+ * its own item in itself is both sides of the sale, so it keeps both shares.
+ */
+export function keepOf(seat: Seat, lines: MoneyLine[], parties?: Parties): number {
+    if (parties?.owner && parties.listedOnOwner) {
+        return seat === "seller"
+            ? amountOf(lines, "keep") + amountOf(lines, "communityNet")
+            : amountOf(lines, "sellerNet") + amountOf(lines, "keep");
+    }
+    return amountOf(lines, "keep");
+}
 
 /** The lines of one sale as this seat reads them, keep first (the ring's order). */
-function rowsFor(say: Say, seat: Seat, kind: "event" | "product", lines: MoneyLine[], parties: Parties, meta: { rate: number; premium: boolean; platformFeeRate: number }, cur: string): Row[] {
+function rowsFor(say: Say, seat: Seat, kind: "event" | "product", lines: MoneyLine[], parties: Parties, meta: PanelMeta, cur: string): Row[] {
     const community = parties.community.name;
-    const seller = parties.seller.name;
+    const seller = parties.owner?.name ?? parties.seller.name;
     const commission = amountOf(lines, "commission");
+    const stripeRow: Row = { key: "stripe", who: "stripe", label: say("lineStripe"), note: say("lineStripeNote"), amount: amountOf(lines, "stripe"), color: C.stripe };
+
+    /*
+     * A COMMUNITY'S OWN ITEM (25 Nov 2026). "You" is the owning community,
+     * and the Cobuntu line says exactly what Cobuntu takes from this stream.
+     *   - listed in itself: there is no one else in the sale, so no community
+     *     line at all (a community does not pay itself a commission); it keeps
+     *     both shares, from either seat.
+     *   - listed in ANOTHER community, read by the owner: that community and
+     *     its agreed commission (none until a package is picked), and Cobuntu
+     *     on the owner's own leg. The other community's side (Cobuntu's cut of
+     *     its commission) is its business, read from its own seat below.
+     */
+    if (parties.owner && parties.listedOnOwner) {
+        const cob = seat === "seller"
+            ? amountOf(lines, "cobuntu") + amountOf(lines, "commissionCut")
+            : amountOf(lines, "sellerFee") + amountOf(lines, "cobuntu");
+        return [
+            { key: "keep", who: "owner", label: say("earnYouKeep"), amount: keepOf(seat, lines, parties), color: C.keep, mine: true },
+            { key: "cobuntu", who: "cobuntu", label: say("lineCobuntu"), note: cobuntuRateNote(say, kind, meta), amount: cob, color: C.cob },
+            stripeRow,
+        ];
+    }
+    if (parties.owner && seat === "seller") {
+        const noTerms = meta.commissionPct === null && meta.commissionSource !== undefined && commission === 0;
+        return [
+            { key: "keep", who: "owner", label: say("earnYouKeep"), amount: amountOf(lines, "keep"), color: C.keep, mine: true },
+            {
+                key: "commission", who: "community", label: community, amount: commission, color: C.comm, blank: noTerms,
+                note: noTerms ? say("lineCommissionNotYet") : say("lineCommissionNote", { rate: percent(meta.commissionPct ?? meta.rate) }),
+            },
+            { key: "cobuntu", who: "cobuntu", label: say("lineCobuntu"), note: cobuntuRateNote(say, kind, meta), amount: amountOf(lines, "cobuntu"), color: C.cob },
+            stripeRow,
+        ];
+    }
+
     const commNote = commission === 0 && meta.rate === 0
         ? (kind === "event" ? say("lineCommissionNone") : say("lineCommissionNoneProduct"))
         : say("lineCommissionNote", { rate: percent(meta.rate) });
@@ -197,7 +263,7 @@ function rowsFor(say: Say, seat: Seat, kind: "event" | "product", lines: MoneyLi
         : cut === 0 && meta.platformFeeRate === 0 ? say("lineCobuntuNone", { community }) : say("earnCobuntuCut", { cut: money(cut, cur) });
     return [
         { key: "keep", who: "community", label: say("earnKeeps", { who: community }), note: commission === 0 ? commNote : undefined, amount: amountOf(lines, "keep"), color: C.keep, mine: true },
-        { key: "seller", who: "seller", label: seller, note: say("earnSellerKeeps"), amount: sellerAmount, color: C.them },
+        { key: "seller", who: parties.owner ? "owner" : "seller", label: seller, note: say("earnSellerKeeps"), amount: sellerAmount, color: C.them },
         { key: "cobuntu", who: "cobuntu", label: say("lineCobuntu"), note: cobNote, amount: sellerFee + cut, color: C.cob },
         stripe,
     ];
@@ -239,7 +305,28 @@ function Ring({ rows, gross, center, sub, size = 176 }: { rows: Row[]; gross: nu
     );
 }
 
-export interface PanelMeta { rate: number; premium: boolean; platformFeeRate: number }
+export interface PanelMeta {
+    rate: number; premium: boolean; platformFeeRate: number;
+    /** Cobuntu's rate on this stream, percent (ListingMoney.rates); works for a free item too. */
+    cobuntuPct?: number | null;
+    /** The commission terms, percent; null when none are agreed or offered yet. */
+    commissionPct?: number | null;
+    commissionSource?: "agreed" | "matrix" | "proposed" | "none";
+}
+
+/** The panel's rates, from the money read: the sale preview's, else the rates sent for a free item. */
+export function metaOf(m: ListingMoney | null, termsRate: number | null): PanelMeta {
+    const one = m?.oneSale ?? null;
+    const r = m?.rates ?? null;
+    return {
+        rate: one?.commissionRate ?? termsRate ?? r?.commissionPct ?? 0,
+        premium: !!one?.sellerPremium,
+        platformFeeRate: one?.platformFeeRate ?? (r ? r.cobuntuPct / 100 : 0),
+        cobuntuPct: r?.cobuntuPct ?? (one ? one.platformFeeRate * 100 : null),
+        commissionPct: r ? r.commissionPct : one ? (one.rateSource === "none" ? null : one.commissionRate) : termsRate,
+        commissionSource: r?.commissionSource ?? one?.rateSource,
+    };
+}
 
 /**
  * ONE SALE. The same panel in Earnings and in the package sheet. With several
@@ -268,7 +355,9 @@ export function OneSalePanel({ say, seat, kind, m, parties, meta, title, subtitl
     if (donation) {
         const dl = donation.lines;
         const amount = money(donation.amount, cur);
-        if (seat === "seller") {
+        if (parties.owner && parties.listedOnOwner) {
+            donationText = say("earnDonationSellerNoComm", { amount, keep: money(keepOf(seat, dl, parties), cur) });
+        } else if (seat === "seller") {
             donationText = amountOf(dl, "commission") > 0
                 ? say("earnDonationSeller", { amount, keep: money(amountOf(dl, "keep"), cur), community })
                 : say("earnDonationSellerNoComm", { amount, keep: money(amountOf(dl, "keep"), cur) });
@@ -305,7 +394,7 @@ export function OneSalePanel({ say, seat, kind, m, parties, meta, title, subtitl
                                 <i className="cbtl-sw" style={{ background: r.color }} aria-hidden="true" />
                                 <Mark who={r.who} parties={parties} />
                                 <span className="cbtl-line-name"><b>{r.label}</b>{r.note && <small>{r.note}</small>}</span>
-                                <b className="cbtl-line-amt">{money(r.amount, cur)}</b>
+                                <b className="cbtl-line-amt">{r.blank ? "—" : money(r.amount, cur)}</b>
                             </span>
                         ))}
                     </span>
@@ -315,7 +404,7 @@ export function OneSalePanel({ say, seat, kind, m, parties, meta, title, subtitl
                             {prices.map((x, i) => (
                                 <button key={x.productId + i} type="button" className="cbtl-every-row" aria-current={i === picked ? "true" : undefined} onClick={() => setPicked(i)}>
                                     <span>{labelOf(x)} · {x.free ? say("free") : money(x.gross, cur)}</span>
-                                    <b>{x.free ? say("earnNothingToSplit") : money(amountOf(x.lines, "keep"), cur)}</b>
+                                    <b>{x.free ? say("earnNothingToSplit") : money(keepOf(seat, x.lines, parties), cur)}</b>
                                 </button>
                             ))}
                         </span>
@@ -342,7 +431,7 @@ export function OneSalePanel({ say, seat, kind, m, parties, meta, title, subtitl
 /** Every line a seat reads, at zero: the shape of the split with nothing in it. */
 function zeroLines(seat: Seat): MoneyLine[] {
     const keys: MoneyLine["key"][] = seat === "seller"
-        ? ["price", "stripe", "commission", "cobuntu", "keep"]
+        ? ["price", "stripe", "commission", "cobuntu", "keep", "commissionCut", "communityNet"]
         : ["price", "stripe", "seller", "sellerFee", "sellerNet", "commission", "cobuntu", "keep"];
     return keys.map((key) => ({ key, amount: 0 }));
 }
@@ -378,8 +467,8 @@ function PlaceholderPanel({ say, seat, kind, parties, meta, cur, title, center, 
                         <span className="cbtl-line" data-mine={r.mine ? "" : undefined} key={r.key}>
                             <i className="cbtl-sw" aria-hidden="true" />
                             <Mark who={r.who} parties={parties} />
-                            <span className="cbtl-line-name"><b>{r.label}</b>{zero && r.note && <small>{r.note}</small>}</span>
-                            {zero ? <b className="cbtl-line-amt">{money(0, cur)}</b> : <i className="cbtl-ghost" aria-hidden="true" />}
+                            <span className="cbtl-line-name"><b>{r.label}</b>{(zero || r.who === "cobuntu") && r.note && <small>{r.note}</small>}</span>
+                            {r.blank ? <b className="cbtl-line-amt">—</b> : zero ? <b className="cbtl-line-amt">{money(0, cur)}</b> : <i className="cbtl-ghost" aria-hidden="true" />}
                         </span>
                     ))}
                 </span>
@@ -417,13 +506,15 @@ export function EarningsSection({ say, seat, kind, m, parties, terms, onPickPack
     const one = m.oneSale;
     const prices = pricesOf(m);
     const anyPaid = prices.some((p) => !p.free);
-    const noTerms = !!one && one.rateSource === "none" && terms.rate == null;
+    // A community selling its own item in itself needs no terms: nobody else takes a commission.
+    const selfOwned = !!parties.owner && !!parties.listedOnOwner;
+    const noTerms = !!one && one.rateSource === "none" && terms.rate == null && !selfOwned;
     const cur = m.currency;
-    const meta: PanelMeta = { rate: one?.commissionRate ?? terms.rate ?? 0, premium: !!one?.sellerPremium, platformFeeRate: one?.platformFeeRate ?? 0 };
+    const meta: PanelMeta = metaOf(m, terms.rate);
     const unit = kind === "event" ? say("unitTicket") : say("unitSale");
     const termsText = termsLabel(say, terms.rate ?? one?.commissionRate ?? null, terms.name, kind);
     // TEJÁ takes no commission on event tickets: its view stays drawn, blurred, with the reason on top.
-    const noComm = seat === "community" && kind === "event" && !!one && amountOf(one.lines, "commission") === 0;
+    const noComm = seat === "community" && kind === "event" && !!one && amountOf(one.lines, "commission") === 0 && !parties.owner;
 
     let main: ReactNode;
     if (!anyPaid) {
@@ -452,7 +543,7 @@ export function EarningsSection({ say, seat, kind, m, parties, terms, onPickPack
     const sold = m.live ? m.soldSoFar : null;
     return (
         <div className="cbtl-earn">
-            {!noTerms && anyPaid && terms.rate != null && (
+            {!noTerms && anyPaid && terms.rate != null && !(parties.owner && parties.listedOnOwner) && (
                 <div className="cbtl-terms">
                     <span className="cbtl-terms-ic" aria-hidden="true"><Icon d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82zM7 7h.01" size={20} /></span>
                     <span className="cbtl-terms-text">
@@ -463,7 +554,7 @@ export function EarningsSection({ say, seat, kind, m, parties, terms, onPickPack
                         </span>
                         <span>{[terms.sub, seat === "community" && one && one.platformFeeRate > 0 ? say("earnCobuntuShare", { rate: percent(one.platformFeeRate * 100) }) : ""].filter(Boolean).join(" ")}</span>
                     </span>
-                    <span className="cbtl-terms-marks" aria-hidden="true"><Mark who="seller" parties={parties} size={30} /><Mark who="community" parties={parties} size={30} /></span>
+                    <span className="cbtl-terms-marks" aria-hidden="true"><Mark who={parties.owner ? "owner" : "seller"} parties={parties} size={30} /><Mark who="community" parties={parties} size={30} /></span>
                 </div>
             )}
             {sold && sold.count > 0 && <SoFar say={say} seat={seat} m={m} parties={parties} links={links} />}
@@ -478,7 +569,28 @@ function SoFar({ say, seat, m, parties, links }: { say: Say; seat: Seat; m: List
     const cur = m.currency;
     const l = s.lines;
     const community = parties.community.name;
-    const stats: Array<{ label: string; amount: number; keep?: boolean }> = seat === "seller"
+    const selfOwned = !!parties.owner && !!parties.listedOnOwner;
+    const stats: Array<{ label: string; amount: number; keep?: boolean }> = selfOwned
+        ? [
+            // A community selling its own item: everything but Stripe and Cobuntu is its own.
+            { label: say("earnInSales"), amount: amountOf(l, "price") },
+            {
+                label: say("earnStripeCobuntu"),
+                amount: amountOf(l, "stripe") + (seat === "seller"
+                    ? amountOf(l, "cobuntu") + amountOf(l, "commissionCut")
+                    : amountOf(l, "sellerFee") + amountOf(l, "cobuntu")),
+            },
+            { label: say("earnYouKept"), amount: keepOf(seat, l, parties), keep: true },
+        ]
+        : seat === "seller" && parties.owner
+        ? [
+            // A community's item in another community: that community's commission, Cobuntu on the owner's own leg.
+            { label: say("earnInSales"), amount: amountOf(l, "price") },
+            { label: say("earnTook", { who: community }), amount: amountOf(l, "commission") },
+            { label: say("earnStripeCobuntu"), amount: amountOf(l, "stripe") + amountOf(l, "cobuntu") },
+            { label: say("earnYouKept"), amount: amountOf(l, "keep"), keep: true },
+        ]
+        : seat === "seller"
         ? [
             { label: say("earnInSales"), amount: amountOf(l, "price") },
             { label: say("earnTook", { who: community }), amount: has(l, "communityNet") ? amountOf(l, "communityNet") : amountOf(l, "commission") },
@@ -487,7 +599,7 @@ function SoFar({ say, seat, m, parties, links }: { say: Say; seat: Seat; m: List
         ]
         : [
             { label: say("earnInSales"), amount: amountOf(l, "price") },
-            { label: parties.seller.name, amount: has(l, "sellerNet") ? amountOf(l, "sellerNet") : amountOf(l, "seller") },
+            { label: parties.owner?.name ?? parties.seller.name, amount: has(l, "sellerNet") ? amountOf(l, "sellerNet") : amountOf(l, "seller") },
             { label: say("earnStripeCobuntu"), amount: amountOf(l, "stripe") + amountOf(l, "cobuntu") + (has(l, "sellerNet") ? amountOf(l, "sellerFee") : 0) },
             { label: say("earnKept", { who: community }), amount: amountOf(l, "keep"), keep: true },
         ];
@@ -863,9 +975,9 @@ export function PackageSheet({ say, seat, kind, transport, names, parties, offer
     const accepting = !!(offer && pkg && offer.package?.id === pkg.id);
     const to = seat === "community" ? names.seller : names.community;
     const range = preview && preview !== "loading" ? keepRange(say, preview) : "";
-    const meta: PanelMeta = preview && preview !== "loading" && preview.oneSale
-        ? { rate: preview.oneSale.commissionRate, premium: preview.oneSale.sellerPremium, platformFeeRate: preview.oneSale.platformFeeRate }
-        : { rate: Number(pkg?.rate ?? 0), premium: false, platformFeeRate: 0 };
+    const meta: PanelMeta = preview && preview !== "loading"
+        ? metaOf(preview, Number(pkg?.rate ?? 0))
+        : { rate: Number(pkg?.rate ?? 0), premium: false, platformFeeRate: 0, commissionPct: pkg ? Number(pkg.rate) : null };
 
     const submit = async () => {
         if (!pkg) return;

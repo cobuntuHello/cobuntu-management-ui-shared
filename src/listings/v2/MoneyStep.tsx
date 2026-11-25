@@ -31,6 +31,15 @@ const C = { keep: "#4e9c78", comm: "#c98a6b", cob: "#e0a94e", stripe: "#b9c4d6",
 export interface Parties {
     community: { name: string; icon?: string | null };
     seller: { name: string; image?: string | null; id?: string | null; usertag?: string | null };
+    /**
+     * The community that OWNS the item, when a community does (a member's item
+     * has none). With `listedOnOwner` the community sells its own item in
+     * itself; without it, its item is listed on another community. The money
+     * lines read differently in each case (25 Nov 2026): "you" is the owning
+     * community, and a community never pays itself a commission.
+     */
+    owner?: { name: string; icon?: string | null } | null;
+    listedOnOwner?: boolean;
 }
 
 export interface MoneyStepProps {

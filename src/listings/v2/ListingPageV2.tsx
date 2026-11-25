@@ -192,6 +192,9 @@ export function ListingPageV2(props: ListingPageV2Props) {
             icon: item?.community?.iconUrl ?? item?.communities?.iconUrl ?? (ownerCommunityId === comm?.id ? comm?.iconUrl : null) ?? null,
         }
         : null;
+    // The money lines need the owner too: "you" is the owning community, and it pays itself no commission.
+    parties.owner = ownerCommunity;
+    parties.listedOnOwner = ownedByCommunity && !!comm?.id && ownerCommunityId === comm.id;
     const owner = ownerCommunity
         ? { community: true, name: ownerCommunity.name, image: ownerCommunity.icon }
         : {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import type { OverviewListing, OverviewViewerRole } from "./types";
 import { CommunityPicker } from "./CommunityPicker";
 import {
@@ -79,6 +79,20 @@ function Icon({ l }: { l: OverviewListing }) {
  *  - One link per row, a real href. No shelf control here: taking a live listing
  *    down belongs on the listing's own page.
  */
+/**
+ * THE WHOLE ROW OPENS THE LISTING (25 Nov 2026: "make the entire listing row
+ * clickable, not just the button at the end"). The row's own link stays a real
+ * <a href>, so keyboard focus, a screen reader and open-in-new-tab work as
+ * before; a click anywhere else on the row follows the same href. Clicks on a
+ * control inside the row are left to that control, and Cmd/Ctrl-click opens a
+ * new tab as it would on the link.
+ */
+function openRow(e: MouseEvent<HTMLElement>, href: string) {
+    if ((e.target as HTMLElement).closest("a, button, input, select, textarea, label")) return;
+    if (e.metaKey || e.ctrlKey) { window.open(href, "_blank", "noopener"); return; }
+    window.location.assign(href);
+}
+
 export function ListingsTable({
     listings, viewerRole, scopeId, onScope, listingHref, t, locale, cash,
 }: {
@@ -186,7 +200,11 @@ export function ListingsTable({
                         {shown.map((l) => {
                             const sells = l.status === "ACTIVE";
                             return (
-                                <tr key={l.listingId} className="border-t border-zinc-200/70 align-middle tabular-nums">
+                                <tr
+                                    key={l.listingId}
+                                    onClick={(e) => openRow(e, listingHref(l))}
+                                    className="cursor-pointer border-t border-zinc-200/70 align-middle tabular-nums transition-colors hover:bg-zinc-50"
+                                >
                                     <td className="px-5 py-3.5"><div className="flex items-center gap-3"><Icon l={l} />{name(l)}</div></td>
                                     {sells ? (
                                         <>
@@ -230,7 +248,11 @@ export function ListingsTable({
             {/* Narrow: compact rows, same facts. */}
             {narrow && <ul className="m-0 list-none rounded-2xl border border-zinc-200/70 bg-white px-4 py-1">
                 {shown.map((l) => (
-                    <li key={l.listingId} className="flex items-center gap-3 border-t border-zinc-200/70 py-3 first:border-t-0">
+                    <li
+                        key={l.listingId}
+                        onClick={(e) => openRow(e, listingHref(l))}
+                        className="-mx-2 flex cursor-pointer items-center gap-3 rounded-lg border-t border-zinc-200/70 px-2 py-3 transition-colors first:border-t-0 hover:bg-zinc-50"
+                    >
                         <Icon l={l} />
                         <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-x-2">

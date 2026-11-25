@@ -696,3 +696,99 @@ describe("whose item it is, and people's pictures (24 Nov 2026)", () => {
         expect(bar().textContent).not.toMatch(/sold/);
     });
 });
+
+describe("a community's own item, in itself and in another community (25 Nov 2026)", () => {
+    const fsc = { id: "fsc", name: "Finance Social Club", communityTag: "fsc", iconUrl: "https://img/fsc.png" };
+    const teja = { id: "teja", name: "TEJÁ House", communityTag: "tejahouse", iconUrl: null };
+    const listingIn = (community: typeof fsc | typeof teja, over: Record<string, unknown> = {}) => ({
+        id: "lst", status: "ACTIVE", isHidden: false, commissionRate: null, isPaid: true, listingPrice: { amount: 18, currency: "EUR" },
+        createdAt: "2026-11-22T13:56:00Z", approvedAt: "2026-11-22T14:00:00Z", community,
+        requestedBy: { id: "buntu", name: "Buntu", usertag: "buntu", profileImage: null },
+        event: { id: "evt", name: "Sessão de Boas-Vindas", slug: "boas-vindas", startDate: "2026-11-29T17:00:00Z", communityId: "fsc", community: fsc },
+        ...over,
+    });
+    const moneyWith = (over: Partial<ListingMoney>): ListingMoney => ({
+        kind: "event", listingId: "lst", seat: "seller", status: "ACTIVE", live: false, currency: "EUR",
+        oneSale: null, soldSoFar: null, upfront: null, result: null, prices: [], donation: null, ...over,
+    } as ListingMoney);
+    const lineNames = () => [...document.querySelectorAll(".cbtl-lines .cbtl-line-name b")].map((b) => b.textContent);
+
+    it("on itself, free: you are the community, there is no community line, and Cobuntu says its rate", async () => {
+        const t = transport("seller", { status: "ACTIVE" });
+        (t.listing as any).mockImplementation(async () => listingIn(fsc, { isPaid: false, listingPrice: null }));
+        (t.money as any).mockResolvedValue(moneyWith({
+            rates: { cobuntuPct: 8, stream: "events", commissionPct: null, commissionSource: "none", ownedByListingCommunity: true },
+        }));
+        mount(t, "seller");
+        await screen.findByRole("heading", { level: 1 });
+        openSection("Earnings");
+        expect(lineNames()).toEqual(["You keep", "Cobuntu", "Stripe"]);
+        const keep = document.querySelector(".cbtl-lines .cbtl-line") as HTMLElement;
+        expect(keep.querySelector("img")?.getAttribute("src")).toBe("https://img/fsc.png");
+        expect(screen.getByText("8% of event sales")).toBeTruthy();
+    });
+
+    it("on itself, paid: it keeps both shares, from the community's seat too", async () => {
+        const t = transport("community", { status: "ACTIVE" });
+        (t.listing as any).mockImplementation(async () => listingIn(fsc));
+        const community = [
+            { key: "price", amount: 1800 }, { key: "stripe", amount: 52 }, { key: "seller", amount: 1748 },
+            { key: "sellerFee", amount: 144 }, { key: "sellerNet", amount: 1604 },
+            { key: "commission", amount: 0 }, { key: "cobuntu", amount: 0 }, { key: "keep", amount: 0 },
+        ];
+        (t.money as any).mockResolvedValue(moneyWith({
+            seat: "community",
+            oneSale: { gross: 1800, vat: 0, commissionRate: 0, rateSource: "none", platformFeeRate: 0.08, memberSale: false, sellerPremium: false, lines: community as any },
+            rates: { cobuntuPct: 8, stream: "events", commissionPct: null, commissionSource: "none", ownedByListingCommunity: true },
+        }));
+        mount(t, "community");
+        await screen.findByRole("heading", { level: 1 });
+        openSection("Earnings");
+        expect(lineNames()).toEqual(["You keep", "Cobuntu", "Stripe"]);
+        const amounts = [...document.querySelectorAll(".cbtl-lines .cbtl-line-amt")].map((b) => b.textContent);
+        expect(amounts).toEqual(["€16.04", "€1.44", "€0.52"]);
+        // No "pick a package" for a community selling its own item, and no blurred 0% overlay.
+        expect(screen.queryByText("Pick a package")).toBeNull();
+        expect(document.querySelector(".cbtl-blurwrap")).toBeNull();
+    });
+
+    it("in another community: you are the owner, that community takes its agreed %, Cobuntu its rate on your side", async () => {
+        const t = transport("seller", { status: "ACTIVE" });
+        (t.listing as any).mockImplementation(async () => listingIn(teja, { commissionRate: 10 }));
+        const seller = [
+            { key: "price", amount: 1800 }, { key: "stripe", amount: 52 }, { key: "commission", amount: 180 },
+            { key: "cobuntu", amount: 72 }, { key: "keep", amount: 1496 }, { key: "commissionCut", amount: 14 }, { key: "communityNet", amount: 166 },
+        ];
+        (t.money as any).mockResolvedValue(moneyWith({
+            oneSale: { gross: 1800, vat: 0, commissionRate: 10, rateSource: "agreed", platformFeeRate: 0.04, memberSale: false, sellerPremium: false, lines: seller as any },
+            rates: { cobuntuPct: 4, stream: "events", commissionPct: 10, commissionSource: "agreed", ownedByListingCommunity: false },
+        }));
+        mount(t, "seller");
+        await screen.findByRole("heading", { level: 1 });
+        openSection("Earnings");
+        expect(lineNames()).toEqual(["You keep", "TEJÁ House", "Cobuntu", "Stripe"]);
+        const amounts = [...document.querySelectorAll(".cbtl-lines .cbtl-line-amt")].map((b) => b.textContent);
+        expect(amounts).toEqual(["€14.96", "€1.80", "€0.72", "€0.52"]);
+        expect(screen.getByText("commission · 10%")).toBeTruthy();
+        expect(screen.getByText("4% of event sales")).toBeTruthy();
+    });
+
+    it("in another community with no package picked yet: no commission figure", async () => {
+        const t = transport("seller", { status: "PENDING" });
+        (t.listing as any).mockImplementation(async () => listingIn(teja, { status: "PENDING", approvedAt: null }));
+        const seller = [
+            { key: "price", amount: 1800 }, { key: "stripe", amount: 52 }, { key: "commission", amount: 0 },
+            { key: "cobuntu", amount: 72 }, { key: "keep", amount: 1676 }, { key: "commissionCut", amount: 0 }, { key: "communityNet", amount: 0 },
+        ];
+        (t.money as any).mockResolvedValue(moneyWith({
+            status: "PENDING",
+            oneSale: { gross: 1800, vat: 0, commissionRate: 0, rateSource: "none", platformFeeRate: 0.04, memberSale: false, sellerPremium: false, lines: seller as any },
+            rates: { cobuntuPct: 4, stream: "events", commissionPct: null, commissionSource: "none", ownedByListingCommunity: false },
+        }));
+        mount(t, "seller");
+        await screen.findByRole("heading", { level: 1 });
+        openSection("Earnings");
+        const row = [...document.querySelectorAll(".cbtl-lines .cbtl-line")].find((r) => r.textContent?.includes("TEJÁ House")) as HTMLElement;
+        expect(row.querySelector(".cbtl-line-amt")?.textContent).toBe("—");
+    });
+});

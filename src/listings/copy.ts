@@ -291,6 +291,7 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     feesDestReady: "Ready",
     feesDestPayoutsOff: "Payouts disabled",
     feesDestNone: "No Stripe account connected yet",
+    feesConnectStripe: "Connect Stripe",
     feesNextPayoutNone: "Nothing scheduled yet",
     overviewNetEarnings: "Net earnings",
     overviewGrossEarnings: "Gross earnings",
