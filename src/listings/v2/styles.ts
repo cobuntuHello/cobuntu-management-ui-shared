@@ -429,12 +429,13 @@ a.cbtl-crumb-link:hover{opacity:.8}
 .cbtl-ct-field{flex:1;display:flex;align-items:baseline;justify-content:center;gap:4px;height:64px;border-radius:16px;background:var(--cbtl-card);border:1.5px solid var(--cbtl-ink);box-sizing:border-box}
 .cbtl-ct-field input{width:90px;border:none;background:transparent;font-family:var(--cbtl-display);font-size:40px;font-weight:600;text-align:right;color:var(--cbtl-ink);padding:8px 0 0;outline:none}
 .cbtl-ct-field b{font-family:var(--cbtl-display);font-size:30px;font-weight:600}
-.cbtl-ct-picks{display:flex;padding:4px;border-radius:14px;background:var(--cbtl-sand);gap:4px}
-.cbtl-ct-picks button{flex:1;min-height:44px;border-radius:10px;border:none;background:transparent;font:inherit;font-size:14px;color:var(--cbtl-muted);cursor:pointer;line-height:1.1}
+.cbtl-ct-picks{position:relative;display:flex;padding:4px;border-radius:14px;background:var(--cbtl-sand);gap:4px}
+.cbtl-ct-picks button{position:relative;z-index:1;flex:1;min-height:44px;border-radius:10px;border:none;background:transparent;font:inherit;font-size:14px;color:var(--cbtl-muted);cursor:pointer;line-height:1.1}
 .cbtl-ct-picks button small{display:block;font-size:11px;color:var(--cbtl-faint)}
-.cbtl-ct-picks button[aria-pressed="true"]{background:var(--cbtl-card);color:var(--cbtl-ink);font-weight:600;box-shadow:0 1px 3px rgba(25,23,20,.14)}
-.cbtl-ct-at{display:flex;flex-wrap:wrap;gap:8px 18px;padding:12px 16px;border-radius:14px;background:var(--cbtl-sand);font-size:13px;color:var(--cbtl-muted)}
-.cbtl-ct-at span:first-child{flex:1;min-width:120px}
+.cbtl-ct-picks button[aria-pressed="true"]{color:var(--cbtl-ink);font-weight:600}
+.cbtl-ct-thumb{position:absolute;top:4px;bottom:4px;left:4px;width:calc((100% - 8px - (var(--n) - 1) * 4px) / var(--n));border-radius:10px;background:var(--cbtl-card);box-shadow:0 1px 3px rgba(25,23,20,.14);transform:translateX(calc(var(--i) * (100% + 4px)));pointer-events:none}
+.cbtl-ct-thumb[data-off]{opacity:0}
+@media (prefers-reduced-motion: no-preference){.cbtl-ct-thumb{transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .2s ease}.cbtl-ct-picks button{transition:color .2s ease}}
 .cbtl-ask{display:flex;align-items:center;gap:28px;flex-wrap:wrap;padding:22px 24px;border-radius:18px;background:var(--cbtl-card);border:1px solid var(--cbtl-line)}
 .cbtl-ask-who{flex:1;min-width:240px;display:flex;align-items:center;gap:16px}
 .cbtl-ask-mark{width:52px;height:52px;flex:none;border-radius:14px;overflow:hidden;background:var(--cbtl-sand);display:flex;align-items:center;justify-content:center}

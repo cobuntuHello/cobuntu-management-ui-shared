@@ -26,6 +26,7 @@ import type { Say } from "./copy";
 import { clockOf, initials, money, percent, shortDate } from "./format";
 import type { Decision, MoveId } from "./decision";
 import { termsLabel } from "./decision";
+import { useGlide } from "./glide";
 import type { Parties } from "./MoneyStep";
 import type { ListingTransport } from "./transport";
 import type { BookingView, ListingMoney, MoneyLine, Package, Proposal, Seat, Topic } from "./types";
@@ -335,18 +336,28 @@ export function metaOf(m: ListingMoney | null, termsRate: number | null): PanelM
  * (finances' calculateDonationSplit), so they are a line under it, never a
  * slice of the ring.
  */
-export function OneSalePanel({ say, seat, kind, m, parties, meta, title, subtitle, blurred }: {
+export function OneSalePanel({ say, seat, kind, m, parties, meta, title, subtitle, blurred, glide }: {
     say: Say; seat: Seat; kind: "event" | "product"; m: ListingMoney; parties: Parties; meta: PanelMeta;
     title: string; subtitle?: string; blurred?: ReactNode;
+    /**
+     * When `m` is replaced (Change terms re-prices the split at every click),
+     * the amounts count to their new values and the ring's slices follow,
+     * instead of the panel snapping as if it reloaded. Off everywhere else.
+     */
+    glide?: boolean;
 }) {
     const prices = useMemo(() => pricesOf(m), [m]);
     const [picked, setPicked] = useState(() => cheapestPaid(prices));
     useEffect(() => { setPicked(cheapestPaid(prices)); }, [prices]);
     const cur = m.currency;
     const p = prices[picked] ?? prices[0];
+    // Every amount below (lines, notes, the ring) reads these, so they glide together.
+    const rawLines = p && !p.free ? p.lines : [];
+    const glided = useGlide(Object.fromEntries(rawLines.map((l) => [l.key, l.amount])), !!glide);
     if (!p) return null;
+    const lines = rawLines.map((l) => ({ ...l, amount: glided[l.key] ?? l.amount }));
     const paid = prices.filter((x) => !x.free);
-    const rows = p.free ? [] : rowsFor(say, seat, kind, p.lines, parties, meta, cur);
+    const rows = p.free ? [] : rowsFor(say, seat, kind, lines, parties, meta, cur);
     const community = parties.community.name;
     const labelOf = (x: Price) => x.label ?? (kind === "event" ? say("earnOneTicket") : say("earnOneSale"));
 

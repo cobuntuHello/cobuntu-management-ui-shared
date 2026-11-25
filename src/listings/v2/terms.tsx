@@ -20,10 +20,11 @@
  * only the seller ever sees it.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { CobuntuMark } from "../ui/marks";
 import type { Say } from "./copy";
 import { money, percent, shortDate } from "./format";
+import { useGlide } from "./glide";
 import type { Parties } from "./MoneyStep";
 import { OneSalePanel, metaOf, keepOf } from "./sections";
 import type { ListingTransport } from "./transport";
@@ -89,7 +90,7 @@ export function ChangeTermsSheet({ say, kind, transport, names, parties, now, ba
     names: { community: string; seller: string }; parties: Parties;
     /** This listing's rate today (percent), or null when none is set. */
     now: number | null;
-    /** The money at today's terms, for the "at X% now" line. */
+    /** The money at today's terms: its currency until the first preview lands. */
     base: ListingMoney | null;
     onClose: () => void;
     onDone: (message: string) => void;
@@ -97,31 +98,53 @@ export function ChangeTermsSheet({ say, kind, transport, names, parties, now, ba
     const start = now ?? 0;
     const [rate, setRate] = useState<number>(start);
     const [draft, setDraft] = useState<string>(String(start));
-    const [preview, setPreview] = useState<ListingMoney | null | "loading">("loading");
+    // Typing shows what is typed; a button or a pick shows the number gliding there.
+    const [typing, setTyping] = useState(false);
+    // The split on screen and the rate it was worked out at. It stays up while
+    // the next rate is worked out and is replaced when that lands (the amounts
+    // glide), so changing the rate never blanks the dialog into "Working out".
+    const [shown, setShown] = useState<{ m: ListingMoney | null; rate: number } | null>(null);
+    const [working, setWorking] = useState(true);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const ref = useDialog(onClose, busy);
+    // A click asks straight away; typing waits for a pause.
+    const delay = useRef(0);
 
-    // The split at the typed rate, a moment after typing stops.
     useEffect(() => {
-        setPreview("loading");
+        let live = true;
+        setWorking(true);
         const id = setTimeout(() => {
-            transport.money({ rate }).then((m) => setPreview(m ?? null)).catch(() => setPreview(null));
-        }, 250);
-        return () => clearTimeout(id);
+            transport.money({ rate })
+                .then((m) => { if (live) { setShown({ m: m ?? null, rate }); setWorking(false); } })
+                .catch(() => { if (live) { setShown({ m: null, rate }); setWorking(false); } });
+        }, delay.current);
+        // An answer for a rate already left behind never overwrites a newer one.
+        return () => { live = false; clearTimeout(id); };
     }, [rate, transport]);
 
-    const set = (r: number) => {
+    const set = (r: number, how: "click" | "typed" = "click") => {
         const v = Math.max(0, Math.min(100, Math.round(r * 100) / 100));
+        delay.current = how === "typed" ? 300 : 120;
+        if (how === "click") { setTyping(false); setDraft(String(v)); }
         setRate(v);
-        setDraft(String(v));
     };
     const picks = Array.from(new Set([start, 5, 10, 15])).sort((a, b) => a - b);
     const same = rate === start;
-    const sale = preview && preview !== "loading" ? cheapestSale(preview) : null;
-    const nowSale = cheapestSale(base);
-    const cur = (preview && preview !== "loading" ? preview.currency : base?.currency) ?? "EUR";
+    const preview = shown?.m ?? null;
+    const shownRate = shown?.rate ?? start;
+    const sale = cheapestSale(preview);
+    const cur = (preview?.currency ?? base?.currency) ?? "EUR";
     const keepsAt = sale ? keepOf("community", sale.lines, parties) : null;
+    // The rate glides in hundredths (rates like 2.5 exist); in flight it shows
+    // whole percents, and it lands on the exact rate.
+    const glided = useGlide({ rate: Math.round(rate * 100), keep: keepsAt ?? 0 }, true);
+    const landed = glided.rate === Math.round(rate * 100);
+    const rateOnScreen = typing ? draft : String(landed ? rate : Math.round(glided.rate / 100));
+    // The picks' highlight slides to the picked rate; off a pick it fades where it was.
+    const at = picks.indexOf(rate);
+    const lastAt = useRef(Math.max(0, picks.indexOf(start)));
+    if (at >= 0) lastAt.current = at;
 
     const send = async () => {
         if (same) return;
@@ -155,14 +178,16 @@ export function ChangeTermsSheet({ say, kind, transport, names, parties, now, ba
                         <span className="cbtl-ct-step">
                             <button type="button" aria-label={say("ctLower")} onClick={() => set(rate - 1)} disabled={busy || rate <= 0}>−</button>
                             <span className="cbtl-ct-field">
-                                <input id="cbtl-ct-rate" inputMode="decimal" value={draft} disabled={busy}
-                                    onChange={(e) => { setDraft(e.target.value); const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v)) set(v); }}
-                                    onBlur={() => setDraft(String(rate))} />
+                                <input id="cbtl-ct-rate" inputMode="decimal" value={rateOnScreen} disabled={busy}
+                                    onChange={(e) => { setTyping(true); setDraft(e.target.value); const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v)) set(v, "typed"); }}
+                                    onBlur={() => { setTyping(false); setDraft(String(rate)); }} />
                                 <b aria-hidden="true">%</b>
                             </span>
                             <button type="button" aria-label={say("ctRaise")} onClick={() => set(rate + 1)} disabled={busy || rate >= 100}>+</button>
                         </span>
-                        <span className="cbtl-ct-picks" role="group" aria-label={say("ctRateLabel", { community: names.community })}>
+                        <span className="cbtl-ct-picks" role="group" aria-label={say("ctRateLabel", { community: names.community })}
+                            style={{ "--n": picks.length, "--i": lastAt.current } as CSSProperties}>
+                            <i className="cbtl-ct-thumb" aria-hidden="true" data-off={at < 0 ? "" : undefined} />
                             {picks.map((p) => (
                                 <button key={p} type="button" aria-pressed={rate === p} onClick={() => set(p)} disabled={busy}>
                                     {percent(p)}{p === start && <small>{say("ctNow")}</small>}
@@ -171,25 +196,21 @@ export function ChangeTermsSheet({ say, kind, transport, names, parties, now, ba
                         </span>
                     </section>
 
-                    {preview === "loading" ? <p className="cbtl-hint">{say("pkLoading")}</p>
-                        : preview === null ? <p className="cbtl-hint">{say("pkNoPreview")}</p>
-                            : <OneSalePanel say={say} seat="community" kind={kind} m={preview} parties={parties} meta={metaOf(preview, rate)}
-                                title={say("ctSplitTitle", { price: money(sale?.gross ?? 0, cur), rate: percent(rate) })}
-                                subtitle={say("ctSplitSub", { seller: names.seller })} />}
-
-                    {nowSale && (
-                        <span className="cbtl-ct-at">
-                            <span>{say("ctAtNow", { rate: percent(start) })}</span>
-                            <span>{say("ctKeeps", { who: names.community, amount: money(keepOf("community", nowSale.lines, parties), cur) })}</span>
-                            <span>{say("ctKeeps", { who: names.seller, amount: money(amountOf(nowSale.lines, "sellerNet") || amountOf(nowSale.lines, "seller"), cur) })}</span>
-                        </span>
-                    )}
+                    {!shown ? <p className="cbtl-hint">{say("pkLoading")}</p>
+                        : !preview ? <p className="cbtl-hint">{say("pkNoPreview")}</p>
+                            : (
+                                <div className="cbtl-ct-split" aria-busy={working || undefined}>
+                                    <OneSalePanel say={say} seat="community" kind={kind} m={preview} parties={parties} meta={metaOf(preview, shownRate)} glide
+                                        title={say("ctSplitTitle", { price: money(sale?.gross ?? 0, cur), rate: percent(shownRate) })}
+                                        subtitle={say("ctSplitSub", { seller: names.seller })} />
+                                </div>
+                            )}
                 </div>
 
                 {error && <span className="cbtl-error cbtl-wide-pad" role="alert">{error}</span>}
                 <span className="cbtl-wide-foot">
                     <span className="cbtl-wide-sum">
-                        {!same && keepsAt != null && <><b>{percent(rate)}</b> · {say("ctKeeps", { who: names.community, amount: money(keepsAt, cur) })}</>}
+                        {!same && shownRate !== start && keepsAt != null && <><b>{percent(shownRate)}</b> · {say("ctKeeps", { who: names.community, amount: money(glided.keep, cur) })}</>}
                     </span>
                     <button type="button" className="cbtl-hbtn" onClick={onClose} disabled={busy}>{say("cancel")}</button>
                     <button type="button" className="cbtl-hbtn" data-kind="primary" disabled={busy || same} onClick={send}>

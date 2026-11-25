@@ -97,6 +97,57 @@ describe("the community: Change terms", () => {
         await waitFor(() => expect(t.propose).toHaveBeenCalledWith({ commissionRate: 10 }));
     });
 
+    it("keeps the split on screen while the next rate is worked out, then moves to it; no 'At 0% now' line", async () => {
+        const t = transport("community");
+        const atRate = t.money;
+        let release: () => void = () => {};
+        t.money = vi.fn((o?: { rate?: number }) => o?.rate === 10
+            ? new Promise<ListingMoney>((ok) => { release = () => ok(moneyAt("community", 10)); })
+            : atRate(o));
+        mount(t, "community");
+        await screen.findByRole("heading", { level: 1 });
+        fireEvent.click(within(bar()).getByRole("button", { name: "Change terms" }));
+        const sheet = await screen.findByRole("dialog", { name: "Change the terms for this listing" });
+        expect(await within(sheet).findByText(/sale at 0%$/)).toBeTruthy();
+
+        fireEvent.click(within(sheet).getByRole("button", { name: "10%" }));
+        await waitFor(() => expect(t.money).toHaveBeenCalledWith({ rate: 10 }));
+        // Still the 0% split while 10% is worked out: never the "Working out" line.
+        expect(within(sheet).getByText(/sale at 0%$/)).toBeTruthy();
+        expect(within(sheet).queryByText("Working out the split…")).toBeNull();
+
+        release();
+        expect(await within(sheet).findByText(/sale at 10%$/)).toBeTruthy();
+        // The amounts glide there and land on the new rate's (split + footer).
+        expect((await within(sheet).findAllByText(/379\.71/)).length).toBe(2);
+        expect(within(sheet).queryByText(/^At 0% now$/)).toBeNull();
+    });
+
+    it("slides the picks' highlight to the picked rate, fades it on a typed one, and the number lands on the pick", async () => {
+        mount(transport("community"), "community");
+        await screen.findByRole("heading", { level: 1 });
+        fireEvent.click(within(bar()).getByRole("button", { name: "Change terms" }));
+        const sheet = await screen.findByRole("dialog", { name: "Change the terms for this listing" });
+        const thumb = sheet.querySelector(".cbtl-ct-thumb") as HTMLElement;
+        const picks = thumb.parentElement as HTMLElement;
+        const field = within(sheet).getByRole("textbox") as HTMLInputElement;
+        expect(picks.style.getPropertyValue("--i")).toBe("0");
+
+        fireEvent.click(within(sheet).getByRole("button", { name: "10%" }));
+        expect(picks.style.getPropertyValue("--i")).toBe("2");
+        expect(thumb.hasAttribute("data-off")).toBe(false);
+        await waitFor(() => expect(field.value).toBe("10"));
+
+        // A rate that is not a pick: the highlight fades where it was, and what is typed stays as typed.
+        fireEvent.change(field, { target: { value: "3" } });
+        expect(thumb.hasAttribute("data-off")).toBe(true);
+        expect(picks.style.getPropertyValue("--i")).toBe("2");
+        expect(field.value).toBe("3");
+
+        fireEvent.click(within(sheet).getByRole("button", { name: "Raise by 1%" }));
+        await waitFor(() => expect(field.value).toBe("4"));
+    });
+
     it("says it is waiting for the seller once the ask is out", async () => {
         const t = transport("community");
         (t.proposals as any).mockResolvedValue([{ ...ASK, proposedByUserId: "art" }]);
