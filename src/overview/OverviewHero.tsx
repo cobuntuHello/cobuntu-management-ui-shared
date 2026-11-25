@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import type { OverviewStats } from "./types";
 import { TrendChart, hasTrend } from "./TrendChart";
+import { EmptyTrend } from "./EmptyTrend";
 import { sliceRange, type OverviewRange } from "./format";
 
 type T = (key: string, vars?: Record<string, string | number>) => string;
@@ -68,9 +69,7 @@ export function OverviewHero({
                 {hasTrend(shown) ? (
                     <TrendChart weekly={shown} currency={currency} locale={locale} t={t} />
                 ) : (
-                    <div className="flex min-h-[160px] items-center justify-center rounded-xl border border-dashed border-zinc-200 bg-white p-6 text-center text-[13px] text-zinc-400">
-                        {t("overviewTrendTooEarly")}
-                    </div>
+                    <EmptyTrend weekly={weekly} range={range} locale={locale} t={t} />
                 )}
             </div>
         </div>

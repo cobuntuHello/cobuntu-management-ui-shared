@@ -299,7 +299,9 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     overviewSales: "Sales",
     overviewTrendTitleViews: "Views over time",
     overviewTrendNoEarningsYet: "Nothing has sold yet, so there is no earnings line to draw. The bars are weekly views.",
-    overviewTrendTooEarly: "A trend needs at least two weeks",
+    /* The empty chart (EmptyTrend): fewer than two weeks of data to draw. */
+    overviewTrendEmptyTitle: "No trend yet",
+    overviewTrendEmptyBody: "Views and earnings show here after two weeks.",
     overviewNotCarriedTitle: "No community carries this yet",
     overviewNotCarriedBody: "Nobody can buy it until one does. Ask {community} to carry it, and a leader there decides.",
     overviewListItHere: "Ask {community} to carry it",
