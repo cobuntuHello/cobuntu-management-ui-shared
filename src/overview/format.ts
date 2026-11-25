@@ -121,6 +121,27 @@ export function sliceRange<T extends { week: string }>(weekly: T[], range: Overv
     return weekly.filter((w) => new Date(w.week).getTime() >= cutoff);
 }
 
+const WEEK_MS = 7 * 86400000;
+
+/** Monday 00:00 UTC of the week `d` falls in: the week a weekly series is keyed by. */
+function weekStartUtc(d: Date): Date {
+    const back = (d.getUTCDay() + 6) % 7;
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - back));
+}
+
+/**
+ * The first and last week the EMPTY chart's axis is labelled with, so the
+ * placeholder reads as the chart that is coming, for the range the seller
+ * picked. It ends at the latest week the series knows (as sliceRange counts),
+ * or this week when there is none. "All time" has no span to show yet, so it
+ * shows four weeks, as the shortest range does.
+ */
+export function emptyTrendSpan(weekly: Array<{ week: string }>, range: OverviewRange, now: Date = new Date()): { from: string; to: string } {
+    const to = weekly.length ? new Date(weekly[weekly.length - 1].week) : weekStartUtc(now);
+    const weeks = range === "11" ? 11 : 4;
+    return { from: new Date(to.getTime() - (weeks - 1) * WEEK_MS).toISOString(), to: to.toISOString() };
+}
+
 export type ListingSort = "sold" | "views" | "converts" | "keep";
 
 type Row = { sold: number; views: number; net: number };
