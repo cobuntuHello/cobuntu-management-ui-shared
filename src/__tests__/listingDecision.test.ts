@@ -37,7 +37,8 @@ describe("the community's bar", () => {
         const d = decisionOf(input({ status: "PENDING", kind: "event", rate: null, packageName: null, d: derived({ approveNeedsTerms: true }) }), say);
         expect(d.tone).toBe("you");
         expect(d.title).toBe("Pick a package to agree the terms");
-        expect(d.moves.map((m) => [m.id, !!m.primary])).toEqual([["decline", false], ["pickPackage", true]]);
+        // T-414: the community may also set custom terms for this listing; Pick a package stays the main move.
+        expect(d.moves.map((m) => [m.id, !!m.primary])).toEqual([["changeTerms", false], ["decline", false], ["pickPackage", true]]);
     });
 
     it("is ready to publish once agreed, at the agreed terms", () => {

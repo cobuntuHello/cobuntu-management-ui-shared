@@ -263,7 +263,7 @@ describe("the decision bar", () => {
         mount(t, "community");
         await screen.findByRole("heading", { level: 1 });
         expect(within(bar()).getByText("Your move")).toBeTruthy();
-        expect(within(bar()).queryByRole("button", { name: "Approve & publish" })).toBeNull();
+        expect(within(bar()).queryByRole("button", { name: /^Approve/ })).toBeNull();
         fireEvent.click(within(bar()).getByRole("button", { name: "Accept the booking" }));
         expect(t.decideBooking).not.toHaveBeenCalled();
         const dialog = await screen.findByRole("dialog");
@@ -277,7 +277,7 @@ describe("the decision bar", () => {
         mount(t, "community");
         await screen.findByRole("heading", { level: 1 });
         expect(screen.queryByRole("button", { name: "Accept the booking" })).toBeNull();
-        const approve = within(bar()).getByRole("button", { name: "Approve & publish" }) as HTMLButtonElement;
+        const approve = within(bar()).getByRole("button", { name: "Approve at 0%" }) as HTMLButtonElement;
         expect(approve.disabled).toBe(true);
         expect(within(bar()).getByText(/Accept or decline the booking/)).toBeTruthy();
     });
@@ -290,7 +290,7 @@ describe("the decision bar", () => {
         mount(t, "community");
         await screen.findByRole("heading", { level: 1 });
         expect(within(bar()).getByText("Ready to publish")).toBeTruthy();
-        fireEvent.click(within(bar()).getByRole("button", { name: "Approve & publish" }));
+        fireEvent.click(within(bar()).getByRole("button", { name: "Approve at 0%" }));
         const dialog = await screen.findByRole("dialog");
         expect(dialog.textContent).toContain("no commission on event tickets");
         fireEvent.click(within(dialog).getByRole("button", { name: "Approve & publish" }));
