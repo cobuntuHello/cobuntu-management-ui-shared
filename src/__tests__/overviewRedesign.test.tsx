@@ -34,29 +34,20 @@ const stats = (over: Partial<OverviewStats> = {}): OverviewStats => ({
 const renderIt = (s: OverviewStats, over: Record<string, unknown> = {}) =>
     render(<ManageOverview stats={s} listingHref={() => "#"} t={t} {...over} />);
 
-describe("the page says who is looking", () => {
-    it.each([
-        ["owner", "Owned by you", "You manage it"],
-        ["community-leader", "Owned by this community", "You manage it as a leader"],
-        ["carrier", "Carried by your community", "You moderate the listing"],
-    ] as const)("names a %s", (role, who, what) => {
-        renderIt(stats({ viewerRole: role }));
-        expect(screen.getByText(who)).toBeInTheDocument();
-        expect(screen.getByText(what)).toBeInTheDocument();
+describe("no ownership line above the Overview", () => {
+    // The page header and the read-only banner already say whose item this
+    // is; a second "Owned by X / Viewing as Cobuntu staff" row only repeated it.
+    it.each(["owner", "co-owner", "community-leader", "carrier", "admin"] as const)("renders none for a %s", (role) => {
+        renderIt(stats({ viewerRole: role, owner: { kind: "user", name: "Nina Simone", imageUrl: null } }));
+        expect(screen.queryByText(/^Owned by/)).not.toBeInTheDocument();
+        expect(screen.queryByText("Owned by Nina Simone")).not.toBeInTheDocument();
+        expect(screen.queryByText("Viewing as Cobuntu staff")).not.toBeInTheDocument();
+        expect(screen.queryByText(/^You manage it/)).not.toBeInTheDocument();
+        expect(screen.queryByText("You moderate the listing")).not.toBeInTheDocument();
     });
 
-    it("names a co-host and staff without claiming an owner", () => {
-        const { unmount } = renderIt(stats({ viewerRole: "co-owner" }));
-        expect(screen.getByText("You manage it as a co-host")).toBeInTheDocument();
-        expect(screen.queryByText("Owned by you")).not.toBeInTheDocument();
-        unmount();
-        renderIt(stats({ viewerRole: "admin" }));
-        expect(screen.getByText("Viewing as Cobuntu staff")).toBeInTheDocument();
-    });
-
-    it("names nobody when the backend did not say", () => {
+    it("still renders the figures when the backend did not say who is looking", () => {
         renderIt(stats({ viewerRole: undefined }));
-        expect(screen.queryByText("Owned by you")).not.toBeInTheDocument();
         expect(screen.getByText("Net earnings")).toBeInTheDocument();
     });
 });
@@ -255,23 +246,6 @@ describe("the community picker searches", () => {
         fireEvent.click(screen.getByRole("button", { name: "All communities" }));
         fireEvent.change(screen.getByRole("searchbox", { name: "Search communities" }), { target: { value: "zzz" } });
         expect(screen.getByText("No community matches")).toBeInTheDocument();
-    });
-});
-
-describe("the ownership line names the owner", () => {
-    it("names someone else's item and its owner", () => {
-        renderIt(stats({ viewerRole: "carrier", owner: { kind: "user", name: "Nina Simone", imageUrl: null } }));
-        expect(screen.getByText("Owned by Nina Simone")).toBeInTheDocument();
-        expect(screen.getByText("You moderate the listing")).toBeInTheDocument();
-    });
-    it("names the community for a community-owned item", () => {
-        renderIt(stats({ viewerRole: "community-leader", owner: { kind: "community", name: "Finance Social Club", imageUrl: null } }));
-        expect(screen.getByText("Owned by Finance Social Club")).toBeInTheDocument();
-    });
-    it("still says 'Owned by you' on your own item, never your own name", () => {
-        renderIt(stats({ viewerRole: "owner", owner: { kind: "user", name: "Diogo Cesar", imageUrl: null } }));
-        expect(screen.getByText("Owned by you")).toBeInTheDocument();
-        expect(screen.queryByText("Owned by Diogo Cesar")).not.toBeInTheDocument();
     });
 });
 
