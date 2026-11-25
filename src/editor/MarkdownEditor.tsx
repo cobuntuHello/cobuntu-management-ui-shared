@@ -78,7 +78,9 @@ export interface MarkdownEditorProps {
  * code widened their lines, and selecting text looked like highlighting blank
  * space next to a ghost copy of the words. So bold is a faux bold (a hairline
  * stroke, same advance widths), headings are that bold at body size, code
- * keeps the body font on a tint, and the overlay copies the textarea's own
+ * keeps the body font on a tint, emphasis and quotes stay upright in a softer
+ * colour (a real italic face is wider in Georgia or Times, which communities
+ * can pick as their body font), and the overlay copies the textarea's own
  * computed typography (see syncOverlayBox) so a host stylesheet that resizes
  * text fields (the community app forces 16px on phones) cannot split them.
  */
@@ -90,6 +92,15 @@ const MAX_GROW_PX = 200;
  * the browser's `strong { font-weight: bolder }`.
  */
 const FAUX_BOLD = "font-weight:inherit;-webkit-text-stroke:0.35px currentColor";
+/**
+ * Emphasis without a slant. The apps load web fonts upright only, where the
+ * browser slants the upright glyphs and keeps every width; but a community can
+ * pick Georgia or Times New Roman as its body font, whose real italic face is
+ * up to 3% wider, and the selection drifted after every italic run (measured
+ * in Chrome). Upright in a softer ink is exact in every font. The published
+ * page still shows real italics.
+ */
+const UPRIGHT_EMPHASIS = 'class="text-zinc-500" style="font-style:normal"';
 /** The textarea properties that decide where each character lands. */
 const OVERLAY_MIRRORED = [
   "font-family", "font-size", "font-weight", "font-stretch", "font-feature-settings", "font-variation-settings",
@@ -155,11 +166,10 @@ function formatLine(raw: string, mentionPattern: RegExp | null, imagePattern: Re
     mask(`<span class="text-zinc-300">~~</span><del class="text-zinc-500">${inner}</del><span class="text-zinc-300">~~</span>`),
   );
 
-  // Italic stays a real <em>: the apps load their text faces upright only, so
-  // the browser slants the upright glyphs and every width is unchanged.
+  // Emphasis is drawn upright (see UPRIGHT_EMPHASIS), never in an italic face.
   line = line
-    .replace(/(?<![*\w])\*(?!\s)(.+?)(?<!\s)\*(?!\w)/g, '<span class="text-zinc-300">*</span><em>$1</em><span class="text-zinc-300">*</span>')
-    .replace(/(?<![_\w])_(?!\s)(.+?)(?<!\s)_(?!\w)/g, '<span class="text-zinc-300">_</span><em>$1</em><span class="text-zinc-300">_</span>');
+    .replace(/(?<![*\w])\*(?!\s)(.+?)(?<!\s)\*(?!\w)/g, `<span class="text-zinc-300">*</span><em ${UPRIGHT_EMPHASIS}>$1</em><span class="text-zinc-300">*</span>`)
+    .replace(/(?<![_\w])_(?!\s)(.+?)(?<!\s)_(?!\w)/g, `<span class="text-zinc-300">_</span><em ${UPRIGHT_EMPHASIS}>$1</em><span class="text-zinc-300">_</span>`);
 
   line = line.replace(/\u0000(\d+)\u0000/g, (_, i) => tokens[Number(i)]);
 
@@ -172,7 +182,7 @@ function formatLine(raw: string, mentionPattern: RegExp | null, imagePattern: Re
   }
   const quote = line.match(/^(&gt;)(\s+)(.*)$/);
   if (quote) {
-    return `<span class="text-zinc-300">&gt;</span>${quote[2]}<span class="italic text-zinc-500">${quote[3]}</span>`;
+    return `<span class="text-zinc-300">&gt;</span>${quote[2]}<span ${UPRIGHT_EMPHASIS}>${quote[3]}</span>`;
   }
   const bullet = line.match(/^([-*])(\s+)(.*)$/);
   if (bullet) {

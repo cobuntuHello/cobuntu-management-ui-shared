@@ -50,6 +50,7 @@ describe("the overlay never changes a glyph's size, width or line height", () =>
       /^text-\[/.test(c) ||
       /^text-(xs|sm|base|lg|[2-9]?xl)$/.test(c) ||
       /^font-(mono|medium|semibold|bold|extrabold|black)$/.test(c) ||
+      c === "italic" ||
       /^(p|px|py|pl|pr|pt|pb|m|mx|ml|mr)-/.test(c),
     );
     expect(offending).toEqual([]);
@@ -75,6 +76,23 @@ describe("the overlay never changes a glyph's size, width or line height", () =>
       expect(strong.getAttribute("style")).toContain("font-weight:inherit");
       expect(strong.getAttribute("style")).toContain("-webkit-text-stroke");
     }
+  });
+
+  it("draws emphasis and quotes upright: a real italic face is wider in Georgia or Times", () => {
+    // Measured in Chrome at 14.5px: Georgia italic +2.9%, Times italic +1.5%
+    // over the upright text, and communities can pick either as body font.
+    for (const src of ["a *real* word", "a _real_ word"]) {
+      const host = document.createElement("div");
+      host.innerHTML = renderEditorOverlay(src);
+      const em = host.querySelector("em")!;
+      expect(em.textContent).toBe("real");
+      expect(em.getAttribute("style")).toContain("font-style:normal");
+    }
+    const quote = document.createElement("div");
+    quote.innerHTML = renderEditorOverlay("> said once");
+    const said = [...quote.querySelectorAll("span")].find((s) => s.textContent === "said once")!;
+    expect(said.getAttribute("style")).toContain("font-style:normal");
+    expect(said.className).not.toContain("italic");
   });
 
   it("keeps code in the body font with no padding", () => {
