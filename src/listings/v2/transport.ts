@@ -60,6 +60,13 @@ export interface ListingTransport {
     /** A package, or (the community only) a typed rate for this one listing (T-414). */
     propose(input: { packageId?: string; commissionRate?: number; message?: string }): Promise<void>;
     respond(proposalId: string, response: "ACCEPTED" | "REJECTED"): Promise<void>;
+    /**
+     * The seller moves their own listing onto another package their tier is
+     * offered (T-415). A live listing goes back to the community's review;
+     * `status` is where it lands. Optional: a host without it shows no
+     * Change package.
+     */
+    switchPackage?(packageId: string): Promise<{ status: string; sentBackToReview: boolean } | null>;
 
     // ── the talk ──
     openTopic(input: { subject: string; body: string }): Promise<void>;
@@ -146,6 +153,7 @@ export function restTransport(cfg: RestTransportConfig): ListingTransport {
         setStatus: async (to, reason) => { await call(`${base}/${id}/status`, { method: "PATCH", body: reason ? { status: to, reason } : { status: to } }); },
         setHidden: async (hidden) => { await call(`${base}/${id}/visibility`, { method: "PATCH", body: { isHidden: hidden } }); },
         propose: async (input) => { await call(`${base}/${id}/proposals`, { method: "POST", body: input }); },
+        switchPackage: (packageId) => call<{ status: string; sentBackToReview: boolean }>(`${base}/${id}/package`, { method: "POST", body: { packageId } }),
         respond: async (proposalId, response) => { await call(`${base}/proposals/${encodeURIComponent(proposalId)}/respond`, { method: "POST", body: { response } }); },
 
         openTopic: async (input) => { await call(`${base}/${id}/topics`, { method: "POST", body: input }); },

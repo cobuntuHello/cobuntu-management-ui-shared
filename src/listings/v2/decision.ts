@@ -42,6 +42,7 @@ export type MoveId =
     | "acceptBooking"
     | "declineBooking"
     | "changeTerms"      // community: a custom rate for THIS listing (T-414)
+    | "changePackage"    // seller: move their own listing onto another of their tier's packages (T-415)
     | "reply";           // open Negotiation
 
 export interface Move {
@@ -85,7 +86,15 @@ export interface DecisionInput {
     rejectionReason: string | null;
     d: Derived;
     /** What the host's transport can do. */
-    can: { decideBooking: boolean; setHidden: boolean; respond: boolean; propose: boolean; setStatus: boolean };
+    can: {
+        decideBooking: boolean; setHidden: boolean; respond: boolean; propose: boolean; setStatus: boolean;
+        /**
+         * The seller may move this listing onto another of their tier's packages
+         * (T-415): it is on a package, the tier offers more than one, and the host
+         * can do it. Optional so hosts that predate it draw nothing new.
+         */
+        switchPackage?: boolean;
+    };
     /**
      * The status moves the backend allows from here (listingTransitions.ts):
      * a move the state machine would refuse is never drawn.
@@ -275,15 +284,19 @@ function draft(x: DecisionInput, say: Say): Decision {
                 moves,
             };
         }
+        // T-415: on a package that was the wrong pick, the seller changes it here, while it is reviewed.
+        const switchable = !!can.switchPackage && !!terms;
         return {
             tone: "them", eyebrow: say("barWaitingFor", { who: community }),
             title: say("barPublishesNext", { community }),
-            sub: terms
-                ? (x.agreedAt ? say("barAgreedOn", { terms, date: shortDate(x.agreedAt) }) : say("barAtTerms", { terms }))
-                : say("barStandardTerms", { community }),
+            sub: switchable ? say("chgWaitingSub", { terms, community })
+                : terms
+                    ? (x.agreedAt ? say("barAgreedOn", { terms, date: shortDate(x.agreedAt) }) : say("barAtTerms", { terms }))
+                    : say("barStandardTerms", { community }),
             moves: [
                 ...(can.propose && x.rate == null ? [{ id: "pickPackage" as const, label: say("barPickPackage"), text: true }] : []),
-                ...(can.setStatus ? [{ id: "withdraw" as const, label: say("withdrawRequest") }] : []),
+                ...(can.setStatus ? [{ id: "withdraw" as const, label: say("withdrawRequest"), text: switchable }] : []),
+                ...(switchable ? [{ id: "changePackage" as const, label: say("chgMove"), primary: true }] : []),
             ],
         };
     }
@@ -295,9 +308,13 @@ function draft(x: DecisionInput, say: Say): Decision {
         if (seat === "community") {
             if (can.setStatus) moves.push({ id: "remove", label: say("barRemove") });
             if (can.setHidden) moves.push({ id: "pause", label: say("barPause") });
-        } else if (can.setStatus) {
-            moves.push({ id: "withdraw", label: say("withdraw") });
-            moves.push({ id: "pause", label: say("barPause") });
+        } else {
+            // T-415: another package sends it back to review (the sheet says so first).
+            if (can.switchPackage) moves.push({ id: "changePackage", label: say("chgMove"), text: true });
+            if (can.setStatus) {
+                moves.push({ id: "withdraw", label: say("withdraw") });
+                moves.push({ id: "pause", label: say("barPause") });
+            }
         }
         return {
             tone: "live", eyebrow: say("stateLive"),
@@ -315,9 +332,12 @@ function draft(x: DecisionInput, say: Say): Decision {
     if (seat === "community") {
         if (can.setStatus) moves.push({ id: "remove", label: say("barRemove") });
         if (mine && can.setHidden) moves.push({ id: "resume", label: say("barResume"), primary: true });
-    } else if (can.setStatus) {
-        moves.push({ id: "withdraw", label: say("withdraw") });
-        if (mine) moves.push({ id: "resume", label: say("barResume"), primary: true });
+    } else {
+        if (mine && can.switchPackage) moves.push({ id: "changePackage", label: say("chgMove"), text: true });
+        if (can.setStatus) {
+            moves.push({ id: "withdraw", label: say("withdraw") });
+            if (mine) moves.push({ id: "resume", label: say("barResume"), primary: true });
+        }
     }
     return {
         tone: "paused",

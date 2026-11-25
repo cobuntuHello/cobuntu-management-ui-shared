@@ -27,6 +27,7 @@ import { clockOf, initials, money, percent, shortDate } from "./format";
 import type { Decision, MoveId } from "./decision";
 import { termsLabel } from "./decision";
 import { useGlide } from "./glide";
+import { PackagePoints, type PackagePoint } from "./packagePoints";
 import type { Parties } from "./MoneyStep";
 import type { ListingTransport } from "./transport";
 import type { BookingView, ListingMoney, MoneyLine, Package, Proposal, Seat, Topic } from "./types";
@@ -503,10 +504,14 @@ export function keepRange(say: Say, m: ListingMoney | null): string {
 
 export interface Terms { name: string | null; rate: number | null; sub: string }
 
-export function EarningsSection({ say, seat, kind, m, parties, terms, onPickPackage, links, children }: {
+export function EarningsSection({ say, seat, kind, m, parties, terms, onPickPackage, onChangePackage, points, links, children }: {
     say: Say; seat: Seat; kind: "event" | "product"; m: ListingMoney | null; parties: Parties; terms: Terms;
     /** Shown on the empty state while the request is open. */
     onPickPackage?: () => void;
+    /** The seller moves their listing onto another of their packages (T-415): a button on the terms card. */
+    onChangePackage?: () => void;
+    /** What the package they are on means, as a checklist (its description). */
+    points?: PackagePoint[];
     links?: { payouts?: string; ledger?: string };
     /** The upfront money, the result and the Premium card (MoneyStep's parts), below. */
     children?: ReactNode;
@@ -564,8 +569,11 @@ export function EarningsSection({ say, seat, kind, m, parties, terms, onPickPack
                             <small>{say("earnCommission")}</small>
                         </span>
                         <span>{[terms.sub, seat === "community" && one && one.platformFeeRate > 0 ? say("earnCobuntuShare", { rate: percent(one.platformFeeRate * 100) }) : ""].filter(Boolean).join(" ")}</span>
+                        {points && points.length > 0 && <PackagePoints points={points} />}
                     </span>
-                    <span className="cbtl-terms-marks" aria-hidden="true"><Mark who={parties.owner ? "owner" : "seller"} parties={parties} size={30} /><Mark who="community" parties={parties} size={30} /></span>
+                    {onChangePackage
+                        ? <button type="button" className="cbtl-hbtn cbtl-terms-btn" onClick={onChangePackage}><Icon d="M17 3l4 4-4 4M3 7h18M7 21l-4-4 4-4M21 17H3" size={15} stroke={2} />{say("chgMove")}</button>
+                        : <span className="cbtl-terms-marks" aria-hidden="true"><Mark who={parties.owner ? "owner" : "seller"} parties={parties} size={30} /><Mark who="community" parties={parties} size={30} /></span>}
                 </div>
             )}
             {sold && sold.count > 0 && <SoFar say={say} seat={seat} m={m} parties={parties} links={links} />}
