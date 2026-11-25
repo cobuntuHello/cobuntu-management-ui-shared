@@ -30,7 +30,7 @@ const C = { keep: "#4e9c78", comm: "#c98a6b", cob: "#e0a94e", stripe: "#b9c4d6",
 
 export interface Parties {
     community: { name: string; icon?: string | null };
-    seller: { name: string; image?: string | null };
+    seller: { name: string; image?: string | null; id?: string | null; usertag?: string | null };
 }
 
 export interface MoneyStepProps {
