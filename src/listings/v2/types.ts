@@ -93,7 +93,12 @@ export interface ListingMoney {
         commissionPct: number | null;
         commissionSource: "agreed" | "matrix" | "proposed" | "none";
         ownedByListingCommunity: boolean;
+        /** Cobuntu's platform fee on a member seller's leg: percent and fixed (smallest unit); 0 for Premium or a community's item. */
+        sellerFeePct?: number;
+        sellerFeeFixed?: number;
     };
+    /** The typed rate this read previews (money({ rate })), or null (T-414). */
+    previewRate?: number | null;
     upfront: null | {
         /** What was booked, from the booking's first line ("The Sound Room"). */
         room: string | null;

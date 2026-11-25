@@ -40,7 +40,9 @@ export type MoveId =
     | "resume"
     | "withdraw"         // seller: end their own request or listing
     | "acceptBooking"
-    | "declineBooking";
+    | "declineBooking"
+    | "changeTerms"      // community: a custom rate for THIS listing (T-414)
+    | "reply";           // open Negotiation
 
 export interface Move {
     id: MoveId;
@@ -163,6 +165,38 @@ function draft(x: DecisionInput, say: Say): Decision {
     if (pending) {
         const theirOffer = offer && offer.by !== seat;
         const myOffer = offer && offer.by === seat;
+        /*
+         * THE COMMUNITY ASKS CUSTOM TERMS FOR THIS LISTING (T-414, 25 Nov
+         * 2026): a rate with no package. Accepting it puts the listing live on
+         * those terms, so the bar says so; declining keeps the current rate.
+         */
+        if (theirOffer && seat === "seller" && !offer.proposal.package?.id) {
+            const r = percent(Number(offer.proposal.commissionRate ?? 0));
+            const now = percent(x.rate ?? 0);
+            const moves: Move[] = [{ id: "reply", label: say("askReply"), text: true }];
+            if (can.respond) {
+                moves.push({ id: "declineOffer", label: say("askKeep", { rate: now }) });
+                moves.push({ id: "acceptOffer", label: say("askAccept", { rate: r }), primary: true });
+            }
+            return {
+                tone: "answer", eyebrow: say("barYourAnswer"),
+                title: say("askTitle", { community, rate: r }),
+                sub: say("askSub", { rate: now, community }),
+                moves,
+            };
+        }
+        if (myOffer && seat === "community" && !offer.proposal.package?.id) {
+            const r = percent(Number(offer.proposal.commissionRate ?? 0));
+            const moves: Move[] = [];
+            if (can.propose) moves.push({ id: "changeTerms", label: say("ctChange"), text: true });
+            if (can.setStatus) moves.push({ id: "decline", label: say("declineRequest") });
+            return {
+                tone: "them", eyebrow: say("barWaitingFor", { who: seller }),
+                title: say("ctAsked", { rate: r }),
+                sub: say("ctAskedSub", { date: shortDate(offer.proposal.createdAt), community, seller }),
+                moves,
+            };
+        }
         if (theirOffer) {
             const who = seat === "seller" ? community : seller;
             const r = percent(Number(offer.proposal.commissionRate ?? 0));
@@ -196,6 +230,7 @@ function draft(x: DecisionInput, say: Say): Decision {
         if (seat === "community") {
             if (needsPackage) {
                 const moves: Move[] = [];
+                if (can.propose) moves.push({ id: "changeTerms", label: say("ctChange"), text: true });
                 if (can.setStatus) moves.push({ id: "decline", label: say("decline") });
                 if (can.propose) moves.push({ id: "pickPackage", label: say("barPickPackage"), primary: true });
                 return {
@@ -209,10 +244,12 @@ function draft(x: DecisionInput, say: Say): Decision {
             const blockers = d.blockers;
             const moves: Move[] = [];
             if (can.propose && x.rate == null) moves.push({ id: "pickPackage", label: say("barPickPackage"), text: true });
+            if (can.setStatus) moves.push({ id: "decline", label: say("decline") });
+            // T-414: different terms for this listing, before approving it.
+            if (can.propose) moves.push({ id: "changeTerms", label: say("ctChange") });
             if (can.setStatus) {
-                moves.push({ id: "decline", label: say("decline") });
                 moves.push({
-                    id: "approve", label: say("approvePublish"), primary: true,
+                    id: "approve", label: x.rate != null ? say("approveAt", { rate: percent(x.rate) }) : say("approvePublish"), primary: true,
                     disabled: blockers.length > 0, title: blockers.map((b) => b.text).join(". ") || undefined,
                 });
             }
