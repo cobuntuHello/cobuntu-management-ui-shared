@@ -96,36 +96,136 @@ function transport(seat: "seller" | "community", opts: { status?: string; bookin
 const mount = (t: ListingTransport, seat: "seller" | "community", extra: Record<string, unknown> = {}) =>
     render(<ListingPageV2 transport={t} seat={seat} kind="event" backHref="/back" {...extra} />);
 
-const openStep = (name: RegExp) => fireEvent.click(screen.getByRole("button", { name }));
+/** Open one of the three section tiles (its accessible name starts with the section's). */
+const openSection = (name: "Overview" | "Earnings" | "Negotiation") =>
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${name}`) }));
+/** The decision bar along the bottom. */
+const bar = () => document.querySelector(".cbtl-dbar") as HTMLElement;
+
+describe("three sections and a decision (the redesign, 24 Nov 2026)", () => {
+    it("shows Overview, Earnings and Negotiation as tiles, never Messages, and opens on Overview", async () => {
+        mount(transport("community"), "community");
+        await screen.findByRole("heading", { level: 1 });
+        const tiles = document.querySelectorAll(".cbtl-sec");
+        expect([...tiles].map((t) => t.getAttribute("data-sec"))).toEqual(["overview", "earnings", "negotiation"]);
+        expect(screen.queryByRole("button", { name: /^Messages/ })).toBeNull();
+        expect(document.querySelector('.cbtl-sec[aria-current="page"]')?.getAttribute("data-sec")).toBe("overview");
+        openSection("Earnings");
+        expect(document.querySelector('.cbtl-sec[aria-current="page"]')?.getAttribute("data-sec")).toBe("earnings");
+    });
+
+    it("draws no step track and no Go live section: the decision is the bar", async () => {
+        mount(transport("community"), "community");
+        await screen.findByRole("heading", { level: 1 });
+        expect(document.querySelector(".cbtl-track")).toBeNull();
+        expect(screen.queryByText("Go live")).toBeNull();
+        expect(bar()).not.toBeNull();
+    });
+});
 
 describe("the money, from each seat", () => {
     it("shows Marta the EUR 18 down to the EUR 16.98 she keeps, and the break-even before approval", async () => {
         mount(transport("seller"), "seller");
         await screen.findByText("Slow Records: a vinyl listening evening", { selector: "h1" });
-        openStep(/Step 2 of 4, The money/);
+        openSection("Earnings");
         expect(screen.getAllByText("€16.98").length).toBeGreaterThan(0);
         expect(screen.getByText("You keep")).toBeTruthy();
         expect(screen.getByText("22 tickets")).toBeTruthy();
-        // Before approval there is only the "One ticket" column.
-        expect(screen.queryByText(/Sold so far/)).toBeNull();
+        // Nothing has sold before approval: no So far.
+        expect(screen.queryByText("So far")).toBeNull();
     });
 
-    it("shows TEJÁ its own view blurred under 'no commission', never the seller's Cobuntu fee", async () => {
+    it("shows TEJÁ its own view blurred under 'no commission', never the seller's view", async () => {
         mount(transport("community"), "community");
         await screen.findByRole("heading", { level: 1 });
-        openStep(/Step 2 of 4, The money/);
+        openSection("Earnings");
         expect(screen.getAllByText("TEJÁ House takes no commission on event ticket sales").length).toBeGreaterThan(0);
         expect(screen.queryByText("You keep")).toBeNull();
         expect(screen.getByText("Paid upfront · Marta Silva pays you")).toBeTruthy();
         expect(screen.getAllByText("€181.48").length).toBeGreaterThan(0);
     });
 
-    it("adds 'Sold so far' once live, and Marta's result so far", async () => {
+    it("adds So far once live, and Marta's result so far", async () => {
         mount(transport("seller", { status: "ACTIVE" }), "seller");
         await screen.findByRole("heading", { level: 1 });
-        openStep(/Step 2 of 4, The money/);
-        expect(screen.getByText("Sold so far · 25")).toBeTruthy();
+        openSection("Earnings");
+        expect(screen.getByText("So far")).toBeTruthy();
+        expect(screen.getByText("25 sold, refunds left out")).toBeTruthy();
         expect(screen.getByText("+ €240.00")).toBeTruthy();
+    });
+});
+
+describe("who sees which Cobuntu cut (decided 24 Nov 2026)", () => {
+    // A EUR 18 member ticket at 10%: Cobuntu takes EUR 0.46 from Marta and EUR 0.14 of the commission.
+    const memberLines = {
+        seller: [{ key: "price", amount: 1800 }, { key: "stripe", amount: 52 }, { key: "commission", amount: 180 }, { key: "cobuntu", amount: 46 }, { key: "keep", amount: 1522 }],
+        community: [
+            { key: "price", amount: 1800 }, { key: "stripe", amount: 52 }, { key: "seller", amount: 1568 },
+            { key: "sellerFee", amount: 46 }, { key: "sellerNet", amount: 1522 },
+            { key: "commission", amount: 180 }, { key: "cobuntu", amount: 14 }, { key: "keep", amount: 166 },
+        ],
+    };
+    const at10 = (seat: "seller" | "community", lines: any[]) => {
+        const t = transport(seat);
+        const m = money(seat, false);
+        m.oneSale = { ...m.oneSale!, commissionRate: 10, platformFeeRate: 0.08, lines };
+        (t.money as any).mockResolvedValue(m);
+        return t;
+    };
+
+    it("tells the community what Cobuntu takes from the seller as well as its cut", async () => {
+        mount(at10("community", memberLines.community), "community");
+        await screen.findByRole("heading", { level: 1 });
+        openSection("Earnings");
+        expect(screen.getByText("€0.46 from Marta Silva, €0.14 of the commission")).toBeTruthy();
+        expect(screen.getAllByText("€1.66").length).toBeGreaterThan(0);
+    });
+
+    it("never tells the seller Cobuntu's cut of the community's commission", async () => {
+        mount(at10("seller", memberLines.seller), "seller");
+        await screen.findByRole("heading", { level: 1 });
+        openSection("Earnings");
+        expect(screen.getByText("fee on your side")).toBeTruthy();
+        expect(document.querySelector(".cbtl-inner")!.textContent).not.toMatch(/of the commission/);
+        expect(screen.queryByText("€0.14")).toBeNull();
+    });
+});
+
+describe("several prices, and donations", () => {
+    const tiered = (seat: "seller" | "community") => {
+        const t = transport(seat);
+        const m = money(seat, false);
+        m.oneSale = { ...m.oneSale!, commissionRate: 10, lines: [{ key: "price", amount: 1200 }, { key: "stripe", amount: 43 }, { key: "commission", amount: 120 }, { key: "cobuntu", amount: 30 }, { key: "keep", amount: 1007 }] as any };
+        m.prices = [
+            { productId: "early", label: "Early bird", gross: 1200, vat: 0, free: false, lines: [{ key: "price", amount: 1200 }, { key: "stripe", amount: 43 }, { key: "commission", amount: 120 }, { key: "cobuntu", amount: 30 }, { key: "keep", amount: 1007 }] as any },
+            { productId: "general", label: "General", gross: 1800, vat: 0, free: false, lines: [{ key: "price", amount: 1800 }, { key: "stripe", amount: 52 }, { key: "commission", amount: 180 }, { key: "cobuntu", amount: 46 }, { key: "keep", amount: 1522 }] as any },
+            { productId: "members", label: "Members", gross: 0, vat: 0, free: true, lines: [] },
+        ];
+        m.donation = { amount: 1000, lines: [{ key: "price", amount: 1000 }, { key: "stripe", amount: 29 }, { key: "commission", amount: 100 }, { key: "cobuntu", amount: 0 }, { key: "keep", amount: 871 }] as any };
+        (t.money as any).mockResolvedValue(m);
+        return t;
+    };
+
+    it("opens on the cheapest paid ticket, switches price, and says what Marta keeps on every price", async () => {
+        mount(tiered("seller"), "seller");
+        await screen.findByRole("heading", { level: 1 });
+        openSection("Earnings");
+        const panel = document.querySelector(".cbtl-panel") as HTMLElement;
+        expect(panel.querySelector(".cbtl-ring-hole b")?.textContent).toBe("€12.00");
+        fireEvent.click(within(panel.querySelector(".cbtl-seg") as HTMLElement).getByRole("button", { name: /^General/ }));
+        expect(panel.querySelector(".cbtl-ring-hole b")?.textContent).toBe("€18.00");
+        const every = panel.querySelector(".cbtl-every") as HTMLElement;
+        expect(every.textContent).toContain("You keep, every price");
+        expect(every.textContent).toContain("€10.07");
+        expect(every.textContent).toContain("€15.22");
+        expect(every.textContent).toContain("Nothing to split");
+    });
+
+    it("gives donations their own line: the community's commission, Cobuntu nothing", async () => {
+        mount(tiered("seller"), "seller");
+        await screen.findByRole("heading", { level: 1 });
+        openSection("Earnings");
+        expect(screen.getByText("A €10.00 donation leaves you €8.71 after Stripe and TEJÁ House's commission. Cobuntu takes nothing from donations.")).toBeTruthy();
     });
 });
 
@@ -134,7 +234,7 @@ describe("the payment schedule", () => {
         const t = transport("seller");
         mount(t, "seller");
         await screen.findByRole("heading", { level: 1 });
-        openStep(/Step 2 of 4, The money/);
+        openSection("Earnings");
         expect(screen.getAllByText("The Sound Room").length).toBeGreaterThan(0);
         expect(screen.getByText("Your card ending 4242")).toBeTruthy();
         expect(screen.getByText("Tables and chairs")).toBeTruthy();
@@ -149,92 +249,201 @@ describe("the payment schedule", () => {
         const navigate = vi.fn();
         mount(t, "seller", { navigate });
         await screen.findByRole("heading", { level: 1 });
-        openStep(/Step 2 of 4, The money/);
+        openSection("Earnings");
         fireEvent.click(screen.getByRole("button", { name: "Change card" }));
         await waitFor(() => expect(t.startCardChange).toHaveBeenCalledWith("evt", { returnUrl: expect.stringContaining("card=done"), embedded: false }));
         await waitFor(() => expect(navigate).toHaveBeenCalledWith("https://checkout.stripe.com/c/pay/x"));
     });
 });
 
-describe("the request", () => {
-    it("opens on the booking for TEJÁ while it is in review, and accepting asks first", async () => {
+describe("the decision bar", () => {
+    it("asks TEJÁ about the booking first while it is in review, and accepting asks first", async () => {
         const t = transport("community", { bookingStatus: "IN_REVIEW" });
         mount(t, "community");
-        await screen.findByRole("heading", { name: "The request", level: 2 });
-        fireEvent.click(screen.getByRole("button", { name: "Accept the booking" }));
+        await screen.findByRole("heading", { level: 1 });
+        expect(within(bar()).getByText("Your move")).toBeTruthy();
+        expect(within(bar()).queryByRole("button", { name: "Approve & publish" })).toBeNull();
+        fireEvent.click(within(bar()).getByRole("button", { name: "Accept the booking" }));
         expect(t.decideBooking).not.toHaveBeenCalled();
         const dialog = await screen.findByRole("dialog");
         fireEvent.click(within(dialog).getByRole("button", { name: "Accept the booking" }));
         await waitFor(() => expect(t.decideBooking).toHaveBeenCalledWith("evt", "ACCEPT"));
     });
 
-    it("never draws a lever the host cannot perform", async () => {
+    it("never draws a move the host cannot perform, and keeps Approve off while the booking waits", async () => {
         const t = transport("community", { bookingStatus: "IN_REVIEW" });
         delete (t as any).decideBooking;
         mount(t, "community");
-        await screen.findByRole("heading", { name: "The request", level: 2 });
-        expect(screen.queryByRole("button", { name: "Accept the booking" })).toBeNull();
-    });
-});
-
-describe("going live", () => {
-    it("keeps 'Approve & publish' off while the booking waits, and says why", async () => {
-        mount(transport("community", { bookingStatus: "IN_REVIEW" }), "community");
         await screen.findByRole("heading", { level: 1 });
-        openStep(/Step 4 of 4, Go live/);
-        const approve = screen.getByRole("button", { name: "Approve & publish" }) as HTMLButtonElement;
+        expect(screen.queryByRole("button", { name: "Accept the booking" })).toBeNull();
+        const approve = within(bar()).getByRole("button", { name: "Approve & publish" }) as HTMLButtonElement;
         expect(approve.disabled).toBe(true);
-        expect(screen.getByText("Accept or decline the booking")).toBeTruthy();
+        expect(within(bar()).getByText(/Accept or decline the booking/)).toBeTruthy();
     });
 
-    it("publishes once nothing blocks, after the confirmation", async () => {
+    it("publishes once nothing blocks, after the confirmation says at which terms", async () => {
         const t = transport("community");
-        // Nothing waiting on anyone: the add-on is agreed.
         const m = money("community", false);
         m.upfront!.addons = m.upfront!.addons.filter((a) => a.status !== "PRICE_PROPOSED");
         (t.money as any).mockResolvedValue(m);
         mount(t, "community");
-        await screen.findByRole("heading", { name: "Go live", level: 2 });
-        fireEvent.click(screen.getByRole("button", { name: "Approve & publish" }));
+        await screen.findByRole("heading", { level: 1 });
+        expect(within(bar()).getByText("Ready to publish")).toBeTruthy();
+        fireEvent.click(within(bar()).getByRole("button", { name: "Approve & publish" }));
         const dialog = await screen.findByRole("dialog");
+        expect(dialog.textContent).toContain("no commission on event tickets");
         fireEvent.click(within(dialog).getByRole("button", { name: "Approve & publish" }));
         await waitFor(() => expect(t.setStatus).toHaveBeenCalledWith("ACTIVE"));
     });
 
-    it("lets Marta take a live listing off the shelf, after the confirmation", async () => {
+    it("lets Marta pause a live listing, only after the confirmation", async () => {
         const t = transport("seller", { status: "ACTIVE" });
         mount(t, "seller");
         await screen.findByRole("heading", { level: 1 });
-        openStep(/Step 4 of 4, Go live/);
-        fireEvent.click(screen.getByRole("button", { name: "Take it off the shelf" }));
+        expect(within(bar()).getByText("Live")).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Take it off the shelf" })).toBeNull();
+        fireEvent.click(within(bar()).getByRole("button", { name: "Pause" }));
         const dialog = await screen.findByRole("dialog");
-        fireEvent.click(within(dialog).getByRole("button", { name: "Take it off the shelf" }));
+        expect(dialog.textContent).toContain("Nobody can buy it until you resume");
+        expect(t.setStatus).not.toHaveBeenCalled();
+        fireEvent.click(within(dialog).getByRole("button", { name: "Pause" }));
         await waitFor(() => expect(t.setStatus).toHaveBeenCalledWith("PAUSED"));
+    });
+
+    it("never resumes in one click: Resume confirms too", async () => {
+        const t = transport("community", { status: "ACTIVE" });
+        (t.listing as any).mockImplementation(async () => ({
+            id: "lst", status: "ACTIVE", isHidden: true, commissionRate: 0, isPaid: true, listingPrice: { amount: 18, currency: "EUR" },
+            createdAt: "2026-11-18T09:00:00Z", approvedAt: "2026-11-24T10:00:00Z",
+            community: { id: "teja", name: "TEJÁ House", communityTag: "tejahouse", iconUrl: null },
+            requestedBy: { id: "marta", name: "Marta Silva", usertag: "marta-silva", profileImage: null },
+            event: { id: "evt", name: "Slow Records: a vinyl listening evening", slug: "slow-records", startDate: "2026-12-09T18:00:00Z" },
+        }));
+        mount(t, "community");
+        await screen.findByRole("heading", { level: 1 });
+        expect(within(bar()).getByText("Paused")).toBeTruthy();
+        fireEvent.click(within(bar()).getByRole("button", { name: "Resume" }));
+        expect(t.setHidden).not.toHaveBeenCalled();
+        const dialog = await screen.findByRole("dialog");
+        fireEvent.click(within(dialog).getByRole("button", { name: "Resume" }));
+        await waitFor(() => expect(t.setHidden).toHaveBeenCalledWith(false));
+    });
+
+    it("calls Take it down Remove, and says it is for good", async () => {
+        const t = transport("community", { status: "ACTIVE" });
+        mount(t, "community");
+        await screen.findByRole("heading", { level: 1 });
+        expect(screen.queryByRole("button", { name: "Take it down" })).toBeNull();
+        fireEvent.click(within(bar()).getByRole("button", { name: "Remove" }));
+        const dialog = await screen.findByRole("dialog");
+        expect(dialog.textContent).toContain("for good");
+        fireEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
+        await waitFor(() => expect(t.setStatus).toHaveBeenCalledWith("REVOKED"));
     });
 });
 
-describe("the talk", () => {
-    it("sends a reply on Enter and marks a topic done for the viewer's side only", async () => {
+describe("picking a package", () => {
+    const unagreed = (seat: "seller" | "community", proposals: any[] = []) => {
+        const t = transport(seat);
+        (t.listing as any).mockImplementation(async () => ({
+            id: "lst", status: "PENDING", isHidden: false, commissionRate: null, isPaid: true, listingPrice: { amount: 18, currency: "EUR" },
+            createdAt: "2026-11-18T09:00:00Z", approvedAt: null,
+            community: { id: "teja", name: "TEJÁ House", communityTag: "tejahouse", iconUrl: null },
+            requestedBy: { id: "marta", name: "Marta Silva", usertag: "marta-silva", profileImage: null },
+            event: { id: "evt", name: "Slow Records: a vinyl listening evening", slug: "slow-records", startDate: "2026-12-09T18:00:00Z" },
+        }));
+        (t.proposals as any).mockResolvedValue(proposals);
+        (t.packages as any).mockResolvedValue([
+            { id: "standard", name: "Standard", description: "On TEJÁ's page.", rate: 10 },
+            { id: "featured", name: "Featured", description: "Standard, plus the newsletter.", rate: 15 },
+        ]);
+        (t.money as any).mockImplementation(async (opts?: { packageId?: string }) => {
+            const m = money(seat, false);
+            if (opts?.packageId) {
+                const rate = opts.packageId === "featured" ? 15 : 10;
+                m.previewPackage = { id: opts.packageId, name: opts.packageId === "featured" ? "Featured" : "Standard", rate };
+                m.oneSale = { ...m.oneSale!, commissionRate: rate, rateSource: "proposed" };
+            } else {
+                m.oneSale = { ...m.oneSale!, rateSource: "none" };
+            }
+            return m;
+        });
+        return t;
+    };
+
+    it("asks for a package before anything else, and previews the split before sending it", async () => {
+        const t = unagreed("seller");
+        mount(t, "seller");
+        await screen.findByRole("heading", { level: 1 });
+        expect(within(bar()).getByText("Pick how TEJÁ House lists it")).toBeTruthy();
+        fireEvent.click(within(bar()).getByRole("button", { name: "Pick a package" }));
+        const sheet = await screen.findByRole("dialog");
+        fireEvent.click(await within(sheet).findByRole("radio", { name: /Featured/ }));
+        await waitFor(() => expect(t.money).toHaveBeenCalledWith({ packageId: "featured" }));
+        await within(sheet).findByText("On Featured, one sale splits like this");
+        // No note: the conversation is Negotiation.
+        expect(within(sheet).queryByRole("textbox")).toBeNull();
+        fireEvent.click(within(sheet).getByRole("button", { name: "Send Featured to TEJÁ House" }));
+        await waitFor(() => expect(t.propose).toHaveBeenCalledWith({ packageId: "featured" }));
+    });
+
+    it("shows Earnings empty until a package is agreed", async () => {
+        mount(unagreed("community"), "community");
+        await screen.findByRole("heading", { level: 1 });
+        openSection("Earnings");
+        expect(screen.getByText("No package agreed yet")).toBeTruthy();
+    });
+
+    it("accepting the other side's package shows its split first, then accepts it", async () => {
+        const offer = { id: "p1", status: "PENDING", commissionRate: 10, createdAt: "2026-11-24T18:00:00Z", proposedByUserId: "avi", package: { id: "standard", name: "Standard", rate: 10 } };
+        const t = unagreed("seller", [offer]);
+        mount(t, "seller");
+        await screen.findByRole("heading", { level: 1 });
+        expect(within(bar()).getByText("Your answer")).toBeTruthy();
+        expect(within(bar()).getByText("TEJÁ House picked Standard · 10%")).toBeTruthy();
+        fireEvent.click(within(bar()).getByRole("button", { name: "Accept 10%" }));
+        const sheet = await screen.findByRole("dialog");
+        await waitFor(() => expect(t.money).toHaveBeenCalledWith({ packageId: "standard" }));
+        expect(t.respond).not.toHaveBeenCalled();
+        fireEvent.click(await within(sheet).findByRole("button", { name: "Accept Standard" }));
+        await waitFor(() => expect(t.respond).toHaveBeenCalledWith("p1", "ACCEPTED"));
+    });
+});
+
+describe("Negotiation", () => {
+    it("is one chat: a reply goes to the open thread, and the offers sit in it", async () => {
         const t = transport("seller");
-        (t.topics as any).mockResolvedValue([{ id: "tp", subject: "The photographer", status: "OPEN", closedBySeller: false, closedByCommunity: false, openedByUserId: "marta", comments: [{ id: "c1", body: "Mostly the room during the two sides.", authorUserId: "marta" }] }]);
+        (t.topics as any).mockResolvedValue([{ id: "tp", subject: "The photographer", status: "OPEN", closedBySeller: false, closedByCommunity: false, openedByUserId: "marta", comments: [{ id: "c1", body: "Mostly the room during the two sides.", authorUserId: "marta", createdAt: "2026-11-24T18:02:00Z" }] }]);
+        (t.proposals as any).mockResolvedValue([{ id: "p1", status: "PENDING", commissionRate: 10, createdAt: "2026-11-24T18:05:00Z", proposedByUserId: "avi", package: { id: "standard", name: "Standard" } }]);
         mount(t, "seller", { currentUser: { id: "marta", name: "Marta Silva" } });
         await screen.findByRole("heading", { level: 1 });
-        openStep(/Step 3 of 4, The talk/);
-        const box = screen.getByRole("textbox", { name: "Reply..." });
+        openSection("Negotiation");
+        expect(screen.getByText("Mostly the room during the two sides.")).toBeTruthy();
+        expect(screen.getByText("TEJÁ House offered Standard · 10%")).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Raise something" })).toBeNull();
+        const box = screen.getByRole("textbox", { name: "Message…" });
         fireEvent.change(box, { target: { value: "Could it be 2 hours?" } });
-        fireEvent.keyDown(box, { key: "Enter" });
+        fireEvent.click(screen.getByRole("button", { name: "Send" }));
         await waitFor(() => expect(t.comment).toHaveBeenCalledWith("tp", "Could it be 2 hours?"));
-        fireEvent.click(screen.getByRole("button", { name: "✓ It is done" }));
-        await waitFor(() => expect(t.setTopicDone).toHaveBeenCalledWith("tp", true));
+    });
+
+    it("opens the conversation with the first message", async () => {
+        const t = transport("community");
+        mount(t, "community");
+        await screen.findByRole("heading", { level: 1 });
+        openSection("Negotiation");
+        fireEvent.change(screen.getByRole("textbox", { name: "Message…" }), { target: { value: "Welcome, Marta." } });
+        fireEvent.click(screen.getByRole("button", { name: "Send" }));
+        await waitFor(() => expect(t.openTopic).toHaveBeenCalledWith({ subject: "Conversation", body: "Welcome, Marta." }));
     });
 });
 
 describe("every sentence is filled", () => {
-    it.each(["seller", "community"] as const)("shows no raw {placeholder} on any step, live, from the %s's seat", async (seat) => {
+    it.each(["seller", "community"] as const)("shows no raw {placeholder} in any section or the bar, live, from the %s's seat", async (seat) => {
         mount(transport(seat, { status: "ACTIVE" }), seat);
         await screen.findByRole("heading", { level: 1 });
-        for (const step of [/Step 1 of 4/, /Step 2 of 4/, /Step 3 of 4/, /Step 4 of 4/]) {
-            openStep(step);
+        for (const name of ["Overview", "Earnings", "Negotiation"] as const) {
+            openSection(name);
             expect(document.querySelector(".cbtl-inner")?.textContent ?? "").not.toMatch(/\{[a-zA-Z]+\}/);
         }
     });
@@ -247,35 +456,62 @@ describe("every sentence is filled", () => {
         (t.money as any).mockResolvedValue(m);
         mount(t, "community");
         await screen.findByRole("heading", { level: 1 });
-        openStep(/Step 2 of 4/);
+        openSection("Earnings");
         expect(screen.getByText("€20.96 from commission")).toBeTruthy();
         expect(screen.queryByText(/€0.00 upfront/)).toBeNull();
     });
 });
 
-describe("off the shelf, and free", () => {
-    // Both seen live on TEJÁ's "test avi cass": paused, free, a booking waiting for its payment.
-    it.each([["ACTIVE", true], ["PAUSED", false]] as const)("says Selling on the money step only while on sale (%s)", async (status, selling) => {
-        const t = transport("community", { status });
-        const m = money("community", true);
-        m.status = status;
-        (t.money as any).mockResolvedValue(m);
-        mount(t, "community");
+describe("paused, and free", () => {
+    it("says Live while on sale, and Paused by Marta when she paused it", async () => {
+        const live = transport("community", { status: "ACTIVE" });
+        const first = mount(live, "community");
         await screen.findByRole("heading", { level: 1 });
-        openStep(/Step 2 of 4/);
-        expect(screen.queryByText("Selling · 25 sold") != null).toBe(selling);
+        expect(within(bar()).getByText("Live")).toBeTruthy();
+        first.unmount();
+        const paused = transport("community", { status: "PAUSED" });
+        mount(paused, "community");
+        await screen.findByRole("heading", { level: 1 });
+        expect(within(bar()).getByText("Paused by Marta Silva")).toBeTruthy();
     });
 
-    it("gives a free event's money the full width, with no empty ring column", async () => {
+    it("says a free event has nothing to split", async () => {
         const t = transport("community", { status: "ACTIVE" });
         const m = money("community", true);
         m.oneSale = null;
         (t.money as any).mockResolvedValue(m);
         mount(t, "community");
         await screen.findByRole("heading", { level: 1 });
-        openStep(/Step 2 of 4/);
-        expect(document.querySelector(".cbtl-body[data-single]")).not.toBeNull();
-        expect(document.querySelector(".cbtl-col-left")).toBeNull();
+        openSection("Earnings");
+        expect(screen.getByText("Nothing is sold, so there is nothing to split.")).toBeTruthy();
+    });
+});
+
+describe("Overview", () => {
+    it("is the item's card: its photos, price, date and who sent it", async () => {
+        const t = transport("community");
+        (t.listing as any).mockImplementation(async () => ({
+            id: "lst", status: "PENDING", isHidden: false, commissionRate: 0, isPaid: true, listingPrice: { amount: 18, currency: "EUR" },
+            createdAt: "2026-11-18T09:00:00Z", approvedAt: null,
+            community: { id: "teja", name: "TEJÁ House", communityTag: "tejahouse", iconUrl: null },
+            requestedBy: { id: "marta", name: "Marta Silva", usertag: "marta-silva", profileImage: null },
+            event: {
+                id: "evt", name: "Slow Records: a vinyl listening evening", slug: "slow-records", startDate: "2026-12-09T18:00:00Z", endDate: "2026-12-09T21:00:00Z",
+                bannerUrl: "https://img/a.jpg", images: ["https://img/b.jpg"], description: "<p>Two sides of a record.</p><p>Bring one.</p>", tags: ["vinyl", { name: "listening" }],
+            },
+        }));
+        mount(t, "community");
+        await screen.findByRole("heading", { level: 1 });
+        const card = document.querySelector(".cbtl-ov-card") as HTMLElement;
+        expect(card.querySelectorAll(".cbtl-ov-thumb")).toHaveLength(2);
+        expect(within(card).getByText("€18.00")).toBeTruthy();
+        expect(within(card).getByText("vinyl, listening")).toBeTruthy();
+        expect(within(card).getByText("@marta-silva")).toBeTruthy();
+        // The description is read as text, never as markup.
+        expect(screen.getByText("Two sides of a record.")).toBeTruthy();
+        expect(screen.getByText("Bring one.")).toBeTruthy();
+        fireEvent.click(within(card).getByRole("button", { name: "Next photo" }));
+        expect((card.querySelector(".cbtl-ov-photo img") as HTMLImageElement).src).toBe("https://img/b.jpg");
     });
 });
 
@@ -283,14 +519,15 @@ describe("a host's own page background", () => {
     // The admin and the app pass a transparent background so their own page
     // shows around the cards. It once also emptied the ring's hole, so the
     // amount sat on top of the coloured wedges.
-    it("shows through around the cards, never through the ring's hole or the tinted tiles inside them", async () => {
+    it("shows through around the cards, never through the tinted parts inside them", async () => {
         mount(transport("community", { status: "ACTIVE" }), "community", { theme: { background: "transparent" } });
         await screen.findByRole("heading", { level: 1 });
         const root = document.querySelector<HTMLElement>(".cbtl")!;
         expect(root.style.getPropertyValue("--cbtl-page")).toBe("transparent");
         expect(root.style.getPropertyValue("--cbtl-bg")).toBe("");
         expect(LISTING_PAGE_CSS).toMatch(/\.cbtl\{[^}]*background:var\(--cbtl-page,var\(--cbtl-bg\)\)/);
-        expect(LISTING_PAGE_CSS).toMatch(/\.cbtl-donut-hole\{[^}]*background:var\(--cbtl-bg\)/);
+        // The cards draw on their own card colour, not the page's.
+        expect(LISTING_PAGE_CSS).toMatch(/\.cbtl-panel\{[^}]*background:var\(--cbtl-card\)/);
     });
 });
 

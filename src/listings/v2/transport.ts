@@ -45,7 +45,12 @@ export interface ListingTransport {
     listing(): Promise<ListingDetail>;
     proposals(): Promise<Proposal[]>;
     topics(): Promise<Topic[]>;
-    money(): Promise<ListingMoney | null>;
+    /**
+     * The money from this seat. `packageId` previews that package's split
+     * before anyone agrees it (the package sheet); a host that cannot answer
+     * it returns the listing's own terms, and `previewPackage` says which.
+     */
+    money(opts?: { packageId?: string }): Promise<ListingMoney | null>;
     packages(): Promise<Package[]>;
 
     // ── the listing ──
@@ -134,7 +139,7 @@ export function restTransport(cfg: RestTransportConfig): ListingTransport {
             return Array.isArray(d) ? d : d?.proposals ?? [];
         },
         topics: async () => (await call<{ topics?: Topic[] }>(`${base}/${id}/topics`))?.topics ?? [],
-        money: () => maybe(call<ListingMoney>(`${base}/${id}/money?seat=${cfg.seat}`)),
+        money: (opts) => maybe(call<ListingMoney>(`${base}/${id}/money?seat=${cfg.seat}${opts?.packageId ? `&packageId=${encodeURIComponent(opts.packageId)}` : ""}`)),
         packages: async () => (await call<{ packages?: Package[] }>(`${base}/${id}/packages`))?.packages ?? [],
 
         setStatus: async (to, reason) => { await call(`${base}/${id}/status`, { method: "PATCH", body: reason ? { status: to, reason } : { status: to } }); },
