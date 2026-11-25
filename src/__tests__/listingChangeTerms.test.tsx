@@ -91,7 +91,8 @@ describe("the community: Change terms", () => {
         expect((within(sheet).getByRole("button", { name: /^Send 0%/ }) as HTMLButtonElement).disabled).toBe(true);
         fireEvent.click(within(sheet).getByRole("button", { name: "10%" }));
         await waitFor(() => expect(t.money).toHaveBeenCalledWith({ rate: 10 }));
-        expect(await within(sheet).findByText(/379\.71/)).toBeTruthy();
+        // In the split and in the footer's summary.
+        expect((await within(sheet).findAllByText(/379\.71/)).length).toBe(2);
         fireEvent.click(within(sheet).getByRole("button", { name: "Send 10% to Thiago Vieira" }));
         await waitFor(() => expect(t.propose).toHaveBeenCalledWith({ commissionRate: 10 }));
     });
