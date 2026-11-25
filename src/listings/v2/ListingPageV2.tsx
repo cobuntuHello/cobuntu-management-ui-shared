@@ -35,6 +35,7 @@ import { derive } from "./derive";
 import { decisionOf, termsLabel, type MoveId } from "./decision";
 import { DecisionBar, EarningsSection, NegotiationSection, OverviewSection, PackageSheet, SectionTiles, chatItems, type SectionId, type TileState } from "./sections";
 import { Avatar, Confirm, type ConfirmSpec } from "./ui";
+import { AcceptDialog, AskCard, AskCompare, ChangeTermsSheet, PremiumCard, PremiumSheet, cheapestSale, type PremiumCheckout } from "./terms";
 import { normalizeListingState } from "../manageListingRows";
 import { ownerListingActions, reviewerListingActions } from "../listingTransitions";
 
@@ -59,6 +60,12 @@ export interface ListingPageV2Props {
     currentUser?: { id?: string | null; name?: string | null; avatarUrl?: string | null };
     /** The seller's Premium card (community app only), shown on a live listing's money. */
     premium?: ReactNode;
+    /**
+     * Sell Cobuntu Premium from this page (T-414): the seller's Premium card on
+     * their own item, and "Go Premium, then live" in the accept dialog. Only
+     * the seller's host passes it; without it neither shows.
+     */
+    premiumCheckout?: PremiumCheckout;
     /** Where "See payouts", "Open the ledger" and "View live" go, when the host has them. */
     links?: { payouts?: string; ledger?: string; live?: string };
     /** Stripe's publishable key: opens the card form in a sheet; without it, Stripe's page. */
@@ -89,7 +96,11 @@ export function ListingPageV2(props: ListingPageV2Props) {
     const [failed, setFailed] = useState(false);
     const [focus, setFocus] = useState<SectionId | null>(null);
     const [confirm, setConfirm] = useState<ConfirmSpec | null>(null);
-    const [sheet, setSheet] = useState<null | "card" | "request" | { pkg: string | null } | { price: UpfrontAddon }>(null);
+    const [sheet, setSheet] = useState<null | "card" | "request" | "terms" | "accept" | "premium" | { pkg: string | null } | { price: UpfrontAddon }>(null);
+    /** The split at the rate the community asks (T-414), for the seller's Earnings and the accept dialog. */
+    const [askMoney, setAskMoney] = useState<ListingMoney | null>(null);
+    /** The seller said "Not now" to Premium on this listing (kept in this browser only). */
+    const [premiumDismissed, setPremiumDismissed] = useState(false);
     const [toast, setToast] = useState("");
 
     const load = useCallback(async () => {
@@ -135,6 +146,59 @@ export function ListingPageV2(props: ListingPageV2Props) {
         props.onChange?.();
         if (message) setToast(message);
     }, [load, props]);
+
+    /*
+     * THE COMMUNITY'S CUSTOM ASK (T-414): a pending offer with no package from
+     * the community's side. The seller reads its split (Earnings, the accept
+     * dialog), so it is fetched as soon as the offer is there.
+     */
+    const pendingAsk = useMemo(() => {
+        if (seat !== "seller" || !data) return null;
+        const sid = data.listing.requestedBy?.id ?? (data.listing as any).requestedByUserId ?? null;
+        return data.proposals.find((p) => p.status === "PENDING" && !p.package?.id
+            && (p.proposedByUserId ?? p.proposedByUser?.id ?? p.proposedBy?.id ?? null) !== sid) ?? null;
+    }, [seat, data]);
+    useEffect(() => {
+        if (!pendingAsk) { setAskMoney(null); return; }
+        let live = true;
+        transport.money({ rate: Number(pendingAsk.commissionRate ?? 0) })
+            .then((mm) => { if (live) setAskMoney(mm ?? null); })
+            .catch(() => { if (live) setAskMoney(null); });
+        return () => { live = false; };
+    }, [pendingAsk, transport]);
+
+    // "Not now" on the Premium card holds for this listing, in this browser.
+    const listingKey = data?.listing.id ?? null;
+    useEffect(() => {
+        if (!listingKey) return;
+        try { setPremiumDismissed(window.localStorage.getItem(`cbtl-prem-later:${listingKey}`) === "1"); } catch { /* storage blocked: show it */ }
+    }, [listingKey]);
+    const dismissPremium = () => {
+        setPremiumDismissed(true);
+        try { if (listingKey) window.localStorage.setItem(`cbtl-prem-later:${listingKey}`, "1"); } catch { /* fine */ }
+    };
+
+    /*
+     * BACK FROM PREMIUM CHECKOUT ("Go Premium, then live"): the return carries
+     * ?premium=welcome&accept=<proposal>. Accept it now, which puts the listing
+     * live, and drop the markers. A cancelled checkout comes back without
+     * premium=welcome and accepts nothing.
+     */
+    useEffect(() => {
+        if (typeof window === "undefined" || !data || seat !== "seller") return;
+        const url = new URL(window.location.href);
+        const acceptId = url.searchParams.get("accept");
+        if (!acceptId) return;
+        const welcome = url.searchParams.get("premium") === "welcome";
+        url.searchParams.delete("accept");
+        url.searchParams.delete("premium");
+        window.history.replaceState(null, "", url.toString());
+        if (!welcome || !data.proposals.some((p) => p.id === acceptId && p.status === "PENDING")) return;
+        const community = data.listing.community?.name ?? data.listing.communities?.name ?? "";
+        void transport.respond(acceptId, "ACCEPTED")
+            .then(() => after(say("premWelcomeLive", { community })))
+            .catch(() => setToast(say("failed")));
+    }, [data, seat, transport, after, say]);
 
     const rootStyle = { ...themeVars(theme) } as CSSProperties;
     if (failed && !data) {
@@ -245,8 +309,16 @@ export function ListingPageV2(props: ListingPageV2Props) {
             case "pickPackage":
                 setSheet({ pkg: theirOffer?.package?.id ?? null });
                 return;
+            case "changeTerms":
+                setSheet("terms");
+                return;
+            case "reply":
+                setFocus("negotiation");
+                return;
             case "acceptOffer": {
                 if (!theirOffer) return;
+                // The community's custom ask: what going live means in money, and Premium once (T-414).
+                if (seat === "seller" && !theirOffer.package?.id && status === "PENDING") { setSheet("accept"); return; }
                 // With its package on offer, accepting shows the split first (the package sheet).
                 if (theirOffer.package?.id) { setSheet({ pkg: theirOffer.package.id }); return; }
                 const t = termsLabel(say, Number(theirOffer.commissionRate ?? 0), null, kind);
@@ -325,6 +397,24 @@ export function ListingPageV2(props: ListingPageV2Props) {
     const active: SectionId = focus ?? "overview";
 
     // ── each section ──
+    // ── T-414: the community's custom ask, and Cobuntu Premium for the seller ──
+    const asking = !!pendingAsk && status === "PENDING";
+    const viewSale = cheapestSale(asking ? askMoney : m);
+    const viewFee = viewSale?.lines.find((l) => l.key === "cobuntu")?.amount ?? 0;
+    const viewKeep = viewSale?.lines.find((l) => l.key === "keep")?.amount ?? 0;
+    /*
+     * Premium is offered to the SELLER, on an item they own (not a community's),
+     * while they still pay Cobuntu's platform fee, and only where the host can
+     * sell it. The community never sees it.
+     */
+    const premiumOffer = seat === "seller" && !parties.owner && !!props.premiumCheckout && viewFee > 0;
+    const premiumCard = premiumOffer && !premiumDismissed && viewSale
+        ? <PremiumCard say={say} keep={viewKeep} fee={viewFee} cur={(asking ? askMoney : m)?.currency ?? "EUR"} onGet={() => setSheet("premium")} onDismiss={dismissPremium} />
+        : null;
+    /** This listing page, for Premium checkout to come back to (with the offer to accept, if any). */
+    const returnPathFor = (acceptId: string | null) =>
+        (typeof window === "undefined" ? "" : window.location.pathname) + (acceptId ? `?accept=${encodeURIComponent(acceptId)}` : "");
+
     let section: ReactNode = null;
     if (active === "overview") {
         const log = booking?.details?.logistics ?? {};
@@ -367,14 +457,22 @@ export function ListingPageV2(props: ListingPageV2Props) {
         } : {};
         const stepProps = { say, seat, kind, money: m, parties, premium: props.premium, ...handlers };
         section = (
-            <EarningsSection say={say} seat={seat} kind={kind} m={m} parties={parties}
-                terms={{ name: packageName, rate: shownRate, sub: termsSub }}
-                onPickPackage={status === "PENDING" ? () => setSheet({ pkg: null }) : undefined}
-                links={props.links}>
-                {m?.upfront && <Upfront {...stepProps} m={m} />}
-                {m && <Result {...stepProps} m={m} />}
-                {seat === "seller" && m?.live && props.premium}
-            </EarningsSection>
+            <>
+                {asking && pendingAsk && <AskCard say={say} names={names} parties={parties} offer={pendingAsk} now={rate ?? 0} />}
+                <EarningsSection say={say} seat={seat} kind={kind} m={asking ? (askMoney ?? m) : m} parties={parties}
+                    terms={asking ? { name: null, rate: null, sub: "" } : { name: packageName, rate: shownRate, sub: termsSub }}
+                    onPickPackage={status === "PENDING" && !asking ? () => setSheet({ pkg: null }) : undefined}
+                    links={props.links}>
+                    {asking && pendingAsk && (
+                        <AskCompare say={say} names={names} now={rate ?? 0} ask={Number(pendingAsk.commissionRate ?? 0)}
+                            base={cheapestSale(m)} at={cheapestSale(askMoney)} cur={m?.currency ?? "EUR"} />
+                    )}
+                    {premiumCard}
+                    {m?.upfront && <Upfront {...stepProps} m={m} />}
+                    {m && <Result {...stepProps} m={m} />}
+                    {seat === "seller" && m?.live && props.premium}
+                </EarningsSection>
+            </>
         );
     }
     if (active === "negotiation") {
@@ -455,6 +553,19 @@ export function ListingPageV2(props: ListingPageV2Props) {
             </div>
 
             {confirm && <Confirm spec={confirm} onClose={() => setConfirm(null)} cancel={say("cancel")} failed={say("failed")} />}
+            {sheet === "terms" && (
+                <ChangeTermsSheet say={say} kind={kind} transport={transport} names={names} parties={parties} now={rate} base={m}
+                    onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); void after(msg); }} />
+            )}
+            {sheet === "accept" && theirOffer && (
+                <AcceptDialog say={say} item={itemName} names={names} parties={parties} offer={theirOffer} ask={askMoney} now={rate ?? 0}
+                    premium={premiumOffer ? props.premiumCheckout : undefined} returnPath={returnPathFor(theirOffer.id)}
+                    onClose={() => setSheet(null)}
+                    onAccept={async () => { await transport.respond(theirOffer.id, "ACCEPTED"); setSheet(null); await after(say("saved")); }} />
+            )}
+            {sheet === "premium" && props.premiumCheckout && (
+                <PremiumSheet say={say} premium={props.premiumCheckout} returnPath={returnPathFor(null)} onClose={() => setSheet(null)} />
+            )}
             {sheet === "card" && eventId && (
                 <CardSheet say={say} transport={transport} eventId={eventId} publishableKey={props.stripePublishableKey} returnUrl={returnUrl} navigate={props.navigate} onClose={() => setSheet(null)} />
             )}

@@ -50,14 +50,15 @@ export interface ListingTransport {
      * before anyone agrees it (the package sheet); a host that cannot answer
      * it returns the listing's own terms, and `previewPackage` says which.
      */
-    money(opts?: { packageId?: string }): Promise<ListingMoney | null>;
+    money(opts?: { packageId?: string; rate?: number }): Promise<ListingMoney | null>;
     packages(): Promise<Package[]>;
 
     // ── the listing ──
     setStatus(to: "ACTIVE" | "PAUSED" | "CANCELLED" | "REVOKED", reason?: string): Promise<void>;
     /** The community takes a live listing off its shelf without ending it. */
     setHidden?(hidden: boolean): Promise<void>;
-    propose(input: { packageId: string; message?: string }): Promise<void>;
+    /** A package, or (the community only) a typed rate for this one listing (T-414). */
+    propose(input: { packageId?: string; commissionRate?: number; message?: string }): Promise<void>;
     respond(proposalId: string, response: "ACCEPTED" | "REJECTED"): Promise<void>;
 
     // ── the talk ──
@@ -139,7 +140,7 @@ export function restTransport(cfg: RestTransportConfig): ListingTransport {
             return Array.isArray(d) ? d : d?.proposals ?? [];
         },
         topics: async () => (await call<{ topics?: Topic[] }>(`${base}/${id}/topics`))?.topics ?? [],
-        money: (opts) => maybe(call<ListingMoney>(`${base}/${id}/money?seat=${cfg.seat}${opts?.packageId ? `&packageId=${encodeURIComponent(opts.packageId)}` : ""}`)),
+        money: (opts) => maybe(call<ListingMoney>(`${base}/${id}/money?seat=${cfg.seat}${opts?.packageId ? `&packageId=${encodeURIComponent(opts.packageId)}` : ""}${opts?.rate != null ? `&rate=${encodeURIComponent(String(opts.rate))}` : ""}`)),
         packages: async () => (await call<{ packages?: Package[] }>(`${base}/${id}/packages`))?.packages ?? [],
 
         setStatus: async (to, reason) => { await call(`${base}/${id}/status`, { method: "PATCH", body: reason ? { status: to, reason } : { status: to } }); },
