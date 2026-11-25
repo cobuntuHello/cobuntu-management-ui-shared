@@ -205,6 +205,17 @@ function rowsFor(say: Say, seat: Seat, kind: "event" | "product", lines: MoneyLi
 
 const CIRC = 2 * Math.PI * 80;
 
+/**
+ * The amount in a ring's hole, sized to fit it. The hole is about 0.57 of the
+ * ring's width; "€6.90" keeps the full 20px, "US$3,997.00" steps down until it
+ * sits inside instead of running over the wedges (seen live on a USD 3,997
+ * programme, 24 Nov 2026). Money keeps all its decimals; only the size gives.
+ */
+export function holeFontSize(text: string, ringSize: number): number {
+    const room = ringSize * 0.52;
+    return Math.max(11, Math.min(20, Math.floor(room / (Math.max(1, text.length) * 0.6))));
+}
+
 function Ring({ rows, gross, center, sub, size = 176 }: { rows: Row[]; gross: number; center: string; sub: string; size?: number }) {
     const total = Math.max(1, gross);
     const parts = rows.filter((r) => r.amount > 0);
@@ -223,7 +234,7 @@ function Ring({ rows, gross, center, sub, size = 176 }: { rows: Row[]; gross: nu
                     })}
                 </g>
             </svg>
-            <span className="cbtl-ring-hole"><b>{center}</b><small>{sub}</small></span>
+            <span className="cbtl-ring-hole"><b style={{ fontSize: holeFontSize(center, size) }}>{center}</b><small>{sub}</small></span>
         </span>
     );
 }
@@ -376,7 +387,7 @@ export function EarningsSection({ say, seat, kind, m, parties, terms, onPickPack
             <div className="cbtl-empty-card" data-ring="">
                 <span className="cbtl-ring" style={{ width: 150, height: 150 }}>
                     <svg width="150" height="150" viewBox="0 0 240 240" aria-hidden="true"><circle cx="120" cy="120" r="80" fill="none" stroke="var(--cbtl-line)" strokeWidth="24" strokeDasharray="6 8" /></svg>
-                    <span className="cbtl-ring-hole"><b>{money(prices[cheapestPaid(prices)].gross, cur)}</b><small>{kind === "event" ? say("earnOneTicket") : say("earnOneSale")}</small></span>
+                    <span className="cbtl-ring-hole"><b style={{ fontSize: holeFontSize(money(prices[cheapestPaid(prices)].gross, cur), 150) }}>{money(prices[cheapestPaid(prices)].gross, cur)}</b><small>{kind === "event" ? say("earnOneTicket") : say("earnOneSale")}</small></span>
                 </span>
                 <span className="cbtl-empty-text">
                     <b>{say("earnEmptyTitle")}</b>
@@ -456,15 +467,36 @@ function SoFar({ say, seat, m, parties, links }: { say: Say; seat: Seat; m: List
 // Overview: the manage page's Details card, read-only
 // ─────────────────────────────────────────────────────────────────────────────
 
-function imagesOf(item: any): string[] {
+/**
+ * Every photo of the item, banner first: the product's media list (where many
+ * products keep their photos ONLY), then the legacy banner and card fields,
+ * then an event's own images. Same order as the manage page's Details card.
+ */
+export function imagesOf(item: any): string[] {
     const out: string[] = [];
     const push = (v: unknown) => { if (typeof v === "string" && v && !out.includes(v)) out.push(v); };
+    const media = [...(item?.product_media ?? [])]
+        .filter((m: any) => m?.url && (!m.mimeType || /^image\//i.test(String(m.mimeType))))
+        .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+    const banner = media.find((m: any) => m.isBanner) ?? media[0];
+    if (banner) push(banner.url);
+    push(item?.cardImageUrl); push(item?.bannerImageUrl);
+    for (const m of media) push(m.url);
     push(item?.bannerUrl); push(item?.coverImage); push(item?.imageUrl); push(item?.image);
     for (const x of [...(item?.images ?? []), ...(item?.media ?? []), ...(item?.gallery ?? [])]) {
         if (typeof x === "string") push(x);
         else if (x && (!x.type || /image/i.test(String(x.type)))) push(x.url ?? x.imageUrl ?? x.src);
     }
     return out;
+}
+
+/** "17 Nov 2026, 13:25": when it was sent, to the minute. */
+export function sentAt(iso: string | null | undefined, tz?: string): string {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const day = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", ...(tz ? { timeZone: tz } : {}) });
+    return `${day}, ${clockOf(iso, tz)}`;
 }
 
 /** A description may arrive as HTML from the editor: read it as plain paragraphs, never as markup. */
@@ -491,14 +523,15 @@ const ROW_ICON = {
     tags: "M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82zM7 7h.01",
     value: "M3 6h.01M3 12h.01M3 18h.01M8 6h13M8 12h13M8 18h13",
     person: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
+    sent: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2",
     room: ICON.room,
 };
 
-function InfoRow({ icon, label, children }: { icon: string; label?: string; children: ReactNode }) {
+function InfoRow({ icon, label, children, muted }: { icon: string; label?: string; children: ReactNode; muted?: boolean }) {
     return (
         <span className="cbtl-irow">
             <span className="cbtl-irow-ic" aria-hidden="true"><Icon d={icon} size={16} stroke={2} /></span>
-            <span className="cbtl-irow-v">{label && <small>{label}</small>}<b>{children}</b></span>
+            <span className="cbtl-irow-v">{label && <small>{label}</small>}<b data-muted={muted ? "" : undefined}>{children}</b></span>
         </span>
     );
 }
@@ -521,7 +554,10 @@ export function OverviewSection({ say, kind, item, m, listingPrice, requestedBy,
     const priceText = prices.length > 1 && paid.length > 0
         ? say("ovPrices", { count: prices.length, price: money(Math.min(...paid.map((p) => p.gross)), cur) })
         : single ? money(single, cur) : say("free");
-    const category = [item?.category?.name ?? item?.categoryName, item?.subCategory?.name ?? item?.subcategory?.name ?? item?.subCategoryName].filter(Boolean).join(" › ");
+    const category = [
+        item?.category?.name ?? item?.categoryName,
+        item?.subcategory?.name ?? item?.subCategory?.name ?? item?.subCategoryName,
+    ].filter(Boolean).join(" › ");
     const tags = namesOf(item?.tags);
     const valueLines: Array<{ value?: number }> = Array.isArray(item?.valueLines) ? item.valueLines : [];
     const valueTotal = valueLines.reduce((s, l) => s + (Number(l?.value) || 0), 0);
@@ -531,9 +567,16 @@ export function OverviewSection({ say, kind, item, m, listingPrice, requestedBy,
     const paras = paragraphsOf(item?.description);
     const shownFacts = facts.map((g) => ({ ...g, rows: g.rows.filter(([, v]) => v && (!Array.isArray(v) || v.length)) })).filter((g) => g.rows.length);
 
+    /*
+     * THE HIERARCHY (24 Nov 2026): the header names it; then the facts, as
+     * rows on the page beside the photos (no box around them: boxes are for
+     * what you act on, the tiles and the bar); then the long-form description
+     * under its own heading, read like an article; then, for a venue booking,
+     * its own headed sections. The name is not repeated: the title says it.
+     */
     return (
         <div className="cbtl-ov">
-            <div className="cbtl-ov-card">
+            <div className="cbtl-ov-top">
                 <div className="cbtl-ov-media">
                     <div className="cbtl-ov-photo">
                         {images.length > 0 ? <img src={images[at] ?? images[0]} alt={item?.name ?? ""} /> : <Icon d={ICON.request} size={40} stroke={1.3} />}
@@ -556,57 +599,60 @@ export function OverviewSection({ say, kind, item, m, listingPrice, requestedBy,
                     )}
                 </div>
                 <div className="cbtl-ov-rows">
-                    <InfoRow icon={ROW_ICON.name}>{item?.name ?? ""}</InfoRow>
                     <InfoRow icon={ROW_ICON.price} label={say("ovPrice")}>{priceText}</InfoRow>
                     {when && <InfoRow icon={ROW_ICON.date} label={say("ovDate")}>{when}</InfoRow>}
-                    {category && <InfoRow icon={ROW_ICON.category} label={say("ovCategory")}>{category}</InfoRow>}
-                    {tags.length > 0 && <InfoRow icon={ROW_ICON.tags} label={say("ovTags")}>{tags.join(", ")}</InfoRow>}
+                    <InfoRow icon={ROW_ICON.category} label={say("ovCategory")} muted={!category}>{category || say("ovNoCategory")}</InfoRow>
+                    <InfoRow icon={ROW_ICON.tags} label={say("ovTags")} muted={tags.length === 0}>{tags.length ? tags.join(", ") : say("ovNoTags")}</InfoRow>
                     {valueLines.length > 0 && (
                         <InfoRow icon={ROW_ICON.value} label={say("ovValue")}>
                             {valueLines.length === 1 ? say("ovValueLine", { total: money(valueTotal, cur) }) : say("ovValueLines", { count: valueLines.length, total: money(valueTotal, cur) })}
                         </InfoRow>
                     )}
+                    {createdAt && <InfoRow icon={ROW_ICON.sent} label={say("ovSent")}>{sentAt(createdAt)}</InfoRow>}
                     {requestedBy?.name && (
                         <span className="cbtl-irow">
                             <span className="cbtl-irow-ic" aria-hidden="true"><Icon d={ROW_ICON.person} size={16} stroke={2} /></span>
-                            <span className="cbtl-irow-v" data-person="">
-                                <Avatar image={requestedBy.profileImage} name={requestedBy.name} size={28} />
-                                <span className="cbtl-irow-who"><b>{requestedBy.name}</b>{requestedBy.usertag && <small>@{requestedBy.usertag}</small>}</span>
-                                {createdAt && <small className="cbtl-irow-when">{say("secSent", { date: `${shortDate(createdAt)}, ${clockOf(createdAt)}` })}</small>}
+                            <span className="cbtl-irow-v">
+                                <small>{say("ovRequestedBy")}</small>
+                                <span className="cbtl-irow-person">
+                                    <Avatar image={requestedBy.profileImage} name={requestedBy.name} size={24} />
+                                    <b>{requestedBy.name}</b>
+                                    {requestedBy.usertag && <small>@{requestedBy.usertag}</small>}
+                                </span>
                             </span>
                         </span>
                     )}
                 </div>
             </div>
 
+            {paras.length > 0 && (
+                <section className="cbtl-ov-sec" aria-label={say("ovDescription")}>
+                    <h3 className="cbtl-ov-h">{say("ovDescription")}</h3>
+                    <div className="cbtl-ov-prose">{paras.map((t, i) => <p key={i}>{t}</p>)}</div>
+                </section>
+            )}
+
             {booking && (
-                <div className="cbtl-ov-text">
-                    <span className="cbtl-panel-head">
-                        <span className="cbtl-panel-title"><b>{say("ovBooking")}</b></span>
+                <section className="cbtl-ov-sec" aria-label={say("ovBooking")}>
+                    <span className="cbtl-ov-sec-head">
+                        <h3 className="cbtl-ov-h">{say("ovBooking")}</h3>
                         {onChangeRequest && <button type="button" className="cbtl-hbtn" onClick={onChangeRequest}>{say("changeRequest")}</button>}
                     </span>
                     <span className="cbtl-ov-facts">
                         <InfoRow icon={ROW_ICON.room}>{say("ovRoomTotal", { room: room || say("upRoom"), amount: money(booking.totalAmountCents, booking.currency) })}</InfoRow>
                         {booking.guestCount ? <InfoRow icon={ROW_ICON.person}>{say("ovGuests", { count: booking.guestCount })}</InfoRow> : null}
                     </span>
-                </div>
+                </section>
             )}
 
             {shownFacts.map((g) => (
-                <div className="cbtl-ov-text" key={g.title}>
-                    <b className="cbtl-ov-h">{g.title}</b>
+                <section className="cbtl-ov-sec" key={g.title} aria-label={g.title}>
+                    <h3 className="cbtl-ov-h">{g.title}</h3>
                     <div className="cbtl-facts">
                         {g.rows.map(([k, v]) => <span className="cbtl-fact" key={k}><small>{k}</small><span>{Array.isArray(v) ? v.join(", ") : String(v)}</span></span>)}
                     </div>
-                </div>
+                </section>
             ))}
-
-            {paras.length > 0 && (
-                <div className="cbtl-ov-text">
-                    <b className="cbtl-ov-h">{say("ovDescription")}</b>
-                    {paras.map((t, i) => <p key={i}>{t}</p>)}
-                </div>
-            )}
         </div>
     );
 }

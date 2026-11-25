@@ -36,18 +36,41 @@ export function NextStep({
     // or a backend older than the field).
     const showPublish = !!onPublish && stats.everPublished === false;
 
+    /*
+     * THE LOOK (24 Nov 2026): the listing page's decision language, not a
+     * banner. A white card with a hairline border; the only colour is the
+     * status mark, amber for "your move", and its eyebrow. A whole card
+     * washed in pale yellow read as a warning sign and fought the page.
+     */
     return (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 sm:p-7">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                    <p className="text-[11px] font-bold uppercase tracking-[.1em] text-amber-800">{t("overviewNextStep")}</p>
-                    <p className="mt-1.5 text-[19px] font-semibold leading-snug text-zinc-900">
-                        {isEvent ? t("overviewNotSellableEvent") : t("overviewNotSellableProduct")}
-                    </p>
-                    <p className="mt-2 max-w-[56ch] text-[13.5px] leading-relaxed text-zinc-700">{body}</p>
+        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(24,24,27,0.04)]">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <div className="flex min-w-0 flex-1 items-start gap-4">
+                    <span aria-hidden="true" className="flex h-10 w-10 flex-none items-center justify-center rounded-[11px] bg-amber-50 text-amber-600 ring-1 ring-inset ring-amber-200/70">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="9" />
+                            <path d="M12 7.5v5.5M12 16.5v.01" />
+                        </svg>
+                    </span>
+                    <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-amber-700">{t("overviewNextStep")}</p>
+                        <p className="mt-0.5 text-[16px] font-semibold leading-snug text-zinc-900">
+                            {isEvent ? t("overviewNotSellableEvent") : t("overviewNotSellableProduct")}
+                        </p>
+                        <p className="mt-1 max-w-[60ch] text-[13.5px] leading-relaxed text-zinc-600">{body}</p>
+                    </div>
                 </div>
                 {(showPublish || onSelfList) && (
-                    <div className="flex flex-none flex-col gap-2 sm:min-w-[220px]">
+                    <div className="flex flex-none flex-col gap-2 sm:flex-row sm:items-center">
+                        {onSelfList && (
+                            <button
+                                type="button"
+                                onClick={onSelfList}
+                                className="min-h-[44px] cursor-pointer rounded-[var(--button-radius,0.75rem)] border border-zinc-200 bg-white px-4 text-[14px] font-medium text-zinc-800 transition-colors hover:bg-zinc-50"
+                            >
+                                {t("overviewSellItMyself")}
+                            </button>
+                        )}
                         {showPublish && (
                             <button
                                 type="button"
@@ -55,15 +78,6 @@ export function NextStep({
                                 className="min-h-[44px] cursor-pointer rounded-[var(--button-radius,0.75rem)] bg-[var(--brand-color,#18181b)] px-5 text-[14px] font-semibold text-[var(--brand-contrast,#fff)] transition-opacity hover:opacity-90"
                             >
                                 {t("overviewPublishNow")}
-                            </button>
-                        )}
-                        {onSelfList && (
-                            <button
-                                type="button"
-                                onClick={onSelfList}
-                                className="min-h-[44px] cursor-pointer rounded-[var(--button-radius,0.75rem)] bg-white/70 px-5 text-[14px] font-semibold text-zinc-700 transition-colors hover:bg-white"
-                            >
-                                {t("overviewSellItMyself")}
                             </button>
                         )}
                     </div>
