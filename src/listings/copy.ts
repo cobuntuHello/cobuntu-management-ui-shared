@@ -288,6 +288,9 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     feesRingGets: "{name} gets",
     feesRingYouGot: "You got",
     feesRingYouGet: "You get",
+    /* A name too long for the centre: the line beside the ring names them. */
+    feesRingOwnerGot: "Kept",
+    feesRingOwnerGets: "Keeps",
     feesRingOf: "of {amount}",
     feesRingOfEvery: "of every {amount}",
     /* The lines. */

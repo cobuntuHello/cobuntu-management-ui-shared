@@ -99,6 +99,22 @@ function share(part: number, whole: number): string {
     return `${p >= 10 ? Math.round(p) : Math.round(p * 10) / 10}%`;
 }
 
+/**
+ * The owner's name as the ring's centre can hold it, or null to leave it out.
+ *
+ * The centre is a circle about 110px across at its top line, and a full name
+ * ran into the ring ("PBN | Porto Business Network gets"). Community names
+ * often carry a tagline after a bar or a dash, and the part before it is the
+ * name people use, so the centre takes that. A name still longer than two
+ * short lines drops out ("Keeps €9.10"): the owner's own line beside the ring
+ * names them in full either way.
+ */
+const RING_NAME_MAX = 22;
+export function ringName(name: string): string | null {
+    const brand = name.split(/\s+[|·•–—-]\s+/)[0].trim();
+    return brand && brand.length <= RING_NAME_MAX ? brand : null;
+}
+
 /** The bank label from what Stripe gave us, as much of it as exists. */
 function accountLine(d: StripeDestination, t: T): string {
     const who = t(d.scope === "community" ? "feesDestCommunity" : "feesDestUser");
@@ -284,6 +300,7 @@ export function PayoutsAndFees({
     // Who keeps the net, as the card names them. A member reads their own card.
     const ownerName = owner?.name?.trim() || null;
     const named = !isMember && ownerName ? ownerName : null;
+    const centreName = named ? ringName(named) : null;
     const count = t(isEvent ? (sold === 1 ? "feesCountTicket" : "feesCountTickets") : (sold === 1 ? "feesCountSale" : "feesCountSales"), { count: sold });
 
     const commissionRate = rates?.communityPct ?? null;
@@ -395,10 +412,12 @@ export function PayoutsAndFees({
                 <Ring slices={slices} whole={whole} label={ringLabel}>
                     {shown ? (
                         <>
-                            <span className="text-[12px] text-zinc-600">
-                                {named
-                                    ? t(hasSales ? "feesRingGot" : "feesRingGets", { name: named })
-                                    : t(hasSales ? "feesRingYouGot" : "feesRingYouGet")}
+                            <span data-ring-label className="line-clamp-2 max-w-[112px] text-[12px] leading-snug text-zinc-600">
+                                {centreName
+                                    ? t(hasSales ? "feesRingGot" : "feesRingGets", { name: centreName })
+                                    : named
+                                        ? t(hasSales ? "feesRingOwnerGot" : "feesRingOwnerGets")
+                                        : t(hasSales ? "feesRingYouGot" : "feesRingYouGet")}
                             </span>
                             <span className="text-[24px] font-extrabold leading-tight tracking-tight tabular-nums sm:text-[26px]" style={{ color: COLOR.net }}>{cash(b.net)}</span>
                             <span className="text-[12px] text-zinc-600">

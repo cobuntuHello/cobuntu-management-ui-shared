@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import { PayoutsAndFees } from "../overview/PayoutsAndFees";
+import { PayoutsAndFees, ringName } from "../overview/PayoutsAndFees";
 import { defaultTranslate } from "../listings/copy";
 import type { OverviewMoney } from "../overview/types";
 
@@ -132,6 +132,49 @@ describe("before the first sale, one sale's split", () => {
         expect(screen.getByText("So far · 1 ticket")).toBeInTheDocument();
         expect(screen.queryByText(/On every/)).toBeNull();
         expect(screen.queryByText(/≈/)).toBeNull();
+    });
+});
+
+describe("the ring's centre, with a long community name", () => {
+    const renderOwner = (name: string) =>
+        render(
+            <PayoutsAndFees
+                money={money()}
+                ownership="community"
+                destination={notConnected}
+                t={t}
+                cash={cash}
+                owner={{ kind: "community", name, imageUrl: null }}
+                kind="event"
+            />,
+        );
+
+    it("takes the brand before a tagline, and names them in full beside the ring", () => {
+        // Seen live on PBN's Business Talks #61: the full name ran into the ring.
+        const { container } = renderOwner("PBN | Porto Business Network");
+        expect(container.querySelector("[data-ring-label]")?.textContent).toBe("PBN gets");
+        expect(screen.getByText("PBN | Porto Business Network keeps")).toBeInTheDocument();
+    });
+
+    it("leaves a name with no short form out of the centre", () => {
+        const { container } = renderOwner("Associação Empresarial do Norte de Portugal");
+        expect(container.querySelector("[data-ring-label]")?.textContent).toBe("Keeps");
+        expect(screen.getByText("Associação Empresarial do Norte de Portugal keeps")).toBeInTheDocument();
+    });
+
+    it("keeps a short name whole", () => {
+        const { container } = renderOwner("Impact Hub");
+        expect(container.querySelector("[data-ring-label]")?.textContent).toBe("Impact Hub gets");
+    });
+});
+
+describe("ringName", () => {
+    it("splits on a bar, a middle dot or a spaced dash, never inside a word", () => {
+        expect(ringName("PBN | Porto Business Network")).toBe("PBN");
+        expect(ringName("Impact Hub - Porto")).toBe("Impact Hub");
+        expect(ringName("TEJÁ · Casa")).toBe("TEJÁ");
+        expect(ringName("Coimbra-Connect")).toBe("Coimbra-Connect");
+        expect(ringName("A name that is far too long to fit")).toBeNull();
     });
 });
 
