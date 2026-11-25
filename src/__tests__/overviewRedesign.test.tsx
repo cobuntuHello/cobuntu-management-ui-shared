@@ -250,7 +250,7 @@ describe("the community picker searches", () => {
 });
 
 describe("where the money goes", () => {
-    it("is titled and does not repeat the hero's big number", () => {
+    it("is titled, and its ring says what reached the seller out of what was taken", () => {
         renderIt(stats({
             ownership: "member",
             money: {
@@ -259,7 +259,11 @@ describe("where the money goes", () => {
             } as any,
         }));
         expect(screen.getByText("Where the money goes")).toBeInTheDocument();
-        // €1,284.00 appears in the hero and once as the "You keep" line, not a third time as a headline.
-        expect(screen.getAllByText("€1,284.00").length).toBe(2);
+        // Option A puts the net in the ring's centre on purpose ("You got
+        // €1,284.00 of €1,640.00"), so it reads in the hero, the ring and the
+        // "You keep" line, and nowhere else.
+        expect(screen.getByText("You got")).toBeInTheDocument();
+        expect(screen.getByText("of €1,640.00")).toBeInTheDocument();
+        expect(screen.getAllByText("€1,284.00").length).toBe(3);
     });
 });

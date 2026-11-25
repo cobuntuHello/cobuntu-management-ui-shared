@@ -341,6 +341,8 @@ export function ManageOverview({
                     owner={stats.owner ? { kind: stats.owner.kind, name: stats.owner.name, imageUrl: stats.owner.imageUrl } : null}
                     broker={brokerOf(listings)}
                     connectStripeHref={stripeHref}
+                    kind={stats.kind}
+                    sold={stats.sold}
                 />
             )}
 

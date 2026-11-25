@@ -1,37 +1,38 @@
-import type { ReactNode } from "react";
-import type { OverviewMoney, FeeRates, StripeDestination, OwnershipModel } from "./types";
+import type { CSSProperties, ReactNode } from "react";
+import type { OverviewMoney, FeeRates, StripeDestination, OwnershipModel, FeeBreakdown } from "./types";
 import { CobuntuMark } from "../listings/ui/marks";
 import { FallbackImg, StripeGlyph, personAvatarCandidates } from "../listings/v2/ui";
 
 /**
- * "Payouts & fees" — what the seller keeps, what came off the top, and where
- * and when the rest lands.
+ * WHERE THE MONEY GOES (Overview). Option A of the 25 Nov 2026 mock, built
+ * from its artboards (A · Before the first sale, A · Selling, A · on a phone).
  *
- * REDESIGNED from a ledger table into a summary. The old card asked the seller
- * to read five labelled rows and do the arithmetic themselves to reach the one
- * figure they came for, then repeated the destination and the timing as two
- * filled panels underneath. It ran about a screen tall and read like a receipt.
+ * A ring with the exact lines beside it, then one payouts tile:
  *
- * Three ideas replace it:
+ *   1. A RING, NOT A BAR. A bar reads as progress where nothing progresses
+ *      (the money-UI rule). Its centre answers the one question the seller
+ *      arrives with: "Impact Hub got €301.65 of €339.48".
  *
- *   1. LEAD WITH THE ANSWER. "You keep" is the headline, at headline size, with
- *      the gross demoted to a caption beneath it. Everything else on the card
- *      exists to explain that number, so nothing else competes with it.
+ *   2. NEVER A ROW OF ZEROS. Before the first sale the card shows ONE sale's
+ *      split ("Impact Hub gets €32.96 of every €36.90"), which the backend
+ *      sends as `money.oneSale`, split by finances through the item's one
+ *      live listing. A free item gets one line instead of the card.
  *
- *   2. SHOW THE SPLIT, DON'T TABULATE IT. One stacked bar gives the shape of
- *      the deal at a glance -- how much of the bar is the seller's is the whole
- *      question -- and the legend beneath carries the exact amounts and rates,
- *      so nothing is lost to the picture. A percentage is easier to feel as a
- *      width than to read as a number.
+ *   3. EVERY PARTY BY NAME, WITH ITS REAL MARK. "Impact Hub keeps", "PBN's
+ *      commission", Cobuntu, Stripe. VAT is a line under the owner's own row
+ *      (theirs to declare), not a slice: it is part of what they keep.
  *
- *   3. SAY WHERE AND WHEN AS A SENTENCE. Two facts, one line each, on a soft
- *      footer rather than two bordered panels.
+ *   4. ONE PAYOUTS TILE whose colour says the state: amber when something is
+ *      needed (connect Stripe, payouts off), green once money went out with
+ *      nothing waiting, neutral while it is on its way.
  *
- * Built from the OWNER's side, so a member seller sees Stripe as covered rather
- * than as a charge they never paid.
+ * Owner's side only (ManageOverview hides it for a carrier or a single
+ * community's view), so it never shows Cobuntu's cut OF the community's
+ * commission: a member seller never sees the platform's deal with the
+ * community, and the backend leaves it out of the one-sale split.
  *
  * Renders nothing on a backend that predates the fields (no `breakdown` or no
- * `ownership`) -- the tiles above still stand on their own.
+ * `ownership`); the tiles above stand on their own.
  */
 
 type T = (key: string, vars?: Record<string, string | number>) => string;
@@ -39,32 +40,34 @@ type T = (key: string, vars?: Record<string, string | number>) => string;
 /** Who a slice of money belongs to, drawn the way the listing page draws it. */
 export type MoneyParty = { kind: "community" | "user"; name: string; imageUrl: string | null };
 
-const MARK = 24;
+const MARK = 32;
+
+/* One colour per party, told apart by lightness as well as hue. */
+const COLOR = { net: "#2F7A57", community: "#E0A030", cobuntu: "#8B93A1", stripe: "#635BFF" } as const;
 
 function initialsOf(name: string): string {
     return name.trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("") || "?";
 }
 
 /**
- * The party's real mark (Overview, 25 Nov 2026: "missing the community icon,
- * user icon, platform icon and Stripe icon"), as on the listing page's
- * Earnings: a community square with its icon, a person round with their photo
- * or their library avatar, Cobuntu's mark, Stripe's. Inline sizes, so a host
- * page without the listing page's stylesheet still draws them.
+ * The party's real mark, as on the listing page's Earnings: a community
+ * square with its icon, a person round with their photo or library avatar.
+ * Inline sizes, so a host page without the listing page's stylesheet still
+ * draws them.
  */
 function PartyMark({ party }: { party: MoneyParty | null }) {
     const box = "inline-flex shrink-0 items-center justify-center overflow-hidden bg-white ring-1 ring-inset ring-zinc-200 text-[10px] font-bold text-zinc-600 [&>img]:h-full [&>img]:w-full [&>img]:object-cover";
     if (!party) {
         // The community side with no single community to name (several carry it).
         return (
-            <span aria-hidden="true" className={`${box} rounded-md text-zinc-500`} style={{ width: MARK, height: MARK }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+            <span aria-hidden="true" className={`${box} rounded-lg text-zinc-500`} style={{ width: MARK, height: MARK }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
             </span>
         );
     }
     if (party.kind === "community") {
         return (
-            <span aria-hidden="true" className={`${box} rounded-md`} style={{ width: MARK, height: MARK }}>
+            <span aria-hidden="true" className={`${box} rounded-lg`} style={{ width: MARK, height: MARK }}>
                 {party.imageUrl ? <img src={party.imageUrl} alt="" /> : initialsOf(party.name)}
             </span>
         );
@@ -78,16 +81,8 @@ function PartyMark({ party }: { party: MoneyParty | null }) {
 
 function CobuntuBadge() {
     return (
-        <span aria-hidden="true" className="inline-flex shrink-0 items-center justify-center rounded-md bg-white ring-1 ring-inset ring-zinc-200" style={{ width: MARK, height: MARK }}>
-            <CobuntuMark size={MARK - 8} />
-        </span>
-    );
-}
-
-function TaxBadge() {
-    return (
-        <span aria-hidden="true" className="inline-flex shrink-0 items-center justify-center rounded-md bg-white text-[11px] font-bold text-zinc-500 ring-1 ring-inset ring-zinc-200" style={{ width: MARK, height: MARK }}>
-            %
+        <span aria-hidden="true" className="inline-flex shrink-0 items-center justify-center rounded-lg bg-white ring-1 ring-inset ring-zinc-200" style={{ width: MARK, height: MARK }}>
+            <CobuntuMark size={MARK - 10} />
         </span>
     );
 }
@@ -95,6 +90,13 @@ function TaxBadge() {
 /** A percent that shows decimals only when it has them: 8, not 8.00. */
 function pct(n: number): string {
     return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, "");
+}
+
+/** A share of the whole, as people say it: 89%, 6.5%, 2.2%. */
+function share(part: number, whole: number): string {
+    if (whole <= 0) return "";
+    const p = (part / whole) * 100;
+    return `${p >= 10 ? Math.round(p) : Math.round(p * 10) / 10}%`;
 }
 
 /** The bank label from what Stripe gave us, as much of it as exists. */
@@ -105,102 +107,135 @@ function accountLine(d: StripeDestination, t: T): string {
     return tail ? `${who} · ${tail}` : who;
 }
 
-/**
- * One slice of the split.
- *
- * `swatch` is a Tailwind bg-* class rather than a raw colour so the palette
- * stays in one place, and `hollow` marks the covered-Stripe case: a ring rather
- * than a fill, because it is a line in the story with no width in the bar.
- */
+/** One party's slice of the money: its line beside the ring, its arc in it. */
 type Slice = {
-    key: string;
+    key: "net" | "community" | "cobuntu" | "stripe";
     label: string;
-    note?: string | null;
-    /**
-     * A second line under the label, for a figure that is a slice OF this row
-     * rather than a sibling of it. The commission uses it to say what Cobuntu
-     * took out and what the community is left with -- neither belongs in the
-     * bar, because both are already inside this row's width.
-     */
+    /** The line under the name: what this row includes, or how it is worked out. */
     sub?: string | null;
     amount: number;
-    /** What the legend prints. Usually the money; "covered" for absorbed Stripe. */
     display: string;
-    swatch: string;
-    hollow?: boolean;
-    /** Whose money this is: the party's own mark, beside the colour that ties it to the bar. */
+    color: string;
     mark: ReactNode;
+    /** The mark's corner, so the phone's party-coloured ring follows its shape. */
+    round: boolean;
 };
 
-/**
- * The bar. Widths are shares of gross, and a non-zero slice is floored at a
- * visible sliver -- a 40-cent fee on a 400-euro sale is a real deduction and
- * should not vanish into a hairline. The floor makes the row slightly wider
- * than its track, which the clip absorbs; the legend carries the exact figures
- * either way, so the bar never has to be measured.
- *
- * The 2px gap between slices is a right border in the surface colour, not a
- * margin: it keeps the segments mathematically adjacent, and `last:` drops it
- * so the bar ends flush inside its rounded track.
+/*
+ * The ring. Arcs are shares of the whole, drawn with stroke dashes on one
+ * circle each, with a small gap between neighbours and a floor so a 74-cent
+ * fee on a €36.90 ticket is still a visible sliver. The lines beside it carry
+ * the exact figures, so the ring never has to be measured.
  */
-function SplitBar({ slices, gross, label }: { slices: Slice[]; gross: number; label: string }) {
-    const drawn = slices.filter((s) => s.amount > 0 && !s.hollow);
+const R = 70;
+const C = 2 * Math.PI * R;
+const GAP = 3;
+const FLOOR = 2.5;
 
-    // Nothing sold yet: a quiet empty track, so the card keeps its shape and
-    // the seller can still read the structure of the deal off the legend.
-    if (gross <= 0 || drawn.length === 0) {
-        return <div className="h-3 rounded-full bg-zinc-200/70" aria-hidden="true" />;
-    }
-
+function Ring({ slices, whole, label, children }: { slices: Slice[]; whole: number; label: string; children: ReactNode }) {
+    const drawn = whole > 0 ? slices.filter((s) => s.amount > 0) : [];
+    let at = 0;
+    const arcs = drawn.map((s) => {
+        const span = (s.amount / whole) * C;
+        const arc = { key: s.key, color: s.color, len: Math.max(span - GAP, FLOOR), offset: at };
+        at += span;
+        return arc;
+    });
     return (
-        <div
-            role="img"
-            aria-label={label}
-            className="flex h-3 overflow-hidden rounded-full bg-zinc-200/70"
-        >
-            {drawn.map((s) => (
-                <span
-                    key={s.key}
-                    className={`${s.swatch} h-full border-r-2 border-zinc-50 last:border-r-0`}
-                    style={{ width: `${Math.max((s.amount / gross) * 100, 1.5)}%` }}
-                />
-            ))}
+        <div className="relative shrink-0 self-center" style={{ width: 200, height: 200 }}>
+            <svg width="200" height="200" viewBox="0 0 180 180" role="img" aria-label={label} className="absolute inset-0">
+                <circle cx="90" cy="90" r={R} fill="none" stroke="#e4e4e7" strokeWidth="20" />
+                {arcs.map((a) => (
+                    <circle
+                        key={a.key}
+                        data-arc={a.key}
+                        cx="90" cy="90" r={R} fill="none"
+                        stroke={a.color} strokeWidth="20"
+                        strokeDasharray={`${a.len.toFixed(2)} ${C.toFixed(2)}`}
+                        strokeDashoffset={(-a.offset).toFixed(2)}
+                        transform="rotate(-90 90 90)"
+                    />
+                ))}
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 px-8 text-center">{children}</div>
         </div>
     );
 }
 
-/** A legend entry: the colour in the bar, whose it is, what it is, and what it cost. */
-function LegendItem({ slice }: { slice: Slice }) {
+/**
+ * A line beside the ring: the party's colour, mark, name, and what it got.
+ * On a phone the colour moves onto a ring round the mark and the share drops
+ * (A · on a phone), so the name keeps the width.
+ */
+function Line({ slice, share: s, last }: { slice: Slice; share: string; last: boolean }) {
     return (
-        <div className="flex items-baseline gap-2.5 border-t border-zinc-200/70 py-2.5 first:border-t-0 first:pt-0">
+        <div className={`flex items-center gap-2.5 py-3 sm:gap-3 ${last ? "" : "border-b border-zinc-200"}`}>
+            <span aria-hidden="true" className="hidden h-2.5 w-2.5 shrink-0 rounded-full sm:inline-block" style={{ background: slice.color }} />
             <span
-                className={`h-2 w-2 shrink-0 self-center rounded-full ${
-                    slice.hollow ? "bg-transparent ring-1 ring-zinc-300" : slice.swatch
-                }`}
-            />
-            <span className="self-center">{slice.mark}</span>
-            {/* Wraps rather than truncates: a clipped "Community commissi..."
-                hides which line the amount beside it belongs to. */}
-            <span className="min-w-0 flex-1 text-[14px] leading-snug text-zinc-700">
-                {slice.label}
-                {slice.note ? <span className="ml-1 text-zinc-400">{slice.note}</span> : null}
-                {slice.sub ? (
-                    <span className="mt-0.5 block text-[12px] text-zinc-500">{slice.sub}</span>
-                ) : null}
-            </span>
-            <span
-                className={`shrink-0 text-[14px] font-semibold tabular-nums ${
-                    slice.hollow ? "text-zinc-400" : "text-zinc-900"
-                }`}
+                className={`inline-flex shrink-0 ${slice.round ? "rounded-full" : "rounded-lg"} shadow-[0_0_0_2px_var(--party)] sm:shadow-none`}
+                style={{ "--party": slice.color } as CSSProperties}
             >
-                {slice.display}
+                {slice.mark}
             </span>
+            {/* Wraps rather than truncates: a clipped name hides whose amount it is. */}
+            <span className="flex min-w-0 flex-1 flex-col">
+                <span className="text-[15px] font-semibold leading-snug text-zinc-900">{slice.label}</span>
+                {slice.sub ? <span className="text-[12.5px] leading-snug text-zinc-500">{slice.sub}</span> : null}
+            </span>
+            {slice.display ? (
+                <span className="flex shrink-0 flex-col items-end">
+                    <span className="text-[15px] font-bold tabular-nums text-zinc-900">{slice.display}</span>
+                    {s ? <span className="hidden text-[12px] tabular-nums text-zinc-500 sm:block">{s}</span> : null}
+                </span>
+            ) : null}
         </div>
+    );
+}
+
+/** The payouts tile: one state, one colour, at most one action. */
+function PayoutTile({ tone, icon, title, sub, action }: {
+    tone: "amber" | "green" | "neutral";
+    icon: ReactNode;
+    title: string;
+    sub?: string | null;
+    action?: ReactNode;
+}) {
+    const box = tone === "amber" ? "border-amber-200 bg-amber-50" : tone === "green" ? "border-emerald-200 bg-emerald-50" : "border-zinc-200 bg-white";
+    const head = tone === "amber" ? "text-amber-950" : tone === "green" ? "text-emerald-950" : "text-zinc-900";
+    const body = tone === "amber" ? "text-amber-800" : tone === "green" ? "text-emerald-800" : "text-zinc-600";
+    return (
+        <div data-tone={tone} className={`flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:gap-4 sm:px-5 lg:col-span-2 ${box}`}>
+            <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+                {icon}
+                <div className="flex min-w-0 flex-1 flex-col">
+                    <span className={`text-[15px] font-semibold ${head}`}>{title}</span>
+                    {sub ? <span className={`text-[13px] ${body}`}>{sub}</span> : null}
+                </div>
+            </div>
+            {action}
+        </div>
+    );
+}
+
+function CheckDisc() {
+    return (
+        <span aria-hidden="true" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white" style={{ background: COLOR.net }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+        </span>
+    );
+}
+
+function ClockDisc() {
+    return (
+        <span aria-hidden="true" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-600">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+        </span>
     );
 }
 
 export function PayoutsAndFees({
     money, ownership, rates, destination, t, cash, locale = "en-GB", owner = null, broker = null, connectStripeHref = null,
+    kind = "product", sold = 0,
 }: {
     money: OverviewMoney;
     ownership?: OwnershipModel;
@@ -219,139 +254,180 @@ export function PayoutsAndFees({
      * leaders). The host decides; null shows no button.
      */
     connectStripeHref?: string | null;
+    /** Tickets or sales: what one sale is called, and when its money goes out. */
+    kind?: "product" | "event";
+    /** How many were sold, for "10 tickets". */
+    sold?: number;
 }) {
-    const b = money.breakdown;
-    // Pre-feature backend: the tiles above already stand on their own.
-    if (!b || !ownership) return null;
+    if (!money.breakdown || !ownership) return null;
 
+    const hasSales = money.gross > 0;
     const isMember = ownership === "member";
-    const day = (iso: string) =>
-        new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
+    const isEvent = kind === "event";
 
-    /*
-     * The seller's own share leads the bar and the legend. Reading left to
-     * right then answers "how much of this is mine" before it answers "who
-     * took what", which is the order the question actually arrives in.
-     */
+    // A free item: nothing changes hands, so there is nothing to break down.
+    if (!hasSales && money.free) {
+        return (
+            <div className="flex flex-col gap-1 rounded-2xl border border-zinc-200 bg-zinc-50 px-5 py-4 sm:px-8">
+                <h3 className="m-0 text-[17px] font-bold tracking-tight text-zinc-900">{t("overviewMoneyTitle")}</h3>
+                <p className="m-0 text-[13.5px] text-zinc-600">{t("feesFree")}</p>
+            </div>
+        );
+    }
+
+    // Before the first sale: one sale's split, when the backend could say it.
+    const one = !hasSales ? money.oneSale ?? null : null;
+    const b: FeeBreakdown = hasSales ? money.breakdown : one ?? money.breakdown;
+    const whole = hasSales ? money.gross : one ? one.gross : 0;
+    const shown = whole > 0;
+
+    // Who keeps the net, as the card names them. A member reads their own card.
+    const ownerName = owner?.name?.trim() || null;
+    const named = !isMember && ownerName ? ownerName : null;
+    const count = t(isEvent ? (sold === 1 ? "feesCountTicket" : "feesCountTickets") : (sold === 1 ? "feesCountSale" : "feesCountSales"), { count: sold });
+
+    const commissionRate = rates?.communityPct ?? null;
+    const cobuntuRate = !isMember ? rates?.cobuntuPct ?? null : null;
+
     const slices: Slice[] = [
         {
             key: "net",
-            label: t(isMember ? "feesYouKeep" : "feesCommunityNet"),
+            label: isMember ? t("feesYouKeep") : named ? t("feesPartyKeeps", { name: named }) : t("feesCommunityNet"),
+            // VAT is inside what the owner keeps (theirs to declare), not a slice of its own.
+            sub: b.vat > 0 ? t(isMember ? "feesIncludesVatYours" : "feesIncludesVatTheirs", { amount: cash(b.vat) }) : null,
             amount: b.net,
             display: cash(b.net),
-            swatch: "bg-emerald-600",
+            color: COLOR.net,
             mark: <PartyMark party={owner ?? { kind: isMember ? "user" : "community", name: "", imageUrl: null }} />,
+            round: (owner?.kind ?? (isMember ? "user" : "community")) === "user",
         },
-        ...(b.community > 0 || rates?.communityPct != null
+        // No line for a community that takes nothing (a community's own item, sold on itself).
+        ...(b.community > 0 || commissionRate != null
             ? [{
-                key: "community",
-                label: t("feesCommunityCommission"),
-                note: rates?.communityPct != null ? t("feesPct", { rate: pct(rates.communityPct) }) : null,
-                /*
-                 * What the community is actually PAID, when the backend says.
-                 * The listing rows beneath this card report that figure, and
-                 * without this line the two read as a contradiction rather
-                 * than as a commission and the cut taken out of it.
-                 *
-                 * Only when there is a cut: a zero would add a line that says
-                 * nothing, and on a community-owned item there is no broker at
-                 * all.
-                 */
-                sub: b.communityCut
-                    ? `${t("feesCommunityCut", { amount: cash(b.communityCut) })} · ${t("feesCommunityReceives", { amount: cash(b.community - b.communityCut) })}`
+                key: "community" as const,
+                label: broker?.name ? t("feesPartyCommission", { name: broker.name }) : t("feesCommunityCommission"),
+                sub: commissionRate != null
+                    ? t(b.vat > 0 ? "feesRateOfPriceBeforeVat" : "feesRateOfPrice", { rate: pct(commissionRate) })
                     : null,
                 amount: b.community,
                 display: cash(b.community),
-                swatch: "bg-amber-500",
+                color: COLOR.community,
                 mark: <PartyMark party={broker} />,
+                round: broker?.kind === "user",
             }]
             : []),
         {
             key: "cobuntu",
             label: t("feesCobuntu"),
-            note: !isMember && rates?.cobuntuPct != null ? t("feesPct", { rate: pct(rates.cobuntuPct) }) : null,
+            sub: cobuntuRate != null
+                ? t(isEvent ? "feesPlatformFeeRateTickets" : "feesPlatformFeeRate", { rate: pct(cobuntuRate) })
+                : t("feesPlatformFee"),
             amount: b.cobuntu,
             display: cash(b.cobuntu),
-            swatch: "bg-zinc-400",
+            color: COLOR.cobuntu,
             mark: <CobuntuBadge />,
+            round: false,
         },
-        ...(b.vat > 0
-            ? [{ key: "vat", label: t("feesVat"), amount: b.vat, display: cash(b.vat), swatch: "bg-zinc-300", mark: <TaxBadge /> }]
-            : []),
-        /*
-         * The real amount, always. On a member sale booked before Cobuntu
-         * Premium Phase 3 (all-in fee) Cobuntu PAID this out of the `cobuntu`
-         * fee above; since Phase 3 the seller's share pays it on top. Either
-         * way that is who settles it, not whether it happened. `b.stripe`/`b.cobuntu` are already decomposed
-         * server-side (see OverviewService) so the two bars sum back to the
-         * same all-in total either way; showing Stripe as "covered" with no
-         * width hid a real cost rather than explaining who carries it.
-         */
-        { key: "stripe", label: t("feesStripe"), amount: b.stripe, display: cash(b.stripe), swatch: "bg-sky-600", mark: <StripeGlyph size={MARK} /> },
+        {
+            key: "stripe",
+            label: t("feesStripe"),
+            sub: t("feesCardProcessing"),
+            amount: b.stripe,
+            // One sale's Stripe fee depends on the card: an estimate, said as one.
+            display: one ? t("feesAbout", { amount: cash(b.stripe) }) : cash(b.stripe),
+            color: COLOR.stripe,
+            mark: <StripeGlyph size={MARK} />,
+            round: false,
+        },
     ];
 
-    const barLabel = slices
-        .filter((s) => s.amount > 0)
-        .map((s) => `${s.label} ${s.display}`)
-        .join(", ");
+    const ringLabel = shown
+        ? `${hasSales ? t("feesTaken", { amount: cash(whole) }) : t("feesOnEvery", { amount: cash(whole) })}: ${slices.filter((s) => s.amount > 0).map((s) => `${s.label} ${s.display}`).join(", ")}`
+        : t("feesNothingSoldYet");
+
+    const day = (iso: string) =>
+        new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
+
+    /* The payouts tile: one state, one colour. */
+    const connected = !!destination && destination.connected;
+    let tile: ReactNode;
+    if (!connected) {
+        tile = (
+            <PayoutTile
+                tone="amber"
+                icon={<StripeGlyph size={40} />}
+                title={!connectStripeHref ? t("feesDestNone") : named ? t("feesConnectToGetPaid", { name: named }) : t("feesConnectToGetPaidYou")}
+                sub={t(isEvent ? "feesPaysOutEvent" : "feesPaysOutItem")}
+                action={connectStripeHref ? (
+                    <a
+                        href={connectStripeHref}
+                        className="inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-xl bg-zinc-900 px-4 text-[14px] font-semibold text-white no-underline transition-opacity hover:opacity-90"
+                    >
+                        {t("feesConnectStripe")}
+                    </a>
+                ) : null}
+            />
+        );
+    } else {
+        const account = accountLine(destination!, t);
+        if (!destination!.payoutsEnabled) {
+            tile = <PayoutTile tone="amber" icon={<StripeGlyph size={40} />} title={t("feesDestPayoutsOff")} sub={t("feesLandsIn", { account })} />;
+        } else if (money.held > 0 && money.nextPayoutAt) {
+            tile = <PayoutTile tone="neutral" icon={<ClockDisc />} title={t("feesHeldUntil", { amount: cash(money.held), date: day(money.nextPayoutAt) })} sub={t("feesLandsIn", { account })} />;
+        } else if (money.due > 0) {
+            tile = <PayoutTile tone="neutral" icon={<ClockDisc />} title={t("feesReadyToPayOut", { amount: cash(money.due) })} sub={t("feesLandsIn", { account })} />;
+        } else if (money.paid > 0) {
+            tile = <PayoutTile tone="green" icon={<CheckDisc />} title={t("feesPaidOutSoFar", { amount: cash(money.paid) })} sub={t("feesNothingWaiting", { account })} />;
+        } else {
+            tile = <PayoutTile tone="neutral" icon={<StripeGlyph size={40} />} title={t("feesLandsIn", { account })} sub={t("feesNextPayoutNone")} />;
+        }
+    }
 
     return (
-        /*
-         * WHERE THE MONEY GOES, as approved (Overview redesign, board 9): the
-         * split on the left with where it lands, the exact lines on the right.
-         * The big "you keep" figure that used to open this card is gone: the
-         * Overview hero above already says it, and saying it twice made the two
-         * read as different numbers.
-         */
-        <div className="grid gap-6 rounded-2xl border border-zinc-200/70 bg-zinc-50 p-5 sm:p-7 lg:grid-cols-2 lg:gap-10">
-            <div className="flex min-w-0 flex-col gap-4">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <h3 className="m-0 text-[16px] font-bold tracking-tight text-zinc-900">{t("overviewMoneyTitle")}</h3>
-                    <span className="text-[13px] text-zinc-500">
-                        {money.gross > 0 ? t("feesFromGross", { amount: cash(money.gross) }) : t("feesNothingTakenYet")}
-                    </span>
-                </div>
-
-                <SplitBar slices={slices} gross={money.gross} label={barLabel} />
-
-                {/* Where, and when. */}
-                <div className="space-y-1 border-t border-zinc-200/70 pt-3.5">
-                    <p className="m-0 text-[13px] text-zinc-600">
-                        {destination && destination.connected ? (
-                            <>
-                                {t("feesLandsIn", { account: accountLine(destination, t) })}
-                                <span className={`ml-1.5 font-medium ${destination.payoutsEnabled ? "text-emerald-700" : "text-amber-700"}`}>
-                                    {destination.payoutsEnabled ? t("feesDestReady") : t("feesDestPayoutsOff")}
-                                </span>
-                            </>
-                        ) : (
-                            <span className="font-medium text-amber-700">{t("feesDestNone")}</span>
-                        )}
-                    </p>
-                    {/* Straight to the setup that fixes it: the owner's own, or the community's. */}
-                    {!(destination && destination.connected) && connectStripeHref && (
-                        <a
-                            href={connectStripeHref}
-                            className="mt-1.5 inline-flex min-h-[36px] cursor-pointer items-center gap-2 rounded-lg bg-zinc-900 px-3.5 text-[13px] font-semibold text-white no-underline transition-opacity hover:opacity-90"
-                        >
-                            <StripeGlyph size={16} />
-                            {t("feesConnectStripe")}
-                        </a>
-                    )}
+        <div className="grid gap-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 sm:gap-y-7 sm:p-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-x-11">
+            <div className="flex min-w-0 flex-col gap-[18px]">
+                <div className="flex flex-col gap-1">
+                    <h3 className="m-0 text-[17px] font-bold tracking-tight text-zinc-900 sm:text-[18px]">{t("overviewMoneyTitle")}</h3>
                     <p className="m-0 text-[13px] text-zinc-500">
-                        {money.held > 0 && money.nextPayoutAt
-                            ? t("feesHeldUntil", { amount: cash(money.held), date: day(money.nextPayoutAt) })
-                            : money.due > 0
-                                ? t("feesReadyToPayOut", { amount: cash(money.due) })
-                                : t("feesNextPayoutNone")}
+                        {hasSales ? `${t("feesTaken", { amount: cash(money.gross) })} · ${count}` : t("feesNothingSoldYet")}
                     </p>
                 </div>
+                <Ring slices={slices} whole={whole} label={ringLabel}>
+                    {shown ? (
+                        <>
+                            <span className="text-[12px] text-zinc-600">
+                                {named
+                                    ? t(hasSales ? "feesRingGot" : "feesRingGets", { name: named })
+                                    : t(hasSales ? "feesRingYouGot" : "feesRingYouGet")}
+                            </span>
+                            <span className="text-[24px] font-extrabold leading-tight tracking-tight tabular-nums sm:text-[26px]" style={{ color: COLOR.net }}>{cash(b.net)}</span>
+                            <span className="text-[12px] text-zinc-600">
+                                {t(hasSales ? "feesRingOf" : "feesRingOfEvery", { amount: cash(whole) })}
+                            </span>
+                        </>
+                    ) : (
+                        <span className="text-[13px] text-zinc-500">{t("feesNothingSoldYet")}</span>
+                    )}
+                </Ring>
             </div>
 
-            {/* Exact figures, one divided row each, so nothing is lost to the picture. */}
-            <div className="min-w-0">
-                {slices.map((s) => <LegendItem key={s.key} slice={s} />)}
+            <div className="flex min-w-0 flex-col">
+                <p className="m-0 mb-1.5 text-[11px] font-bold uppercase tracking-[.08em] text-zinc-500">
+                    {one
+                        ? t(isEvent ? "feesOnEveryTicket" : "feesOnEverySale", { amount: cash(one.gross) })
+                        : hasSales ? `${t("feesSoFar")} · ${count}` : t("feesWhoTakesWhat")}
+                </p>
+                {slices.map((s, i) => (
+                    <Line
+                        key={s.key}
+                        slice={shown ? s : { ...s, display: "" }}
+                        share={shown ? share(s.amount, whole) : ""}
+                        last={i === slices.length - 1}
+                    />
+                ))}
             </div>
+
+            {tile}
         </div>
     );
 }

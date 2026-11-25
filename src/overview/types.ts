@@ -137,6 +137,16 @@ export interface OverviewMoney {
     currency: string;
     /** Where the gross went, all time. Absent on a pre-feature backend. */
     breakdown?: FeeBreakdown;
+    /**
+     * Before the first sale, what ONE sale splits into, through the item's one
+     * live listing ("Impact Hub gets €32.96 of every €36.90"). Same lines as
+     * `breakdown`, plus the price. Null after a sale, with no single live
+     * listing, or when finances could not say; absent on an older backend.
+     * Never carries Cobuntu's cut of the commission (`communityCut` is 0).
+     */
+    oneSale?: (FeeBreakdown & { gross: number }) | null;
+    /** True when that one live listing is free: no money changes hands. */
+    free?: boolean;
 }
 
 /**

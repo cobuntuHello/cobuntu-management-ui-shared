@@ -259,36 +259,67 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     overviewSellerNet: "Seller keeps",
     overviewYourNet: "Your net",
     /*
-     * Payouts & fees card (Overview).
+     * "Where the money goes" (Overview): a ring, a line per party, and one
+     * payouts tile (option A, 25 Nov 2026).
      *
-     * Retired with the table-to-summary redesign, all of them things the new
-     * card either shows as a width or says in a sentence: feesTitle (the card
-     * now leads with "You keep", which names it better than a section heading
-     * did), feesGrossRow (a caption under the headline), feesStripeAbsorbed and
-     * feesCobuntuMemberSub (row sub-labels), feesPaidTo / feesNextPayout /
-     * feesNextPayoutHeld / feesAvailableNow (panel headings, now sentences).
+     * Retired with the ring: feesVat (VAT is now a line under the owner's
+     * row, feesIncludesVat*), feesPct (rates are said in a sentence),
+     * feesCommunityCut / feesCommunityReceives (Cobuntu's cut of a commission
+     * is not the owner's to see), feesFromGross and feesNothingTakenYet (the
+     * caption is feesTaken / feesNothingSoldYet), feesStripeCovered (Stripe
+     * is always a real amount) and feesDestReady (the tile's colour says it).
+     *
+     * Counts are two keys each, not a plural rule: see topicsOpenHeadline.
      */
-    feesVat: "VAT",
-    feesStripe: "Stripe fee",
-    feesStripeCovered: "covered",
-    feesCobuntu: "Cobuntu fee",
-    feesCommunityCommission: "Community commission",
+    feesNothingSoldYet: "Nothing sold yet",
+    feesTaken: "{amount} taken",
+    feesCountTicket: "{count} ticket",
+    feesCountTickets: "{count} tickets",
+    feesCountSale: "{count} sale",
+    feesCountSales: "{count} sales",
+    feesSoFar: "So far",
+    feesOnEveryTicket: "On every {amount} ticket",
+    feesOnEverySale: "On every {amount} sale",
+    feesOnEvery: "On every {amount}",
+    feesWhoTakesWhat: "Who takes what",
+    feesFree: "It’s free, so no money changes hands.",
+    /* The ring's centre: what reaches the owner, out of what. */
+    feesRingGot: "{name} got",
+    feesRingGets: "{name} gets",
+    feesRingYouGot: "You got",
+    feesRingYouGet: "You get",
+    feesRingOf: "of {amount}",
+    feesRingOfEvery: "of every {amount}",
+    /* The lines. */
     feesYouKeep: "You keep",
+    feesPartyKeeps: "{name} keeps",
     feesCommunityNet: "Community net",
-    feesPct: "{rate}%",
-    /* The community's commission is not what the community receives: Cobuntu
-       takes a cut OF it on member sales. Said on its own line, under the
-       commission, so the two figures stop looking like a contradiction. */
-    feesCommunityCut: "Cobuntu takes {amount} of this",
-    feesCommunityReceives: "{amount} to the community",
-    feesFromGross: "from {amount} taken",
-    feesNothingTakenYet: "Nothing taken yet",
+    feesIncludesVatYours: "Includes {amount} VAT, yours to declare",
+    feesIncludesVatTheirs: "Includes {amount} VAT, theirs to declare",
+    feesCommunityCommission: "Community commission",
+    feesPartyCommission: "{name}’s commission",
+    feesRateOfPrice: "{rate}% of the price",
+    feesRateOfPriceBeforeVat: "{rate}% of the price before VAT",
+    feesCobuntu: "Cobuntu",
+    feesPlatformFee: "Platform fee",
+    feesPlatformFeeRate: "Platform fee, {rate}% of sales",
+    feesPlatformFeeRateTickets: "Platform fee, {rate}% of ticket sales",
+    feesStripe: "Stripe",
+    feesCardProcessing: "Card processing",
+    /* One sale's Stripe fee depends on the card, so it is an estimate. */
+    feesAbout: "≈ {amount}",
+    /* The payouts tile. */
+    feesConnectToGetPaid: "Connect Stripe so {name} gets paid",
+    feesConnectToGetPaidYou: "Connect Stripe to get paid",
+    feesPaysOutEvent: "Ticket money goes out the day after the event, to the account you connect.",
+    feesPaysOutItem: "Sale money goes out to the account you connect.",
+    feesPaidOutSoFar: "{amount} paid out so far",
+    feesNothingWaiting: "Nothing waiting now · {account}",
     feesLandsIn: "Lands in {account}",
     feesHeldUntil: "{amount} held until {date}",
     feesReadyToPayOut: "{amount} ready to pay out",
     feesDestUser: "Your Stripe account",
     feesDestCommunity: "Community Stripe account",
-    feesDestReady: "Ready",
     feesDestPayoutsOff: "Payouts disabled",
     feesDestNone: "No Stripe account connected yet",
     feesConnectStripe: "Connect Stripe",
