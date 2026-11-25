@@ -1,4 +1,7 @@
+import type { ReactNode } from "react";
 import type { OverviewMoney, FeeRates, StripeDestination, OwnershipModel } from "./types";
+import { CobuntuMark } from "../listings/ui/marks";
+import { FallbackImg, StripeGlyph, personAvatarCandidates } from "../listings/v2/ui";
 
 /**
  * "Payouts & fees" — what the seller keeps, what came off the top, and where
@@ -32,6 +35,62 @@ import type { OverviewMoney, FeeRates, StripeDestination, OwnershipModel } from 
  */
 
 type T = (key: string, vars?: Record<string, string | number>) => string;
+
+/** Who a slice of money belongs to, drawn the way the listing page draws it. */
+export type MoneyParty = { kind: "community" | "user"; name: string; imageUrl: string | null };
+
+const MARK = 24;
+
+function initialsOf(name: string): string {
+    return name.trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("") || "?";
+}
+
+/**
+ * The party's real mark (Overview, 25 Nov 2026: "missing the community icon,
+ * user icon, platform icon and Stripe icon"), as on the listing page's
+ * Earnings: a community square with its icon, a person round with their photo
+ * or their library avatar, Cobuntu's mark, Stripe's. Inline sizes, so a host
+ * page without the listing page's stylesheet still draws them.
+ */
+function PartyMark({ party }: { party: MoneyParty | null }) {
+    const box = "inline-flex shrink-0 items-center justify-center overflow-hidden bg-white ring-1 ring-inset ring-zinc-200 text-[10px] font-bold text-zinc-600 [&>img]:h-full [&>img]:w-full [&>img]:object-cover";
+    if (!party) {
+        // The community side with no single community to name (several carry it).
+        return (
+            <span aria-hidden="true" className={`${box} rounded-md text-zinc-500`} style={{ width: MARK, height: MARK }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+            </span>
+        );
+    }
+    if (party.kind === "community") {
+        return (
+            <span aria-hidden="true" className={`${box} rounded-md`} style={{ width: MARK, height: MARK }}>
+                {party.imageUrl ? <img src={party.imageUrl} alt="" /> : initialsOf(party.name)}
+            </span>
+        );
+    }
+    return (
+        <span aria-hidden="true" className={`${box} rounded-full`} style={{ width: MARK, height: MARK }}>
+            <FallbackImg candidates={personAvatarCandidates(party.imageUrl, null)} name={party.name} />
+        </span>
+    );
+}
+
+function CobuntuBadge() {
+    return (
+        <span aria-hidden="true" className="inline-flex shrink-0 items-center justify-center rounded-md bg-white ring-1 ring-inset ring-zinc-200" style={{ width: MARK, height: MARK }}>
+            <CobuntuMark size={MARK - 8} />
+        </span>
+    );
+}
+
+function TaxBadge() {
+    return (
+        <span aria-hidden="true" className="inline-flex shrink-0 items-center justify-center rounded-md bg-white text-[11px] font-bold text-zinc-500 ring-1 ring-inset ring-zinc-200" style={{ width: MARK, height: MARK }}>
+            %
+        </span>
+    );
+}
 
 /** A percent that shows decimals only when it has them: 8, not 8.00. */
 function pct(n: number): string {
@@ -69,6 +128,8 @@ type Slice = {
     display: string;
     swatch: string;
     hollow?: boolean;
+    /** Whose money this is: the party's own mark, beside the colour that ties it to the bar. */
+    mark: ReactNode;
 };
 
 /**
@@ -108,15 +169,16 @@ function SplitBar({ slices, gross, label }: { slices: Slice[]; gross: number; la
     );
 }
 
-/** A legend entry: swatch, what it is, and what it cost. */
+/** A legend entry: the colour in the bar, whose it is, what it is, and what it cost. */
 function LegendItem({ slice }: { slice: Slice }) {
     return (
         <div className="flex items-baseline gap-2.5 border-t border-zinc-200/70 py-2.5 first:border-t-0 first:pt-0">
             <span
-                className={`h-3 w-3 shrink-0 self-center rounded-[3px] ${
+                className={`h-2 w-2 shrink-0 self-center rounded-full ${
                     slice.hollow ? "bg-transparent ring-1 ring-zinc-300" : slice.swatch
                 }`}
             />
+            <span className="self-center">{slice.mark}</span>
             {/* Wraps rather than truncates: a clipped "Community commissi..."
                 hides which line the amount beside it belongs to. */}
             <span className="min-w-0 flex-1 text-[14px] leading-snug text-zinc-700">
@@ -138,7 +200,7 @@ function LegendItem({ slice }: { slice: Slice }) {
 }
 
 export function PayoutsAndFees({
-    money, ownership, rates, destination, t, cash, locale = "en-GB",
+    money, ownership, rates, destination, t, cash, locale = "en-GB", owner = null, broker = null, connectStripeHref = null,
 }: {
     money: OverviewMoney;
     ownership?: OwnershipModel;
@@ -147,6 +209,16 @@ export function PayoutsAndFees({
     t: T;
     cash: (n: number) => string;
     locale?: string;
+    /** Who keeps the net: the owning community or person. Null draws a neutral mark. */
+    owner?: MoneyParty | null;
+    /** The community taking the commission, when exactly one does. */
+    broker?: MoneyParty | null;
+    /**
+     * Where to connect Stripe, when no account is connected and this viewer is
+     * the one who can connect it (the owning person, or the owning community's
+     * leaders). The host decides; null shows no button.
+     */
+    connectStripeHref?: string | null;
 }) {
     const b = money.breakdown;
     // Pre-feature backend: the tiles above already stand on their own.
@@ -168,6 +240,7 @@ export function PayoutsAndFees({
             amount: b.net,
             display: cash(b.net),
             swatch: "bg-emerald-600",
+            mark: <PartyMark party={owner ?? { kind: isMember ? "user" : "community", name: "", imageUrl: null }} />,
         },
         ...(b.community > 0 || rates?.communityPct != null
             ? [{
@@ -190,6 +263,7 @@ export function PayoutsAndFees({
                 amount: b.community,
                 display: cash(b.community),
                 swatch: "bg-amber-500",
+                mark: <PartyMark party={broker} />,
             }]
             : []),
         {
@@ -199,9 +273,10 @@ export function PayoutsAndFees({
             amount: b.cobuntu,
             display: cash(b.cobuntu),
             swatch: "bg-zinc-400",
+            mark: <CobuntuBadge />,
         },
         ...(b.vat > 0
-            ? [{ key: "vat", label: t("feesVat"), amount: b.vat, display: cash(b.vat), swatch: "bg-zinc-300" }]
+            ? [{ key: "vat", label: t("feesVat"), amount: b.vat, display: cash(b.vat), swatch: "bg-zinc-300", mark: <TaxBadge /> }]
             : []),
         /*
          * The real amount, always. On a member sale booked before Cobuntu
@@ -212,7 +287,7 @@ export function PayoutsAndFees({
          * same all-in total either way; showing Stripe as "covered" with no
          * width hid a real cost rather than explaining who carries it.
          */
-        { key: "stripe", label: t("feesStripe"), amount: b.stripe, display: cash(b.stripe), swatch: "bg-sky-600" },
+        { key: "stripe", label: t("feesStripe"), amount: b.stripe, display: cash(b.stripe), swatch: "bg-sky-600", mark: <StripeGlyph size={MARK} /> },
     ];
 
     const barLabel = slices
@@ -253,6 +328,16 @@ export function PayoutsAndFees({
                             <span className="font-medium text-amber-700">{t("feesDestNone")}</span>
                         )}
                     </p>
+                    {/* Straight to the setup that fixes it: the owner's own, or the community's. */}
+                    {!(destination && destination.connected) && connectStripeHref && (
+                        <a
+                            href={connectStripeHref}
+                            className="mt-1.5 inline-flex min-h-[36px] cursor-pointer items-center gap-2 rounded-lg bg-zinc-900 px-3.5 text-[13px] font-semibold text-white no-underline transition-opacity hover:opacity-90"
+                        >
+                            <StripeGlyph size={16} />
+                            {t("feesConnectStripe")}
+                        </a>
+                    )}
                     <p className="m-0 text-[13px] text-zinc-500">
                         {money.held > 0 && money.nextPayoutAt
                             ? t("feesHeldUntil", { amount: cash(money.held), date: day(money.nextPayoutAt) })

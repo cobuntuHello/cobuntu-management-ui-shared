@@ -83,6 +83,28 @@ export interface ManageOverviewProps {
         onRequest: () => void;
         pending?: boolean;
     };
+    /**
+     * Where to connect Stripe for the account the money lands in: the owning
+     * person's ("user") or the owning community's ("community"). Return null
+     * when this app cannot take the viewer there; the money card then shows
+     * the missing account without a button. Shown only to the viewer who can
+     * act on it: the owner for a person's item, a leader (or staff) for a
+     * community's.
+     */
+    connectStripeHref?: (scope: "user" | "community") => string | null | undefined;
+}
+
+/**
+ * The community taking the commission, for its mark in the money card: the one
+ * carrier when exactly one community takes a commission, else none (the card
+ * then draws a neutral community mark rather than picking one of several).
+ */
+function brokerOf(listings: OverviewListing[]): { kind: "community"; name: string; imageUrl: string | null } | null {
+    const paid = listings.filter((l) => l.status === "ACTIVE");
+    const pool = paid.length > 0 ? paid : listings;
+    if (pool.length !== 1) return null;
+    const l = pool[0];
+    return { kind: "community", name: l.communityName, imageUrl: l.communityIcon ?? null };
 }
 
 /** A signed change, or nothing at all when there is no baseline to compare to. */
@@ -99,7 +121,7 @@ function Delta({ pct, t }: { pct: number | null; t: T }) {
 
 export function ManageOverview({
     stats, extras, listingHref, onSelfList, onPublish, itemType,
-    t, locale = "en-GB", footer, requestOn,
+    t, locale = "en-GB", footer, requestOn, connectStripeHref,
 }: ManageOverviewProps) {
     const { money, views, listings, weekly } = stats;
     /*
@@ -115,6 +137,17 @@ export function ManageOverview({
     const sellable = isSellable(stats);
     const role = stats.viewerRole;
     const isCarrier = role === "carrier";
+
+    /*
+     * The Connect Stripe button goes to whoever the money lands with, and only
+     * for the viewer who can connect it: the owner of a person's item; a
+     * leader, the owner or staff for a community's. An older backend that
+     * names no role leaves it to the host.
+     */
+    const stripeScope: "user" | "community" = stats.destination?.scope ?? (stats.ownership === "member" ? "user" : "community");
+    const mayConnect = !role
+        || (stripeScope === "user" ? role === "owner" : role === "community-leader" || role === "owner" || role === "admin");
+    const stripeHref = mayConnect && connectStripeHref ? connectStripeHref(stripeScope) ?? null : null;
 
     /*
      * THE COMMUNITY FILTER rescopes the page to one listing: its views, sales,
@@ -305,6 +338,9 @@ export function ManageOverview({
                     t={t}
                     cash={cash}
                     locale={locale}
+                    owner={stats.owner ? { kind: stats.owner.kind, name: stats.owner.name, imageUrl: stats.owner.imageUrl } : null}
+                    broker={brokerOf(listings)}
+                    connectStripeHref={stripeHref}
                 />
             )}
 

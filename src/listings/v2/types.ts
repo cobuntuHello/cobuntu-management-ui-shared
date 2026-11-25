@@ -80,6 +80,20 @@ export interface ListingMoney {
     donation?: null | { amount: number; lines: MoneyLine[] };
     /** The package this read previews (money({ packageId })), or null: the listing's own terms. */
     previewPackage?: null | { id: string; name: string; rate: number };
+    /**
+     * The rates behind the lines, sent even for a free item (core
+     * ListingMoney.rates, 25 Nov 2026): Cobuntu's rate on this stream, the
+     * commission terms and where they came from. Absent from an older backend.
+     */
+    rates?: null | {
+        /** Percent: 8 for 8%. The listing community's rate for the stream. */
+        cobuntuPct: number;
+        stream: "events" | "products";
+        /** Percent; null when nothing is agreed and no package is offered yet. */
+        commissionPct: number | null;
+        commissionSource: "agreed" | "matrix" | "proposed" | "none";
+        ownedByListingCommunity: boolean;
+    };
     upfront: null | {
         /** What was booked, from the booking's first line ("The Sound Room"). */
         room: string | null;
