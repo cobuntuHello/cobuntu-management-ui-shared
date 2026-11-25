@@ -476,7 +476,7 @@ describe("paused, and free", () => {
         expect(within(bar()).getByText("Paused by Marta Silva")).toBeTruthy();
     });
 
-    it("says a free event has nothing to split", async () => {
+    it("still draws the split for a free event: a dashed ring, every party's line at nothing", async () => {
         const t = transport("community", { status: "ACTIVE" });
         const m = money("community", true);
         m.oneSale = null;
@@ -485,6 +485,11 @@ describe("paused, and free", () => {
         await screen.findByRole("heading", { level: 1 });
         openSection("Earnings");
         expect(screen.getByText("Nothing is sold, so there is nothing to split.")).toBeTruthy();
+        const panel = document.querySelector('.cbtl-panel[data-placeholder]') as HTMLElement;
+        expect(panel.querySelector("circle[stroke-dasharray]")).not.toBeNull();
+        expect(within(panel).getByText("Free")).toBeTruthy();
+        expect(within(panel).getByText("Stripe")).toBeTruthy();
+        expect(within(panel).getAllByText("€0.00").length).toBe(4);
     });
 });
 
@@ -526,7 +531,7 @@ describe("Overview", () => {
         expect(within(top).getByText("No tags")).toBeTruthy();
         expect(within(top).getByText("Sent")).toBeTruthy();
         expect(within(top).getByText(/^18 Nov 2026, \d\d:\d\d$/)).toBeTruthy();
-        expect(within(top).getByText("Requested by")).toBeTruthy();
+        expect(within(top).getByText("Owner")).toBeTruthy();
     });
 
     it("reads the description as an article under its heading, as text, never as markup", async () => {
@@ -642,5 +647,52 @@ describe("the header", () => {
         // drawn disabled (aria-disabled), never as a link to a page not there.
         expect(LISTING_PAGE_CSS).toContain('.cbtl-hbtn[aria-disabled="true"]{');
         expect(LISTING_PAGE_CSS).not.toContain(".cbtl-head-img");
+    });
+});
+
+describe("whose item it is, and people's pictures (24 Nov 2026)", () => {
+    const owned = (overrides: Record<string, unknown> = {}) => ({
+        id: "lst", status: "ACTIVE", isHidden: false, commissionRate: 0, isPaid: false, listingPrice: null,
+        createdAt: "2026-11-22T13:56:00Z", approvedAt: "2026-11-22T14:00:00Z",
+        community: { id: "fsc", name: "Finance Social Club", communityTag: "fsc", iconUrl: "https://img/fsc.png" },
+        requestedBy: { id: "buntu", name: "Buntu", usertag: "buntu", profileImage: null },
+        event: { id: "evt", name: "Sessão de Boas-Vindas", slug: "boas-vindas", startDate: "2026-11-29T17:00:00Z", communityId: "fsc" },
+        ...overrides,
+    });
+
+    it("says from the community, not with it, on its own item, and names it as the owner, not the collaborator who sent it", async () => {
+        const t = transport("seller", { status: "ACTIVE" });
+        (t.listing as any).mockImplementation(async () => owned());
+        mount(t, "seller");
+        await screen.findByRole("heading", { level: 1 });
+        expect(within(document.querySelector(".cbtl-head") as HTMLElement).getByText("from Finance Social Club")).toBeTruthy();
+        const top = document.querySelector(".cbtl-ov-top") as HTMLElement;
+        expect(within(top).getByText("Finance Social Club")).toBeTruthy();
+        expect(within(top).queryByText("Buntu")).toBeNull();
+    });
+
+    it("keeps 'with' for a member's own item", async () => {
+        const t = transport("seller");
+        mount(t, "seller");
+        await screen.findByRole("heading", { level: 1 });
+        expect(within(document.querySelector(".cbtl-head") as HTMLElement).getByText("with TEJÁ House")).toBeTruthy();
+    });
+
+    it("gives a person without a photo their library avatar, never a bare letter", async () => {
+        const t = transport("community");
+        mount(t, "community");
+        await screen.findByRole("heading", { level: 1 });
+        const img = document.querySelector(".cbtl-head .cbtl-avatar img") as HTMLImageElement;
+        expect(img.src).toBe("https://api.cobuntu.com/api/avatars/auto/marta.svg");
+        // A failed load walks on to the neutral library avatar.
+        fireEvent.error(img);
+        expect((document.querySelector(".cbtl-head .cbtl-avatar img") as HTMLImageElement).src).toBe("https://api.cobuntu.com/api/avatars/cobuntu-campfire.svg");
+    });
+
+    it("says no sold count in the bar of a live listing", async () => {
+        const t = transport("seller", { status: "ACTIVE" });
+        mount(t, "seller");
+        await screen.findByRole("heading", { level: 1 });
+        expect(bar().textContent).not.toMatch(/sold/);
     });
 });

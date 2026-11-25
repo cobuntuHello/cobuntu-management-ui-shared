@@ -251,7 +251,6 @@ function draft(x: DecisionInput, say: Say): Decision {
         };
     }
 
-    const soldText = say("subSold", { count: x.sold });
     const since = shortDate(x.approvedAt);
 
     if (status === "ACTIVE" && !x.isHidden) {
@@ -266,7 +265,8 @@ function draft(x: DecisionInput, say: Say): Decision {
         return {
             tone: "live", eyebrow: say("stateLive"),
             title: since ? say("barLiveSince", { community, date: since }) : say("barLiveOn", { community }),
-            sub: [terms, soldText].filter(Boolean).join(" · "),
+            // Terms only: a sold count is Earnings' to tell (seen live as "0 sold", 24 Nov).
+            sub: terms,
             moves,
         };
     }

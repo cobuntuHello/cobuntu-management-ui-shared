@@ -157,7 +157,12 @@ export function ListingPageV2(props: ListingPageV2Props) {
     const comm = listing.community ?? listing.communities ?? null;
     const parties: Parties = {
         community: { name: comm?.name ?? "", icon: comm?.iconUrl ?? null },
-        seller: { name: listing.requestedBy?.name ?? item?.owner?.name ?? "", image: listing.requestedBy?.profileImage ?? null },
+        seller: {
+            name: listing.requestedBy?.name ?? item?.owner?.name ?? "",
+            image: listing.requestedBy?.profileImage ?? null,
+            id: listing.requestedBy?.id ?? (listing as any).requestedByUserId ?? null,
+            usertag: listing.requestedBy?.usertag ?? null,
+        },
     };
     const names = { community: parties.community.name, seller: parties.seller.name };
     const rate = toRate(listing.commissionRate ?? (listing as any).ticketListing?.commissionRate);
@@ -172,6 +177,30 @@ export function ListingPageV2(props: ListingPageV2Props) {
     const tz: string | undefined = item?.timezone ?? undefined;
     const other = seat === "seller" ? names.community : names.seller;
     const otherImage = seat === "seller" ? parties.community.icon : parties.seller.image;
+    /*
+     * WHOSE ITEM IT IS. A community's own event or product carries its
+     * community; a member's carries none (core ListingMoneyService.memberSale
+     * reads the same field). The seller's header then says "from <community>"
+     * rather than "with", and Overview names the owner, never the collaborator
+     * who happened to send the request (both seen live, 24 Nov 2026).
+     */
+    const ownerCommunityId: string | null = item?.communityId ?? null;
+    const ownedByCommunity = !!ownerCommunityId;
+    const ownerCommunity = ownedByCommunity
+        ? {
+            name: item?.community?.name ?? item?.communities?.name ?? (ownerCommunityId === comm?.id ? comm?.name : null) ?? names.community,
+            icon: item?.community?.iconUrl ?? item?.communities?.iconUrl ?? (ownerCommunityId === comm?.id ? comm?.iconUrl : null) ?? null,
+        }
+        : null;
+    const owner = ownerCommunity
+        ? { community: true, name: ownerCommunity.name, image: ownerCommunity.icon }
+        : {
+            community: false,
+            name: item?.owner?.name ?? listing.requestedBy?.name ?? "",
+            id: item?.owner?.id ?? listing.requestedBy?.id ?? null,
+            usertag: item?.owner?.usertag ?? listing.requestedBy?.usertag ?? null,
+            image: item?.owner?.profileImage ?? listing.requestedBy?.profileImage ?? null,
+        };
     /** The seller's @usertag, beside their name in the community's header. */
     const sellerTag: string | null = listing.requestedBy?.usertag ?? null;
     const toolsNode = typeof props.tools === "function"
@@ -305,7 +334,7 @@ export function ListingPageV2(props: ListingPageV2Props) {
         const canChange = seat === "seller" && booking && d.bookingLive && eventId && (transport.setGuests || transport.setDetails || transport.dateOptions);
         section = (
             <OverviewSection say={say} kind={kind} item={item} m={m} listingPrice={listing.listingPrice ?? null}
-                requestedBy={listing.requestedBy ?? null} createdAt={listing.createdAt ?? null} tz={tz}
+                owner={owner.name ? owner : null} createdAt={listing.createdAt ?? null} tz={tz}
                 booking={booking} room={m?.upfront?.room ?? null} facts={facts}
                 onChangeRequest={canChange ? () => setSheet("request") : undefined} />
         );
@@ -360,19 +389,34 @@ export function ListingPageV2(props: ListingPageV2Props) {
         <div className="cbtl" style={rootStyle} data-seat={seat}>
             <style>{LISTING_PAGE_CSS}</style>
             <div className="cbtl-inner">
-                {/* The trail is the way back (the header carries no Back
-                    button), so its first link wears a back chevron. */}
+                {/*
+                  The trail, drawn like the community app's own Breadcrumb
+                  (components/layout/Breadcrumb.tsx; redone 24 Nov 2026, the
+                  old one set its chevrons below the text): a round back
+                  button, the way there in muted text, faint "/" between, and
+                  where you are in full weight, all on one line.
+                */}
                 <nav className="cbtl-crumb" aria-label="Breadcrumb">
-                    {crumbs.map((c, i) => (
-                        <span key={i}>
-                            {c.href
-                                ? <a href={c.href} className={i === 0 ? "cbtl-crumb-back" : undefined}>{i === 0 && <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>}{c.label}</a>
-                                : <b>{c.label}</b>}{" "}
-                            <span aria-hidden="true">›</span>
-                        </span>
-                    ))}
-                    {props.itemHref ? <a href={props.itemHref}>{itemName}</a> : <b>{itemName}</b>}
-                    {props.endWithCommunity && names.community && <><span aria-hidden="true">›</span><b>{names.community}</b></>}
+                    {crumbs[0]?.href && (
+                        <a href={crumbs[0].href} className="cbtl-crumb-back" aria-label={`${say("back")}: ${crumbs[0].label}`}>
+                            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+                        </a>
+                    )}
+                    {[
+                        ...crumbs.map((c) => ({ label: c.label, href: c.href })),
+                        { label: itemName, href: props.endWithCommunity && names.community ? props.itemHref : undefined },
+                        ...(props.endWithCommunity && names.community ? [{ label: names.community, href: undefined }] : []),
+                    ].map((c, i, all) => {
+                        const last = i === all.length - 1;
+                        return (
+                            <span className="cbtl-crumb-step" key={i}>
+                                {i > 0 && <span className="cbtl-crumb-sep" aria-hidden="true">/</span>}
+                                {last
+                                    ? <span className="cbtl-crumb-cur" aria-current="page">{c.label}</span>
+                                    : c.href ? <a href={c.href} className="cbtl-crumb-link">{c.label}</a> : <span className="cbtl-crumb-link">{c.label}</span>}
+                            </span>
+                        );
+                    })}
                 </nav>
 
                 {/*
@@ -387,9 +431,10 @@ export function ListingPageV2(props: ListingPageV2Props) {
                     <span style={{ flex: "1 1 0", minWidth: 0 }}>
                         <h1 className="cbtl-title">{itemName}</h1>
                         <span className="cbtl-sub">
-                            <Avatar image={otherImage} name={other} size={24} />
+                            {/* The seller is a person (their library avatar when they have no photo); the community shows its icon. */}
+                            <Avatar image={otherImage} name={other} size={24} person={seat === "community" ? { id: parties.seller.id, usertag: parties.seller.usertag } : undefined} />
                             {seat === "seller"
-                                ? <span>{say("withCommunity", { community: names.community })}</span>
+                                ? <span>{ownerCommunity ? say("fromCommunity", { community: ownerCommunity.name }) : say("withCommunity", { community: names.community })}</span>
                                 : <>
                                     <span className="cbtl-sub-name">{names.seller}</span>
                                     {sellerTag && <span className="cbtl-sub-tag">@{sellerTag}</span>}

@@ -29,7 +29,7 @@ import { termsLabel } from "./decision";
 import type { Parties } from "./MoneyStep";
 import type { ListingTransport } from "./transport";
 import type { BookingView, ListingMoney, MoneyLine, Package, Proposal, Seat, Topic } from "./types";
-import { Avatar, ICON, Icon, StripeGlyph } from "./ui";
+import { Avatar, FallbackImg, ICON, Icon, StripeGlyph, personAvatarCandidates } from "./ui";
 
 export type SectionId = "overview" | "earnings" | "negotiation";
 export const SECTIONS: SectionId[] = ["overview", "earnings", "negotiation"];
@@ -134,7 +134,7 @@ function Mark({ who, parties, size = 28 }: { who: Who; parties: Parties; size?: 
         return <span className="cbtl-mk" data-sq="" data-pad={c.icon ? "" : undefined} style={box}>{c.icon ? <img src={c.icon} alt="" /> : <i>{initials(c.name)}</i>}</span>;
     }
     const s = parties.seller;
-    return <span className="cbtl-mk" style={box}>{s.image ? <img src={s.image} alt="" /> : <i>{initials(s.name)}</i>}</span>;
+    return <span className="cbtl-mk" style={box}><FallbackImg candidates={personAvatarCandidates(s.image, { id: s.id, usertag: s.usertag })} name={s.name} /></span>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -339,6 +339,56 @@ export function OneSalePanel({ say, seat, kind, m, parties, meta, title, subtitl
     );
 }
 
+/** Every line a seat reads, at zero: the shape of the split with nothing in it. */
+function zeroLines(seat: Seat): MoneyLine[] {
+    const keys: MoneyLine["key"][] = seat === "seller"
+        ? ["price", "stripe", "commission", "cobuntu", "keep"]
+        : ["price", "stripe", "seller", "sellerFee", "sellerNet", "commission", "cobuntu", "keep"];
+    return keys.map((key) => ({ key, amount: 0 }));
+}
+
+/**
+ * THE SPLIT'S PLACEHOLDER (the canvas' "Earnings, no package agreed yet",
+ * 24 Nov 2026): the same panel as One sale, drawn empty. A dashed ring and
+ * every party's line with its real mark, so the shape of the split is
+ * clear even when there is nothing in it.
+ *   free      every line at 0.00, "Free" in the ring
+ *   no terms  the lines without figures (grey bars), Pick a package below
+ */
+function PlaceholderPanel({ say, seat, kind, parties, meta, cur, title, center, sub, zero, foot, action }: {
+    say: Say; seat: Seat; kind: "event" | "product"; parties: Parties; meta: PanelMeta; cur: string;
+    title: string; center: string; sub: string;
+    /** Show 0.00 on every line (free); otherwise grey bars (nothing agreed yet). */
+    zero: boolean;
+    foot: string; action?: ReactNode;
+}) {
+    const rows = rowsFor(say, seat, kind, zeroLines(seat), parties, meta, cur);
+    return (
+        <div className="cbtl-panel" data-placeholder="">
+            <span className="cbtl-panel-head"><span className="cbtl-panel-title"><b>{title}</b></span></span>
+            <div className="cbtl-panel-body">
+                <span className="cbtl-ring" style={{ width: 176, height: 176 }}>
+                    <svg width="176" height="176" viewBox="0 0 240 240" aria-hidden="true">
+                        <circle cx="120" cy="120" r="80" fill="none" stroke="var(--cbtl-line)" strokeWidth="24" strokeDasharray="6 8" />
+                    </svg>
+                    <span className="cbtl-ring-hole"><b style={{ fontSize: holeFontSize(center, 176) }}>{center}</b><small>{sub}</small></span>
+                </span>
+                <span className="cbtl-lines">
+                    {rows.map((r) => (
+                        <span className="cbtl-line" data-mine={r.mine ? "" : undefined} key={r.key}>
+                            <i className="cbtl-sw" aria-hidden="true" />
+                            <Mark who={r.who} parties={parties} />
+                            <span className="cbtl-line-name"><b>{r.label}</b>{zero && r.note && <small>{r.note}</small>}</span>
+                            {zero ? <b className="cbtl-line-amt">{money(0, cur)}</b> : <i className="cbtl-ghost" aria-hidden="true" />}
+                        </span>
+                    ))}
+                </span>
+            </div>
+            <span className="cbtl-panel-foot"><span>{foot}</span>{action}</span>
+        </div>
+    );
+}
+
 /** "€0.55 to €1.92", or one figure when every price leaves the same. */
 export function keepRange(say: Say, m: ListingMoney | null): string {
     const paid = pricesOf(m).filter((p) => !p.free).map((p) => amountOf(p.lines, "keep"));
@@ -378,23 +428,17 @@ export function EarningsSection({ say, seat, kind, m, parties, terms, onPickPack
     let main: ReactNode;
     if (!anyPaid) {
         main = (
-            <div className="cbtl-empty-card">
-                <b>{say("earnFreeTitle")}</b><span>{say("earnFreeBody")}</span>
-            </div>
+            <PlaceholderPanel say={say} seat={seat} kind={kind} parties={parties} meta={meta} cur={cur} zero
+                title={kind === "event" ? say("earnOneTicket") : say("earnOneSale")}
+                center={say("earnFreeTitle")} sub={say("earnNothingToSplit")} foot={say("earnFreeBody")} />
         );
     } else if (noTerms) {
         main = (
-            <div className="cbtl-empty-card" data-ring="">
-                <span className="cbtl-ring" style={{ width: 150, height: 150 }}>
-                    <svg width="150" height="150" viewBox="0 0 240 240" aria-hidden="true"><circle cx="120" cy="120" r="80" fill="none" stroke="var(--cbtl-line)" strokeWidth="24" strokeDasharray="6 8" /></svg>
-                    <span className="cbtl-ring-hole"><b style={{ fontSize: holeFontSize(money(prices[cheapestPaid(prices)].gross, cur), 150) }}>{money(prices[cheapestPaid(prices)].gross, cur)}</b><small>{kind === "event" ? say("earnOneTicket") : say("earnOneSale")}</small></span>
-                </span>
-                <span className="cbtl-empty-text">
-                    <b>{say("earnEmptyTitle")}</b>
-                    <span>{seat === "seller" ? say("earnEmptySeller", { community }) : say("earnEmptyCommunity", { seller, community })}</span>
-                    {onPickPackage && <button type="button" className="cbtl-hbtn" onClick={onPickPackage}>{say("barPickPackage")}</button>}
-                </span>
-            </div>
+            <PlaceholderPanel say={say} seat={seat} kind={kind} parties={parties} meta={meta} cur={cur} zero={false}
+                title={say("earnEmptyTitle")}
+                center={money(prices[cheapestPaid(prices)].gross, cur)} sub={kind === "event" ? say("earnOneTicket") : say("earnOneSale")}
+                foot={seat === "seller" ? say("earnEmptySeller", { community }) : say("earnEmptyCommunity", { seller, community })}
+                action={onPickPackage ? <button type="button" className="cbtl-hbtn" onClick={onPickPackage}>{say("barPickPackage")}</button> : undefined} />
         );
     } else {
         main = (
@@ -536,10 +580,15 @@ function InfoRow({ icon, label, children, muted }: { icon: string; label?: strin
     );
 }
 
-export function OverviewSection({ say, kind, item, m, listingPrice, requestedBy, createdAt, tz, booking, room, facts, onChangeRequest }: {
+export function OverviewSection({ say, kind, item, m, listingPrice, owner, createdAt, tz, booking, room, facts, onChangeRequest }: {
     say: Say; kind: "event" | "product"; item: any; m: ListingMoney | null;
     listingPrice?: { amount: number; currency: string } | null;
-    requestedBy?: { name?: string | null; usertag?: string | null; profileImage?: string | null } | null;
+    /**
+     * Whose item it is: the community for a community-owned item (its square
+     * icon), else the member. Never the collaborator who happened to send the
+     * request (seen live: "Buntu" on Finance Social Club's own event).
+     */
+    owner: null | { community: boolean; name: string; id?: string | null; usertag?: string | null; image?: string | null };
     createdAt?: string | null; tz?: string; booking: BookingView | null; room: string | null;
     /** What the seller told the venue, grouped: [title, [label, value][]][]. */
     facts: Array<{ title: string; rows: Array<[string, unknown]> }>;
@@ -609,15 +658,17 @@ export function OverviewSection({ say, kind, item, m, listingPrice, requestedBy,
                         </InfoRow>
                     )}
                     {createdAt && <InfoRow icon={ROW_ICON.sent} label={say("ovSent")}>{sentAt(createdAt)}</InfoRow>}
-                    {requestedBy?.name && (
+                    {owner?.name && (
                         <span className="cbtl-irow">
                             <span className="cbtl-irow-ic" aria-hidden="true"><Icon d={ROW_ICON.person} size={16} stroke={2} /></span>
                             <span className="cbtl-irow-v">
-                                <small>{say("ovRequestedBy")}</small>
+                                <small>{say("ovOwner")}</small>
                                 <span className="cbtl-irow-person">
-                                    <Avatar image={requestedBy.profileImage} name={requestedBy.name} size={24} />
-                                    <b>{requestedBy.name}</b>
-                                    {requestedBy.usertag && <small>@{requestedBy.usertag}</small>}
+                                    {owner.community
+                                        ? <span className="cbtl-mk" data-sq="" data-pad={owner.image ? "" : undefined} style={{ width: 24, height: 24 }}>{owner.image ? <img src={owner.image} alt="" /> : <i>{initials(owner.name)}</i>}</span>
+                                        : <Avatar image={owner.image} name={owner.name} size={24} person={{ id: owner.id, usertag: owner.usertag }} />}
+                                    <b>{owner.name}</b>
+                                    {owner.usertag && <small>@{owner.usertag}</small>}
                                 </span>
                             </span>
                         </span>
@@ -662,7 +713,7 @@ export function OverviewSection({ say, kind, item, m, listingPrice, requestedBy,
 // ─────────────────────────────────────────────────────────────────────────────
 
 type ChatItem =
-    | { type: "msg"; id: string; at: number | null; mine: boolean; body: string; name: string; image: string | null }
+    | { type: "msg"; id: string; at: number | null; mine: boolean; body: string; name: string; image: string | null; person: { id?: string | null; usertag?: string | null } }
     | { type: "event"; id: string; at: number | null; text: string };
 
 const ts = (iso: string | null | undefined): number | null => {
@@ -684,7 +735,8 @@ export function chatItems(say: Say, a: {
             items.push({
                 type: "msg", id: c.id, at: ts(c.createdAt), mine, body: c.body,
                 name: mine ? (a.me?.name ?? say("you")) : (c.author?.name ?? a.other.name),
-                image: mine ? (a.me?.avatarUrl ?? null) : (c.author?.profileImage ?? a.other.image ?? null),
+                image: mine ? (a.me?.avatarUrl ?? null) : (c.author?.profileImage ?? null),
+                person: { id: c.author?.id ?? c.authorUserId, usertag: c.author?.usertag ?? null },
             });
         }
     }
@@ -749,7 +801,7 @@ export function NegotiationSection({ say, seat, kind, topics, proposals, sellerI
                     if (x.type === "event") return [divider, <span className="cbtl-chat-event" key={x.id}>{x.text}</span>];
                     return [divider, (
                         <span className="cbtl-chat-row" data-mine={x.mine ? "" : undefined} key={x.id}>
-                            {!x.mine && <Avatar image={x.image} name={x.name} size={28} />}
+                            {!x.mine && <Avatar image={x.image} name={x.name} size={28} person={x.person} />}
                             <span className="cbtl-bub">
                                 {x.body}
                                 {x.at && <small>{clockOf(new Date(x.at).toISOString())}</small>}

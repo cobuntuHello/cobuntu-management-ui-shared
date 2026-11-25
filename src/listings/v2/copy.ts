@@ -24,6 +24,7 @@ export const LISTING_PAGE_COPY = {
 
     // ── header ──
     withCommunity: "with {community}",
+    fromCommunity: "from {community}",
     crumbYours: "Your listings",
     crumbRequests: "Listing requests",
 
@@ -356,6 +357,7 @@ export const LISTING_PAGE_COPY = {
     ovSentBy: "Sent by {who}",
     ovSent: "Sent",
     ovRequestedBy: "Requested by",
+    ovOwner: "Owner",
     ovNoCategory: "No category",
     ovNoTags: "No tags",
     ovDescription: "Description",

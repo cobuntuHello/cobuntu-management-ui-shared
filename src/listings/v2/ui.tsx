@@ -88,10 +88,44 @@ export function Face({ who, ring, communityIcon, communityName, sellerImage, sel
     );
 }
 
-export function Avatar({ image, name, size = 28 }: { image?: string | null; name?: string | null; size?: number }) {
+/** Where the avatar library is served (the app's lib/avatar-urls.ts, the same URLs). */
+const AVATAR_ORIGIN = "https://api.cobuntu.com";
+const NEUTRAL_AVATAR = `${AVATAR_ORIGIN}/api/avatars/cobuntu-campfire.svg`;
+
+/**
+ * A person's picture, tried in the app's order (components/shared/UserAvatar):
+ * their own photo or chosen library avatar, then the library avatar they were
+ * given (by id, else by @usertag), then the neutral one. A person never shows
+ * as a bare letter (seen live, 24 Nov 2026: "B" for Buntu).
+ */
+export function personAvatarCandidates(image: string | null | undefined, person: { id?: string | null; usertag?: string | null } | null | undefined): string[] {
+    const given = person?.id
+        ? `${AVATAR_ORIGIN}/api/avatars/auto/${encodeURIComponent(person.id)}.svg`
+        : person?.usertag ? `${AVATAR_ORIGIN}/api/avatars/tag/${encodeURIComponent(person.usertag)}.svg` : null;
+    return [image, given, NEUTRAL_AVATAR].filter((u, i, all): u is string => !!u && all.indexOf(u) === i);
+}
+
+/** An image that walks its candidates when one fails to load; initials only when every one has. */
+export function FallbackImg({ candidates, name }: { candidates: string[]; name?: string | null }) {
+    const [at, setAt] = useState(0);
+    const key = candidates.join("|");
+    useEffect(() => { setAt(0); }, [key]);
+    const src = candidates[at];
+    if (!src) return <>{initials(name)}</>;
+    return <img src={src} alt="" onError={() => setAt((n) => n + 1)} />;
+}
+
+/**
+ * A round picture. Pass `person` for a person: a missing photo then falls back
+ * to their library avatar, never to initials. Without it (a community's icon),
+ * a missing image shows initials.
+ */
+export function Avatar({ image, name, size = 28, person }: { image?: string | null; name?: string | null; size?: number; person?: { id?: string | null; usertag?: string | null } | null }) {
     return (
         <span className="cbtl-avatar" style={{ width: size, height: size }} aria-hidden="true">
-            {image ? <img src={image} alt="" /> : initials(name)}
+            {person !== undefined
+                ? <FallbackImg candidates={personAvatarCandidates(image, person)} name={name} />
+                : image ? <img src={image} alt="" /> : initials(name)}
         </span>
     );
 }

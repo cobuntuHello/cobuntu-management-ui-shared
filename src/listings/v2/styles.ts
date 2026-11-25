@@ -58,10 +58,14 @@ container-type:inline-size;font-family:var(--cbtl-body);color:var(--cbtl-ink);ba
 .cbtl *,.cbtl *::before,.cbtl *::after{box-sizing:border-box}
 .cbtl button{font:inherit;color:inherit}
 .cbtl-inner{display:flex;flex-direction:column;gap:18px;max-width:900px;margin:0 auto;padding:24px 0 48px}
-.cbtl-crumb{font-size:13px;color:var(--cbtl-faint);display:flex;gap:6px;flex-wrap:wrap}
-.cbtl-crumb a{color:var(--cbtl-faint);text-decoration:none}.cbtl-crumb a:hover{color:var(--cbtl-ink)}
-.cbtl-crumb-back{display:inline-flex;align-items:center;gap:4px}
-.cbtl-crumb b{font-weight:400;color:var(--cbtl-muted)}
+.cbtl-crumb{display:flex;align-items:center;gap:8px;min-width:0;font-size:15px;line-height:1.3;color:var(--cbtl-ink)}
+.cbtl-crumb-back{flex:none;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(128,128,128,.06);color:var(--cbtl-ink);text-decoration:none}
+.cbtl-crumb-back:hover{background:rgba(128,128,128,.12)}
+.cbtl-crumb-step{display:flex;align-items:center;gap:8px;min-width:0}
+.cbtl-crumb-sep{flex:none;opacity:.2}
+.cbtl-crumb-link{color:var(--cbtl-ink);opacity:.5;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+a.cbtl-crumb-link:hover{opacity:.8}
+.cbtl-crumb-cur{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .cbtl-head{display:flex;gap:16px;align-items:center}
 .cbtl-title{font-family:var(--cbtl-display);font-weight:var(--cbtl-strong);letter-spacing:-.015em;line-height:1.15;font-size:24px;margin:0}
 .cbtl-sub{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--cbtl-muted);margin-top:8px}
@@ -337,6 +341,12 @@ container-type:inline-size;font-family:var(--cbtl-body);color:var(--cbtl-ink);ba
 .cbtl-every-row{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:9px;border:none;background:transparent;font-size:13px;color:var(--cbtl-muted);text-align:left;cursor:pointer;font-variant-numeric:tabular-nums}
 .cbtl-every-row b{font-weight:600;color:#2f6a4f;white-space:nowrap}
 .cbtl-every-row[aria-current=true]{background:var(--cbtl-sand);color:var(--cbtl-ink);font-weight:600}
+.cbtl-panel[data-placeholder] .cbtl-sw{background:var(--cbtl-line)}
+.cbtl-panel[data-placeholder] .cbtl-line[data-mine]{background:var(--cbtl-sand);color:var(--cbtl-ink)}
+.cbtl-panel[data-placeholder] .cbtl-line[data-mine] .cbtl-line-name small{color:var(--cbtl-faint)}
+.cbtl-ghost{display:inline-block;flex:none;width:64px;height:10px;border-radius:5px;background:var(--cbtl-sand)}
+.cbtl-panel-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--cbtl-line-soft);font-size:13.5px;line-height:1.5;color:var(--cbtl-muted)}
+.cbtl-panel-foot>span{flex:1;min-width:220px;max-width:62ch}
 .cbtl-donation{display:flex;align-items:center;gap:10px;padding-top:14px;border-top:1px solid var(--cbtl-line-soft);font-size:13px;color:var(--cbtl-muted);line-height:1.45}
 .cbtl-donation svg{flex:none;color:var(--cbtl-faint)}
 .cbtl-empty-card{display:flex;flex-direction:column;gap:6px;padding:22px 26px;border-radius:16px;background:var(--cbtl-card);border:1px solid var(--cbtl-line);font-size:14px;color:var(--cbtl-muted);line-height:1.5}
@@ -408,6 +418,7 @@ container-type:inline-size;font-family:var(--cbtl-body);color:var(--cbtl-ink);ba
 .cbtl-wide-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:16px 28px;background:var(--cbtl-card);border-top:1px solid var(--cbtl-line);position:sticky;bottom:0}
 .cbtl-wide-sum{flex:1;min-width:200px;font-size:13px;color:var(--cbtl-muted)}.cbtl-wide-sum b{font-weight:600;color:var(--cbtl-ink)}
 @container (max-width: 640px){
+.cbtl-crumb{font-size:14px}.cbtl-crumb-link{max-width:110px}
 .cbtl-secs{gap:8px}.cbtl-sec{padding:12px 10px;gap:8px}.cbtl-sec-ic{width:32px;height:32px;border-radius:9px}
 .cbtl-sec-text b{font-size:13px}.cbtl-sec-text small{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
 .cbtl-sec-badge{top:10px;right:10px}
