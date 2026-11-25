@@ -30,12 +30,13 @@ import { Result, Upfront, type Parties } from "./MoneyStep";
 import { CardSheet, PriceSheet, RequestSheet } from "./sheets";
 import { LISTING_PAGE_CSS, themeVars, type ListingTheme } from "./styles";
 import type { ListingTransport } from "./transport";
-import type { BookingAddons, BookingView, ListingDetail, ListingMoney, ListingStatus, Proposal, Seat, Topic, UpfrontAddon } from "./types";
+import type { BookingAddons, BookingView, ListingDetail, ListingMoney, ListingStatus, Package, Proposal, Seat, Topic, UpfrontAddon } from "./types";
 import { derive } from "./derive";
 import { decisionOf, termsLabel, type MoveId } from "./decision";
 import { DecisionBar, EarningsSection, NegotiationSection, OverviewSection, PackageSheet, SectionTiles, chatItems, type SectionId, type TileState } from "./sections";
 import { Avatar, Confirm, type ConfirmSpec } from "./ui";
 import { AcceptDialog, AskCard, AskCompare, ChangeTermsSheet, PremiumCard, PremiumSheet, cheapestSale, type PremiumCheckout } from "./terms";
+import { PackageSwitchSheet, packagePoints } from "./packageSwitch";
 import { normalizeListingState } from "../manageListingRows";
 import { ownerListingActions, reviewerListingActions } from "../listingTransitions";
 
@@ -96,7 +97,9 @@ export function ListingPageV2(props: ListingPageV2Props) {
     const [failed, setFailed] = useState(false);
     const [focus, setFocus] = useState<SectionId | null>(null);
     const [confirm, setConfirm] = useState<ConfirmSpec | null>(null);
-    const [sheet, setSheet] = useState<null | "card" | "request" | "terms" | "accept" | "premium" | { pkg: string | null } | { price: UpfrontAddon }>(null);
+    const [sheet, setSheet] = useState<null | "card" | "request" | "terms" | "accept" | "premium" | "package" | { pkg: string | null } | { price: UpfrontAddon }>(null);
+    /** The packages the seller's tier is offered, while the listing is on one (T-415: Change package). */
+    const [myPackages, setMyPackages] = useState<Package[] | null>(null);
     /** The split at the rate the community asks (T-414), for the seller's Earnings and the accept dialog. */
     const [askMoney, setAskMoney] = useState<ListingMoney | null>(null);
     /** The seller said "Not now" to Premium on this listing (kept in this browser only). */
@@ -166,6 +169,23 @@ export function ListingPageV2(props: ListingPageV2Props) {
             .catch(() => { if (live) setAskMoney(null); });
         return () => { live = false; };
     }, [pendingAsk, transport]);
+
+    /*
+     * CHANGE PACKAGE (T-415). The seller's own listing on a package: read what
+     * their tier is offered, so the bar and Earnings offer the switch only when
+     * there is another package to switch to.
+     */
+    const onPackageId: string | null = data && seat === "seller"
+        ? ((data.listing as any).package?.id ?? (data.listing as any).packageId ?? null)
+        : null;
+    useEffect(() => {
+        if (!onPackageId || !transport.switchPackage) { setMyPackages(null); return; }
+        let live = true;
+        transport.packages()
+            .then((ps) => { if (live) setMyPackages(ps); })
+            .catch(() => { if (live) setMyPackages(null); });
+        return () => { live = false; };
+    }, [onPackageId, transport]);
 
     // "Not now" on the Premium card holds for this listing, in this browser.
     const listingKey = data?.listing.id ?? null;
@@ -289,12 +309,17 @@ export function ListingPageV2(props: ListingPageV2Props) {
         : one?.rateSource === "proposed" ? say("earnProposed")
             : one?.rateSource === "matrix" ? say("earnStandard", { community: names.community }) : "";
 
+    // The seller's own (not a community's) listing on a package, with another package to move to.
+    const switchPackage = seat === "seller" && !ownedByCommunity && !!onPackageId && !!transport.switchPackage
+        && (myPackages?.length ?? 0) > 1 && (status === "PENDING" || status === "ACTIVE" || status === "PAUSED");
+    const myPackage = myPackages?.find((p) => p.id === onPackageId) ?? null;
+
     const decision = decisionOf({
         seat, kind, status, isHidden: !!listing.isHidden, rate, packageName, agreedAt,
         approvedAt: listing.approvedAt ?? null, createdAt: listing.createdAt ?? null,
         sold: m?.soldSoFar?.count ?? 0, names, room: m?.upfront?.room ?? null,
         rejectionReason: listing.rejectionReason ?? null, d,
-        can: { decideBooking: !!(transport.decideBooking && eventId), setHidden: !!transport.setHidden, respond: true, propose: true, setStatus: true },
+        can: { decideBooking: !!(transport.decideBooking && eventId), setHidden: !!transport.setHidden, respond: true, propose: true, setStatus: true, switchPackage },
         reviewer: reviewerListingActions(status), owner: ownerListingActions(status),
     }, say);
 
@@ -311,6 +336,9 @@ export function ListingPageV2(props: ListingPageV2Props) {
                 return;
             case "changeTerms":
                 setSheet("terms");
+                return;
+            case "changePackage":
+                setSheet("package");
                 return;
             case "reply":
                 setFocus("negotiation");
@@ -462,6 +490,8 @@ export function ListingPageV2(props: ListingPageV2Props) {
                 <EarningsSection say={say} seat={seat} kind={kind} m={asking ? (askMoney ?? m) : m} parties={parties}
                     terms={asking ? { name: null, rate: null, sub: "" } : { name: packageName, rate: shownRate, sub: termsSub }}
                     onPickPackage={status === "PENDING" && !asking ? () => setSheet({ pkg: null }) : undefined}
+                    onChangePackage={switchPackage && !asking ? () => setSheet("package") : undefined}
+                    points={seat === "seller" && myPackage ? packagePoints(myPackage.description) : undefined}
                     links={props.links}>
                     {asking && pendingAsk && (
                         <AskCompare say={say} names={names} now={rate ?? 0} ask={Number(pendingAsk.commissionRate ?? 0)}
@@ -553,6 +583,11 @@ export function ListingPageV2(props: ListingPageV2Props) {
             </div>
 
             {confirm && <Confirm spec={confirm} onClose={() => setConfirm(null)} cancel={say("cancel")} failed={say("failed")} />}
+            {sheet === "package" && (
+                <PackageSwitchSheet say={say} transport={transport} names={names} parties={parties} currentId={onPackageId}
+                    live={status === "ACTIVE" || status === "PAUSED"}
+                    onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); void after(msg); }} />
+            )}
             {sheet === "terms" && (
                 <ChangeTermsSheet say={say} kind={kind} transport={transport} names={names} parties={parties} now={rate} base={m}
                     onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); void after(msg); }} />
