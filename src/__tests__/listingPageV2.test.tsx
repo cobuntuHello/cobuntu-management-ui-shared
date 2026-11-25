@@ -12,6 +12,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { ListingPageV2 } from "../listings/v2/ListingPageV2";
 import { LISTING_PAGE_CSS } from "../listings/v2/styles";
+import { holeFontSize } from "../listings/v2/sections";
 import type { ListingTransport } from "../listings/v2/transport";
 import type { ListingMoney, BookingView } from "../listings/v2/types";
 
@@ -488,30 +489,88 @@ describe("paused, and free", () => {
 });
 
 describe("Overview", () => {
-    it("is the item's card: its photos, price, date and who sent it", async () => {
+    const eventListing = () => ({
+        id: "lst", status: "PENDING", isHidden: false, commissionRate: 0, isPaid: true, listingPrice: { amount: 18, currency: "EUR" },
+        createdAt: "2026-11-18T09:00:00Z", approvedAt: null,
+        community: { id: "teja", name: "TEJÁ House", communityTag: "tejahouse", iconUrl: null },
+        requestedBy: { id: "marta", name: "Marta Silva", usertag: "marta-silva", profileImage: null },
+        event: {
+            id: "evt", name: "Slow Records: a vinyl listening evening", slug: "slow-records", startDate: "2026-12-09T18:00:00Z", endDate: "2026-12-09T21:00:00Z",
+            bannerUrl: "https://img/a.jpg", images: ["https://img/b.jpg"], description: "<p>Two sides of a record.</p><p>Bring one.</p>", tags: ["vinyl", { name: "listening" }],
+        },
+    });
+
+    it("puts the facts on the page beside the photos, no box, and never repeats the name", async () => {
         const t = transport("community");
-        (t.listing as any).mockImplementation(async () => ({
-            id: "lst", status: "PENDING", isHidden: false, commissionRate: 0, isPaid: true, listingPrice: { amount: 18, currency: "EUR" },
-            createdAt: "2026-11-18T09:00:00Z", approvedAt: null,
-            community: { id: "teja", name: "TEJÁ House", communityTag: "tejahouse", iconUrl: null },
-            requestedBy: { id: "marta", name: "Marta Silva", usertag: "marta-silva", profileImage: null },
-            event: {
-                id: "evt", name: "Slow Records: a vinyl listening evening", slug: "slow-records", startDate: "2026-12-09T18:00:00Z", endDate: "2026-12-09T21:00:00Z",
-                bannerUrl: "https://img/a.jpg", images: ["https://img/b.jpg"], description: "<p>Two sides of a record.</p><p>Bring one.</p>", tags: ["vinyl", { name: "listening" }],
-            },
-        }));
+        (t.listing as any).mockImplementation(async () => eventListing());
         mount(t, "community");
         await screen.findByRole("heading", { level: 1 });
-        const card = document.querySelector(".cbtl-ov-card") as HTMLElement;
-        expect(card.querySelectorAll(".cbtl-ov-thumb")).toHaveLength(2);
-        expect(within(card).getByText("€18.00")).toBeTruthy();
-        expect(within(card).getByText("vinyl, listening")).toBeTruthy();
-        expect(within(card).getByText("@marta-silva")).toBeTruthy();
-        // The description is read as text, never as markup.
-        expect(screen.getByText("Two sides of a record.")).toBeTruthy();
-        expect(screen.getByText("Bring one.")).toBeTruthy();
-        fireEvent.click(within(card).getByRole("button", { name: "Next photo" }));
-        expect((card.querySelector(".cbtl-ov-photo img") as HTMLImageElement).src).toBe("https://img/b.jpg");
+        const top = document.querySelector(".cbtl-ov-top") as HTMLElement;
+        expect(document.querySelector(".cbtl-ov-card")).toBeNull();
+        expect(top.querySelectorAll(".cbtl-ov-thumb")).toHaveLength(2);
+        expect(within(top).getByText("€18.00")).toBeTruthy();
+        expect(within(top).getByText("vinyl, listening")).toBeTruthy();
+        expect(within(top).getByText("@marta-silva")).toBeTruthy();
+        expect(within(top).queryByText("Slow Records: a vinyl listening evening")).toBeNull();
+        fireEvent.click(within(top).getByRole("button", { name: "Next photo" }));
+        expect((top.querySelector(".cbtl-ov-photo img") as HTMLImageElement).src).toBe("https://img/b.jpg");
+    });
+
+    it("always has Category and Tags rows, and says Sent with the date, the year and the time", async () => {
+        const t = transport("community");
+        (t.listing as any).mockImplementation(async () => ({ ...eventListing(), event: { ...eventListing().event, tags: [] } }));
+        mount(t, "community");
+        await screen.findByRole("heading", { level: 1 });
+        const top = document.querySelector(".cbtl-ov-top") as HTMLElement;
+        expect(within(top).getByText("No category")).toBeTruthy();
+        expect(within(top).getByText("No tags")).toBeTruthy();
+        expect(within(top).getByText("Sent")).toBeTruthy();
+        expect(within(top).getByText(/^18 Nov 2026, \d\d:\d\d$/)).toBeTruthy();
+        expect(within(top).getByText("Requested by")).toBeTruthy();
+    });
+
+    it("reads the description as an article under its heading, as text, never as markup", async () => {
+        const t = transport("community");
+        (t.listing as any).mockImplementation(async () => eventListing());
+        mount(t, "community");
+        await screen.findByRole("heading", { level: 1 });
+        const sec = screen.getByRole("region", { name: "Description" });
+        expect(within(sec).getByRole("heading", { name: "Description" })).toBeTruthy();
+        expect(within(sec).getByText("Two sides of a record.")).toBeTruthy();
+        expect(within(sec).getByText("Bring one.")).toBeTruthy();
+    });
+
+    it("shows a product's photos from its media list, banner first, and its category and tags by name", async () => {
+        const t = transport("community");
+        (t.listing as any).mockImplementation(async () => ({
+            ...eventListing(), event: undefined,
+            products: {
+                id: "prd", name: "Immersion to Austin Texas", price: 399700, description: "Cybertech Texas Mission.",
+                product_media: [
+                    { url: "https://img/second.jpg", order: 2, isBanner: false, mimeType: "image/jpeg" },
+                    { url: "https://img/doc.pdf", order: 0, isBanner: false, mimeType: "application/pdf" },
+                    { url: "https://img/first.jpg", order: 1, isBanner: true, mimeType: "image/jpeg" },
+                ],
+                category: { id: "c", name: "Programmes" }, subcategory: { id: "s", name: "Missions abroad" },
+                tags: [{ id: "t1", name: "startups" }, { id: "t2", name: "usa" }],
+            },
+        }));
+        render(<ListingPageV2 transport={t} seat="community" kind="product" backHref="/back" />);
+        await screen.findByRole("heading", { level: 1 });
+        const top = document.querySelector(".cbtl-ov-top") as HTMLElement;
+        expect((top.querySelector(".cbtl-ov-photo img") as HTMLImageElement).src).toBe("https://img/first.jpg");
+        expect(top.querySelectorAll(".cbtl-ov-thumb")).toHaveLength(2);
+        expect(within(top).getByText("Programmes › Missions abroad")).toBeTruthy();
+        expect(within(top).getByText("startups, usa")).toBeTruthy();
+    });
+});
+
+describe("the ring's hole", () => {
+    it("keeps a short price at full size and shrinks a long one until it fits inside", () => {
+        expect(holeFontSize("€6.90", 176)).toBe(20);
+        expect(holeFontSize("US$3,997.00", 176)).toBeLessThanOrEqual(14);
+        // About 0.6em a character: the text stays inside the ~100px hole of a 176px ring.
+        expect(holeFontSize("US$3,997.00", 176) * 0.6 * "US$3,997.00".length).toBeLessThanOrEqual(100);
     });
 });
 
