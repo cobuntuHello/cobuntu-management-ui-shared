@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ManageOverview } from "../overview/ManageOverview";
 import { defaultTranslate } from "../listings/copy";
 import type { OverviewStats } from "../overview/types";
@@ -648,27 +648,22 @@ describe("the stock position of a capped item", () => {
 });
 
 /*
- * Payouts & fees card. The three questions the tiles do not answer: how much in
- * fees and to whom, where the money lands, and when. Owner perspective; a
+ * "Where the money goes". The three questions the tiles do not answer: how
+ * the money splits and to whom, where it lands, and when. Owner perspective; a
  * member seller still sees the REAL Stripe cost, decomposed server-side from
- * the all-in member fee rather than hidden behind the word "covered" -- who
- * pays it (Cobuntu, out of its own fee) is a different question from what it
- * cost.
+ * the all-in member fee rather than hidden behind the word "covered".
  *
- * The card leads with the net as a headline and shows the split as a bar plus a
- * legend, so these assert on the FIGURES and the words around them rather than
- * on a row layout. Bar widths are deliberately not asserted: the legend is what
- * carries the exact amounts, and pinning percentages would test arithmetic the
- * backend already owns.
+ * The split is a ring plus one line per party, so these assert on the FIGURES
+ * and the words around them. Arc lengths are not asserted: the lines carry
+ * the exact amounts, and pinning angles would test arithmetic the backend
+ * already owns.
  */
-describe("payouts & fees card", () => {
+describe("where the money goes", () => {
     const withFees = (over: Partial<OverviewStats> = {}): OverviewStats =>
         stats({
             money: { net: 3930, gross: 4500, held: 1000, due: 0, paid: 0, nextPayoutAt: "2026-09-29T12:00:00.000Z", currency: "EUR",
-                // Decomposed the way OverviewService now sends it: stripe is
-                // the real cost, cobuntu is what's left of the all-in member
-                // fee (250) after funding it -- the two sum to the old
-                // single `cobuntu: 210`-ish figure, just split honestly.
+                // Decomposed the way OverviewService sends it: stripe is the
+                // real cost, cobuntu is the member fee.
                 breakdown: { vat: 0, stripe: 40, cobuntu: 170, community: 360, net: 3930 } },
             ownership: "member",
             rates: { cobuntuPct: null, communityPct: 8 },
@@ -676,33 +671,41 @@ describe("payouts & fees card", () => {
             ...over,
         });
 
-    it("leads with what the seller keeps and demotes gross to a caption", () => {
+    it("says in the ring what reached the seller, out of what was taken", () => {
         renderIt(withFees());
-        // "You keep" names the card now -- it is both the eyebrow and the answer.
+        expect(screen.getByText("You got")).toBeInTheDocument();
+        expect(screen.getByText("of €45.00")).toBeInTheDocument();
+        expect(screen.getByText("€45.00 taken · 60 sales")).toBeInTheDocument();
+        expect(screen.getByText("So far · 60 sales")).toBeInTheDocument();
         expect(screen.getAllByText("You keep").length).toBeGreaterThanOrEqual(1);
-        expect(screen.getAllByText("€39.30").length).toBeGreaterThanOrEqual(1);
-        expect(screen.getByText("from €45.00 taken")).toBeInTheDocument();
     });
 
-    it("itemises the member split with Stripe's real cost, separate from Cobuntu's own take", () => {
+    it("names every party with what it got, and Stripe's real cost apart from Cobuntu's", () => {
         renderIt(withFees());
-        expect(screen.getByText("Community commission")).toBeInTheDocument();
-        expect(screen.getByText("8%")).toBeInTheDocument();
+        expect(screen.getByText("Porto Business Network’s commission")).toBeInTheDocument();
+        expect(screen.getByText("8% of the price")).toBeInTheDocument();
         expect(screen.getByText("€3.60")).toBeInTheDocument();
-        expect(screen.getByText("Cobuntu fee")).toBeInTheDocument();
+        expect(screen.getByText("Platform fee")).toBeInTheDocument();
         expect(screen.getByText("€1.70")).toBeInTheDocument();
-        // Never the word "covered" -- a real amount, same as every other line,
-        // even though Cobuntu is the one who pays Stripe here.
-        expect(screen.getByText("Stripe fee")).toBeInTheDocument();
+        // Never the word "covered": a real amount, same as every other line.
+        expect(screen.getByText("Card processing")).toBeInTheDocument();
         expect(screen.getByText("€0.40")).toBeInTheDocument();
         expect(screen.queryByText("covered")).not.toBeInTheDocument();
     });
 
+    it("puts VAT under the owner's own line, as theirs to declare, not as a slice", () => {
+        renderIt(withFees({
+            money: { net: 3930, gross: 4500, held: 0, due: 0, paid: 0, nextPayoutAt: null, currency: "EUR",
+                breakdown: { vat: 690, stripe: 40, cobuntu: 170, community: 360, net: 3930 } },
+        }));
+        expect(screen.getByText("Includes €6.90 VAT, yours to declare")).toBeInTheDocument();
+        expect(screen.getByText("8% of the price before VAT")).toBeInTheDocument();
+    });
+
     it("says where the money lands and when, as sentences", () => {
         renderIt(withFees());
-        expect(screen.getByText(/Lands in Your Stripe account · Millennium ••4242 · PT/)).toBeInTheDocument();
-        expect(screen.getByText("Ready")).toBeInTheDocument();
         expect(screen.getByText("€10.00 held until 29 Sept 2026")).toBeInTheDocument();
+        expect(screen.getByText(/Lands in Your Stripe account · Millennium ••4242 · PT/)).toBeInTheDocument();
     });
 
     it("says what is ready when nothing is being held back", () => {
@@ -713,46 +716,68 @@ describe("payouts & fees card", () => {
         expect(screen.getByText("€39.30 ready to pay out")).toBeInTheDocument();
     });
 
-    it("shows a community split with real Stripe, platform rate and no broker", () => {
+    it("turns green once it was all paid out, with nothing waiting", () => {
+        const { container } = renderIt(withFees({
+            money: { net: 3930, gross: 4500, held: 0, due: 0, paid: 3930, nextPayoutAt: null, currency: "EUR",
+                breakdown: { vat: 0, stripe: 40, cobuntu: 170, community: 360, net: 3930 } },
+        }));
+        expect(screen.getByText("€39.30 paid out so far")).toBeInTheDocument();
+        expect(screen.getByText(/Nothing waiting now · Your Stripe account/)).toBeInTheDocument();
+        expect(container.querySelector('[data-tone="green"]')).not.toBeNull();
+    });
+
+    it("shows a community's own split with real Stripe and the platform rate", () => {
         renderIt(withFees({
             money: { net: 5284, gross: 5900, held: 0, due: 5284, paid: 0, nextPayoutAt: null, currency: "EUR",
                 breakdown: { vat: 0, stripe: 144, cobuntu: 472, community: 0, net: 5284 } },
             ownership: "community",
+            owner: { kind: "community", name: "Impact Hub Porto", imageUrl: null },
             rates: { cobuntuPct: 8, communityPct: null },
             destination: { scope: "community", connected: true, payoutsEnabled: true, bankBrand: "Revolut", last4: "9931", country: "PT", currency: "EUR" },
         }));
-        expect(screen.getAllByText("Community net").length).toBeGreaterThanOrEqual(1);
-        expect(screen.getByText("€1.44")).toBeInTheDocument();   // real Stripe, charged
-        expect(screen.getByText("€4.72")).toBeInTheDocument();   // platform fee
-        expect(screen.getByText("8%")).toBeInTheDocument();
-        expect(screen.queryByText("covered")).not.toBeInTheDocument();
+        expect(screen.getByText("Impact Hub Porto got")).toBeInTheDocument();
+        expect(screen.getByText("Impact Hub Porto keeps")).toBeInTheDocument();
+        expect(screen.getByText("€1.44")).toBeInTheDocument();
+        expect(screen.getByText("€4.72")).toBeInTheDocument();
+        expect(screen.getByText("Platform fee, 8% of sales")).toBeInTheDocument();
+        // A community does not pay itself: no commission line.
+        const card = screen.getByText("Where the money goes").closest(".grid") as HTMLElement;
+        expect(within(card).queryByText(/commission$/)).not.toBeInTheDocument();
     });
 
-    it("keeps the structure visible before the first sale", () => {
-        /*
-         * The state a seller meets on a brand new listing, and the one the card
-         * used to spend a full screen on. It still shows the deal -- the rate
-         * the community takes, where money will land -- rather than going blank,
-         * so "what will this cost me" is answerable before anything sells.
-         */
+    it("keeps the deal legible before the first sale when no example came", () => {
         renderIt(withFees({
             money: { net: 0, gross: 0, held: 0, due: 0, paid: 0, nextPayoutAt: null, currency: "EUR",
                 breakdown: { vat: 0, stripe: 0, cobuntu: 0, community: 0, net: 0 } },
         }));
-        expect(screen.getByText("Nothing taken yet")).toBeInTheDocument();
-        expect(screen.queryByText(/from .* taken/)).not.toBeInTheDocument();
-        // The deal itself is still legible.
-        expect(screen.getByText("Community commission")).toBeInTheDocument();
-        expect(screen.getByText("8%")).toBeInTheDocument();
+        expect(screen.getAllByText("Nothing sold yet").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getByText("Who takes what")).toBeInTheDocument();
+        expect(screen.getByText("8% of the price")).toBeInTheDocument();
         expect(screen.getByText(/Lands in Your Stripe account/)).toBeInTheDocument();
         expect(screen.getByText("Nothing scheduled yet")).toBeInTheDocument();
+        // No row of zeros: the lines say who takes what, with no amounts.
+        const card = screen.getByText("Where the money goes").closest(".grid") as HTMLElement;
+        expect(within(card).queryByText("€0.00")).not.toBeInTheDocument();
     });
 
     it("flags a missing Stripe account", () => {
-        renderIt(withFees({
+        const { container } = renderIt(withFees({
             destination: { scope: "user", connected: false, payoutsEnabled: false, bankBrand: null, last4: null, country: null, currency: null },
         }));
         expect(screen.getByText("No Stripe account connected yet")).toBeInTheDocument();
+        expect(container.querySelector('[data-tone="amber"]')).not.toBeNull();
+    });
+
+    it("never shows Cobuntu's cut of the community's commission on the owner's card", () => {
+        // Cobuntu's deal with the community is not the seller's to see, even
+        // on an older backend that still sends the cut.
+        renderIt(withFees({
+            money: { net: 412, gross: 500, held: 412, due: 0, paid: 0, nextPayoutAt: null, currency: "EUR",
+                breakdown: { vat: 0, stripe: 0, cobuntu: 48, community: 40, communityCut: 2, net: 412 } },
+        }));
+        expect(screen.queryByText(/Cobuntu takes/)).toBeNull();
+        expect(screen.queryByText("€0.02")).toBeNull();
+        expect(screen.queryByText("€0.38")).toBeNull();
     });
 
     it("renders nothing on a pre-feature payload (no breakdown / ownership)", () => {
@@ -760,49 +785,7 @@ describe("payouts & fees card", () => {
         // Scoped to strings only this card renders: the overview has its own
         // "Gross taken" tile, which is not what is being asserted about here.
         expect(screen.queryByText(/Lands in/)).not.toBeInTheDocument();
-        expect(screen.queryByText(/from .* taken/)).not.toBeInTheDocument();
-        expect(screen.queryByText("Nothing taken yet")).not.toBeInTheDocument();
-    });
-});
-
-/**
- * THE COMMISSION, AND COBUNTU'S CUT OF IT.
- *
- * This card showed the community's FULL commission while the listing rows
- * beneath it showed what the community is actually paid -- EUR 0.40 against
- * EUR 0.38 on a EUR 5 sale, under one word, with nothing to say where the two
- * cents went. Both figures were right; the page never admitted they were
- * different measurements.
- */
-describe("the community commission, and Cobuntu's cut of it", () => {
-    const withCut = (breakdown: Record<string, number>): OverviewStats =>
-        stats({
-            money: {
-                net: 412, gross: 500, held: 412, due: 0, paid: 0,
-                nextPayoutAt: null, currency: "EUR",
-                breakdown: breakdown as any,
-            },
-            ownership: "member",
-            rates: { cobuntuPct: null, communityPct: 8 },
-        });
-
-    it("says what Cobuntu took and what the community is left with", () => {
-        renderIt(withCut({ vat: 0, stripe: 0, cobuntu: 48, community: 40, communityCut: 2, net: 412 }));
-        expect(screen.getByText(/Cobuntu takes/)).toBeTruthy();
-        expect(screen.getByText(/to the community/)).toBeTruthy();
-    });
-
-    it("stays silent when there is no cut", () => {
-        // A zero would add a line that says nothing, and a community-owned
-        // item has no broker to pay at all.
-        renderIt(withCut({ vat: 0, stripe: 0, cobuntu: 48, community: 40, communityCut: 0, net: 412 }));
-        expect(screen.queryByText(/Cobuntu takes/)).toBeNull();
-    });
-
-    it("survives a backend that does not send the field yet", () => {
-        // Optional on purpose: the package is pinned by SHA, so an app can be
-        // running an older core than the one this shipped with.
-        renderIt(withCut({ vat: 0, stripe: 0, cobuntu: 48, community: 40, net: 412 }));
-        expect(screen.queryByText(/Cobuntu takes/)).toBeNull();
+        expect(screen.queryByText("Where the money goes")).not.toBeInTheDocument();
+        expect(screen.queryByText("Nothing sold yet")).not.toBeInTheDocument();
     });
 });
