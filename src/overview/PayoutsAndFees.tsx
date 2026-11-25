@@ -305,6 +305,9 @@ export function PayoutsAndFees({
 
     const commissionRate = rates?.communityPct ?? null;
     const cobuntuRate = !isMember ? rates?.cobuntuPct ?? null : null;
+    // The member's own fee, stated as the rate it is (its amount's share of the price is not).
+    const sellerFeePct = isMember ? rates?.sellerFeePct ?? null : null;
+    const sellerFeeFixed = rates?.sellerFeeFixed ?? 0;
 
     const slices: Slice[] = [
         {
@@ -338,7 +341,11 @@ export function PayoutsAndFees({
             label: t("feesCobuntu"),
             sub: cobuntuRate != null
                 ? t(isEvent ? "feesPlatformFeeRateTickets" : "feesPlatformFeeRate", { rate: pct(cobuntuRate) })
-                : t("feesPlatformFee"),
+                : sellerFeePct != null && sellerFeePct > 0
+                    ? (sellerFeeFixed > 0
+                        ? t("feesPlatformFeeYourShare", { rate: pct(sellerFeePct), fixed: cash(sellerFeeFixed) })
+                        : t("feesPlatformFeeYourShareRate", { rate: pct(sellerFeePct) }))
+                    : t("feesPlatformFee"),
             amount: b.cobuntu,
             display: cash(b.cobuntu),
             color: COLOR.cobuntu,

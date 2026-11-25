@@ -99,6 +99,14 @@ export type OwnershipModel = "community" | "member";
 export interface FeeRates {
     cobuntuPct: number | null;
     communityPct: number | null;
+    /**
+     * Cobuntu's fee on a member seller's own leg, before the first sale
+     * (percent, and the fixed part in the smallest unit). The Cobuntu row
+     * names it, because its amount column is a share of the price ("2.3%")
+     * and read as the rate (PBN, 25 Nov 2026). Absent when none is charged.
+     */
+    sellerFeePct?: number | null;
+    sellerFeeFixed?: number | null;
 }
 
 /**
