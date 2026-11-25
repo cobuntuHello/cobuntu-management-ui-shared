@@ -6,7 +6,6 @@ import {
 } from "./format";
 import { EmptyState, ShelfIcon } from "./EmptyState";
 import { PayoutsAndFees } from "./PayoutsAndFees";
-import { OwnershipLine } from "./OwnershipLine";
 import { NextStep } from "./NextStep";
 import { OverviewHero } from "./OverviewHero";
 import { StatsStrip } from "./StatsStrip";
@@ -201,8 +200,6 @@ export function ManageOverview({
 
     return (
         <div className="space-y-5">
-            <OwnershipLine stats={stats} t={t} />
-
             {/*
               * NOT SELLABLE leads, because it makes every number below it moot.
               * Zeroes across a dashboard read as "no sales"; the truth is that
