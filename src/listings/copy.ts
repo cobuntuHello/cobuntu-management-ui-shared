@@ -307,6 +307,9 @@ export const LISTING_DETAIL_COPY: Record<string, string> = {
     feesPlatformFee: "Platform fee",
     feesPlatformFeeRate: "Platform fee, {rate}% of sales",
     feesPlatformFeeRateTickets: "Platform fee, {rate}% of ticket sales",
+    /* A member's own fee, before the first sale: the amount's column is its share of the price, this is the rate. */
+    feesPlatformFeeYourShare: "Platform fee, {rate}% + {fixed} of your share",
+    feesPlatformFeeYourShareRate: "Platform fee, {rate}% of your share",
     feesStripe: "Stripe",
     feesCardProcessing: "Card processing",
     /* One sale's Stripe fee depends on the card, so it is an estimate. */

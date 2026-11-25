@@ -197,3 +197,38 @@ describe("a free item", () => {
         expect(screen.queryByText(/Connect Stripe/)).toBeNull();
     });
 });
+
+/*
+ * PBN, 25 Nov 2026: on Thiago's own card the Cobuntu row read "Platform fee"
+ * beside "2.3%", which is the amount's share of the price, not the fee. The
+ * row now names the fee itself: 2.5% + 5c of his share after the commission.
+ */
+describe("a member's own card names Cobuntu's fee", () => {
+    const usd = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+    const thiago = { gross: 399700, vat: 0, stripe: 6026, cobuntu: 8998, community: 39970, communityCut: 0, net: 344706 };
+    const renderMember = (rates: { sellerFeePct?: number | null; sellerFeeFixed?: number | null }) =>
+        render(
+            <PayoutsAndFees
+                money={money({ currency: "USD", oneSale: thiago })}
+                ownership="member"
+                rates={{ cobuntuPct: null, communityPct: 10, ...rates }}
+                destination={null}
+                t={t}
+                cash={usd}
+                broker={pbn}
+                kind="product"
+                sold={0}
+            />,
+        );
+
+    it("as a rate on the member's share, beside its amount", () => {
+        renderMember({ sellerFeePct: 2.5, sellerFeeFixed: 5 });
+        expect(screen.getByText("Platform fee, 2.5% + $0.05 of your share")).toBeInTheDocument();
+        expect(screen.getByText("$89.98")).toBeInTheDocument();
+    });
+
+    it("plain when the backend sends no rate", () => {
+        renderMember({});
+        expect(screen.getByText("Platform fee")).toBeInTheDocument();
+    });
+});
