@@ -18,7 +18,15 @@
  *
  * Every move confirms first, exactly as on the listing page. There is no
  * "Reply" or "Share" here: the chat's own message box is the reply, and the
- * live page is one link away.
+ * live page is one link away. The full listing page is one tap away too: the
+ * expand button beside the close (`fullPageHref`), as a side peek opens as a
+ * page.
+ *
+ * The money card draws what Earnings draws, in every case (26 Nov 2026): a
+ * free item gets the dashed ring with "Free" and every line at 0.00, a request
+ * with no terms yet gets the dashed ring with its price, and a community that
+ * takes no commission on tickets sees the split blurred under "0%". It used
+ * to say "Nothing to split" and draw nothing.
  */
 
 import type { ReactNode } from "react";
@@ -27,7 +35,7 @@ import type { Decision, Move, MoveId } from "./decision";
 import { money, percent } from "./format";
 import { useGlide } from "./glide";
 import type { Parties } from "./MoneyStep";
-import { Ring, keepOf, metaOf, pricesOf, cheapestPaid, rowsFor } from "./sections";
+import { EmptyRing, Ring, keepOf, metaOf, pricesOf, cheapestPaid, rowsFor, zeroLines } from "./sections";
 import type { ListingMoney, ListingStatus, Seat } from "./types";
 import { Avatar, Icon } from "./ui";
 
@@ -36,9 +44,11 @@ export const FOOTER_MOVES: MoveId[] = ["withdraw", "pause", "remove"];
 /** Moves about the terms: the terms card's, unless the decision card already has them. */
 export const TERMS_MOVES: MoveId[] = ["changePackage", "changeTerms", "pickPackage"];
 
-export function DrawerHead({ say, image, name, parties, status, statusLabel, terms, onClose }: {
+export function DrawerHead({ say, image, name, parties, status, statusLabel, terms, onClose, fullPageHref }: {
     say: Say; image: string | null; name: string; parties: Parties;
     status: ListingStatus | null; statusLabel: string; terms: string; onClose?: () => void;
+    /** The full listing page: an expand button beside the close. */
+    fullPageHref?: string;
 }) {
     const tone = status === "ACTIVE" ? "live" : status === "PAUSED" ? "paused" : status === "PENDING" ? "pending" : "closed";
     return (
@@ -58,10 +68,19 @@ export function DrawerHead({ say, image, name, parties, status, statusLabel, ter
                     {terms && <span className="cbtl-dh-terms">{terms}</span>}
                 </span>
             </span>
-            {onClose && (
-                <button type="button" className="cbtl-dh-x" onClick={onClose} aria-label={say("drwClose")}>
-                    <Icon d="M18 6 6 18M6 6l12 12" size={16} stroke={2} />
-                </button>
+            {(fullPageHref || onClose) && (
+                <span className="cbtl-dh-acts">
+                    {fullPageHref && (
+                        <a className="cbtl-dh-x" href={fullPageHref} aria-label={say("drwFullPage")} title={say("drwFullPage")}>
+                            <Icon d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" size={15} stroke={2} />
+                        </a>
+                    )}
+                    {onClose && (
+                        <button type="button" className="cbtl-dh-x" onClick={onClose} aria-label={say("drwClose")}>
+                            <Icon d="M18 6 6 18M6 6l12 12" size={16} stroke={2} />
+                        </button>
+                    )}
+                </span>
             )}
         </header>
     );
@@ -98,11 +117,15 @@ export function DrawerDecision({ decision, moves, extra, onMove, busy }: {
  * keeps, and the other lines. Every amount (and so every slice) glides when
  * the money changes, so a new rate re-prices in place instead of snapping.
  */
-export function DrawerMoney({ say, seat, kind, m, base, baseRate, rate, parties }: {
+export function DrawerMoney({ say, seat, kind, m, base, baseRate, rate, parties, noTerms, noComm }: {
     say: Say; seat: Seat; kind: "event" | "product"; m: ListingMoney | null; parties: Parties;
     /** The money at the current terms, when `m` is the asked terms: says how much less the ask keeps. */
     base?: ListingMoney | null; baseRate?: number | null;
     rate: number | null;
+    /** No terms agreed or asked yet: the split is drawn empty around the price, as in Earnings. */
+    noTerms?: boolean;
+    /** The community takes no commission on tickets: its split stays drawn, blurred, under "0%". */
+    noComm?: boolean;
 }) {
     const prices = pricesOf(m);
     const p = prices[cheapestPaid(prices)] ?? null;
@@ -110,12 +133,20 @@ export function DrawerMoney({ say, seat, kind, m, base, baseRate, rate, parties 
     const glided = useGlide(Object.fromEntries(raw.map((l) => [l.key, l.amount])), true);
     if (!m) return null;
     const cur = m.currency;
+    const one = kind === "event" ? say("earnOneTicket") : say("earnOneSale");
     if (!p || p.free) {
         return (
-            <section className="cbtl-dc cbtl-dm" aria-label={say("earnOneSale")}>
-                <span className="cbtl-dc-k">{say("earnOneSale")}</span>
-                <span className="cbtl-dm-free">{say("earnNothingToSplit")}</span>
-            </section>
+            <DrawerEmptyMoney say={say} seat={seat} kind={kind} parties={parties} m={m} rate={rate} title={one} zero
+                center={say("earnFreeTitle")} sub={say("earnNothingToSplit")} foot={say("earnFreeBody")} />
+        );
+    }
+    if (noTerms) {
+        return (
+            <DrawerEmptyMoney say={say} seat={seat} kind={kind} parties={parties} m={m} rate={rate} title={say("earnEmptyTitle")} zero={false}
+                center={money(p.gross, cur)} sub={one}
+                foot={seat === "seller"
+                    ? say("earnEmptySeller", { community: parties.community.name })
+                    : say("earnEmptyCommunity", { seller: parties.seller.name, community: parties.community.name })} />
         );
     }
     const lines = raw.map((l) => ({ ...l, amount: glided[l.key] ?? l.amount }));
@@ -135,8 +166,8 @@ export function DrawerMoney({ say, seat, kind, m, base, baseRate, rate, parties 
     const baseP = basePrices[cheapestPaid(basePrices)] ?? null;
     const baseKeep = baseP && !baseP.free ? keepOf(seat, baseP.lines, parties) : null;
     const less = baseKeep != null && baseKeep > keepOf(seat, raw, parties) ? baseKeep - keepOf(seat, raw, parties) : 0;
-    return (
-        <section className="cbtl-dc cbtl-dm" aria-label={say("earnOneSale")}>
+    const split = (
+        <section className={`cbtl-dc cbtl-dm${noComm ? " cbtl-blur" : ""}`} aria-label={say("earnOneSale")} aria-hidden={noComm || undefined}>
             <span className="cbtl-dc-head">
                 <span className="cbtl-dc-k">{say("drwOneSale", { amount: money(p.gross, cur) })}</span>
                 {rate != null && <span className="cbtl-dc-at">{say("drwAt", { rate: percent(rate) })}</span>}
@@ -160,6 +191,54 @@ export function DrawerMoney({ say, seat, kind, m, base, baseRate, rate, parties 
                     </span>
                 ))}
             </span>
+        </section>
+    );
+    if (!noComm) return split;
+    return (
+        <span className="cbtl-blurwrap">
+            {split}
+            <span className="cbtl-overlay"><span className="cbtl-overlay-card"><i>0%</i><b>{say("noCommissionOverlay", { community: parties.community.name })}</b></span></span>
+        </span>
+    );
+}
+
+/**
+ * The drawer's money card with nothing in the split yet, as Earnings'
+ * placeholder draws it: the dashed ring, what this seat keeps, every other
+ * party's line with 0.00 (free) or an empty bar (no terms yet), and why.
+ */
+function DrawerEmptyMoney({ say, seat, kind, parties, m, rate, title, center, sub, zero, foot }: {
+    say: Say; seat: Seat; kind: "event" | "product"; parties: Parties; m: ListingMoney; rate: number | null;
+    title: string; center: string; sub: string;
+    /** Every line at 0.00 (free); otherwise empty bars (nothing agreed yet). */
+    zero: boolean;
+    foot: string;
+}) {
+    const cur = m.currency;
+    const rows = rowsFor(say, seat, kind, zeroLines(seat), parties, metaOf(m, rate), cur);
+    const figure = (blank?: boolean) => blank ? "-" : zero ? money(0, cur) : <i className="cbtl-ghost" aria-hidden="true" />;
+    return (
+        <section className="cbtl-dc cbtl-dm" data-empty="" aria-label={title}>
+            <span className="cbtl-dc-k">{title}</span>
+            <span className="cbtl-dm-hero">
+                <EmptyRing center={center} sub={sub} size={84} />
+                <span className="cbtl-dm-keep">
+                    <small>{seat === "seller"
+                        ? say(kind === "event" ? "drwYouKeepTicket" : "drwYouKeep")
+                        : say(kind === "event" ? "drwTheyKeepTicket" : "drwTheyKeep", { who: parties.community.name })}</small>
+                    <b>{figure()}</b>
+                </span>
+            </span>
+            <span className="cbtl-dm-rows">
+                {rows.filter((r) => !r.mine).map((r) => (
+                    <span className="cbtl-dm-row" key={r.key}>
+                        <i aria-hidden="true" />
+                        <span><b>{r.label}</b>{r.note && <small>{r.note}</small>}</span>
+                        <b className="cbtl-dm-amt">{figure(r.blank)}</b>
+                    </span>
+                ))}
+            </span>
+            <small className="cbtl-dm-foot">{foot}</small>
         </section>
     );
 }

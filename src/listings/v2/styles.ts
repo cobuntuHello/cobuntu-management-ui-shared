@@ -523,6 +523,10 @@ a.cbtl-crumb-link:hover{opacity:.8}
 .cbtl .cbtl-dh-x{position:relative;width:32px;height:32px;margin-top:-2px;flex:none;border-radius:50%;border:1px solid color-mix(in srgb,var(--cbtl-ink) 5.5%,transparent);background:color-mix(in srgb,var(--cbtl-ink) 4%,transparent);color:color-mix(in srgb,var(--cbtl-ink) 70%,transparent);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background-color .15s ease,color .15s ease}
 .cbtl .cbtl-dh-x::after{content:"";position:absolute;inset:-6px;border-radius:50%}
 .cbtl .cbtl-dh-x:focus-visible{outline:2px solid var(--cbtl-ink);outline-offset:2px}
+/* Open full page beside the close, the same disc. 12px apart so the two 44px
+   tap targets do not overlap. */
+.cbtl-dh-acts{display:flex;gap:12px;flex:none}
+.cbtl a.cbtl-dh-x{text-decoration:none}
 .cbtl-db{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:12px 14px 16px}
 .cbtl-dd{display:flex;flex-direction:column;gap:8px;padding:14px;border-radius:16px;background:var(--cbtl-commit);color:#fff}
 .cbtl-dd-eyebrow{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--cbtl-amber)}
@@ -559,7 +563,10 @@ a.cbtl-crumb-link:hover{opacity:.8}
 .cbtl-dm-keep small{font-size:12px;color:var(--cbtl-muted)}
 .cbtl-dm-keep b{font-family:var(--cbtl-display);font-size:26px;font-weight:var(--cbtl-strong);letter-spacing:-.01em;color:var(--cbtl-green-ink);font-variant-numeric:tabular-nums;line-height:1.1}
 .cbtl-dm-less{color:var(--cbtl-faint)!important}
-.cbtl-dm-free{font-size:13px;color:var(--cbtl-muted)}
+/* Nothing in the split yet (free, or no terms): Earnings' placeholder, small. */
+.cbtl-dm[data-empty] .cbtl-dm-keep b{color:var(--cbtl-ink)}
+.cbtl-dm[data-empty] .cbtl-dm-row i{background:var(--cbtl-line)}
+.cbtl-dm-foot{font-size:12px;line-height:1.45;color:var(--cbtl-muted)}
 .cbtl-dm-rows{display:flex;flex-direction:column;border-top:1px solid var(--cbtl-line-soft);padding-top:4px}
 .cbtl-dm-row{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;column-gap:10px;padding:5px 0;font-size:13px}
 .cbtl-dm-row i{width:10px;height:10px;border-radius:3px}
