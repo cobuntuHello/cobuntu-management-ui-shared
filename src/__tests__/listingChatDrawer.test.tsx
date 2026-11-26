@@ -205,6 +205,140 @@ describe("the one-sale card's centre", () => {
     });
 });
 
+// ─── New terms on a listing already agreed (26 Nov 2026; canvas LiveTerms*) ───
+
+const LIVE_PKGS = [
+    { id: "pk0", name: "Champion listing", rate: 0, description: "Listed in the marketplace" },
+    { id: "pk10", name: "Champion promoted", rate: 10, description: "Newsletter, feed and top placement" },
+];
+
+/** Thiago's listing, live on PBN at 10%, with whatever is on the table. */
+function live(seat: "seller" | "community", opts: { status?: "ACTIVE" | "PAUSED"; offer?: any; packages?: any[] } = {}) {
+    const t = transport(seat, { status: opts.status ?? "ACTIVE" });
+    const base = t.listing;
+    t.listing = vi.fn(async () => ({ ...(await base()), commissionRate: 10, approvedAt: "2026-11-25T22:53:00Z" }));
+    t.proposals = vi.fn(async () => (opts.offer ? [opts.offer] : []));
+    t.packages = vi.fn(async () => opts.packages ?? LIVE_PKGS);
+    t.withdrawProposal = vi.fn(async () => {});
+    return t;
+}
+const PBN_ASKS_15 = { id: "pr15", commissionRate: 15, status: "PENDING", package: null, createdAt: "2026-11-26T10:12:00Z", proposedByUserId: "art", proposedByUser: { id: "art", name: "Art Lopes" } };
+const THIAGO_ASKS_0 = { id: "pr0", commissionRate: 0, status: "PENDING", package: { id: "pk0", name: "Champion listing" }, createdAt: "2026-11-26T10:12:00Z", proposedByUserId: "thiago", proposedByUser: { id: "thiago", name: "Thiago Vieira" } };
+const termsCard = () => document.querySelector(".cbtl-dt") as HTMLElement;
+/** The Terms card's "Propose new terms", once the drawer has drawn it. */
+const proposeButton = async () => {
+    const el = await waitFor(() => { const c = termsCard(); expect(c).not.toBeNull(); return c; });
+    return within(el).findByRole("button", { name: /Propose new terms/ });
+};
+
+describe("new terms on a live listing: PBN proposes", () => {
+    it("offers Propose new terms in the Terms card, and the sheet says nothing changes while Thiago decides", async () => {
+        const t = live("community");
+        drawer(t, "community");
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        fireEvent.click(await proposeButton());
+        const dlg = await screen.findByRole("dialog", { name: "Change the terms for this listing" });
+        expect(dlg.textContent).toContain("Thiago Vieira agreed 10%. New terms go to Thiago Vieira to accept.");
+        expect(dlg.textContent).toContain("Nothing changes while Thiago Vieira decides: it stays live at 10%.");
+        fireEvent.click(within(dlg).getByRole("button", { name: "15%" }));
+        fireEvent.click(await within(dlg).findByRole("button", { name: "Send 15% to Thiago Vieira" }));
+        await waitFor(() => expect(t.propose).toHaveBeenCalledWith({ commissionRate: 15 }));
+    });
+
+    it("while it waits: still live at 10%, with Withdraw proposal (confirmed first)", async () => {
+        const t = live("community", { offer: PBN_ASKS_15 });
+        drawer(t, "community");
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        await waitFor(() => expect(within(card()).getByText("Live on PBN at 10%")).toBeTruthy());
+        expect(card().textContent).toContain("You proposed 15% on");
+        expect(within(termsCard()).getByText("You proposed")).toBeTruthy();
+        fireEvent.click(within(card()).getByRole("button", { name: "Withdraw proposal" }));
+        const dlg = await screen.findByRole("dialog");
+        expect(dlg.textContent).toContain("Thiago Vieira can no longer accept 15%. It stays at 10%.");
+        expect(t.withdrawProposal).not.toHaveBeenCalled();
+        fireEvent.click(within(dlg).getByRole("button", { name: "Withdraw proposal" }));
+        await waitFor(() => expect(t.withdrawProposal).toHaveBeenCalledWith("pr15"));
+    });
+});
+
+describe("new terms on a live listing: Thiago answers PBN", () => {
+    it("says what is asked against today's terms, and that it stays live meanwhile", async () => {
+        drawer(live("seller", { offer: PBN_ASKS_15 }), "seller");
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        await waitFor(() => expect(within(card()).getByText("PBN proposes 15% instead of 10%")).toBeTruthy());
+        expect(card().textContent).toContain("Still live at 10% while you decide.");
+        const buttons = within(card()).getAllByRole("button").map((b) => b.textContent);
+        expect(buttons).toEqual(["Accept 15%", "Keep 10%"]);
+        expect((document.querySelector(".cbtl-dh") as HTMLElement).textContent).toContain("new terms proposed");
+    });
+
+    it("accepting confirms first, and only changes the terms", async () => {
+        const t = live("seller", { offer: PBN_ASKS_15 });
+        drawer(t, "seller");
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        fireEvent.click(await within(card()).findByRole("button", { name: "Accept 15%" }));
+        const dlg = await screen.findByRole("dialog", { name: "Accept 15%?" });
+        expect(dlg.textContent).toContain("Sales from now on are at 15%. Sales already made keep 10%. It stays live on PBN.");
+        expect(t.respond).not.toHaveBeenCalled();
+        fireEvent.click(within(dlg).getByRole("button", { name: "Accept 15%" }));
+        await waitFor(() => expect(t.respond).toHaveBeenCalledWith("pr15", "ACCEPTED"));
+    });
+
+    it("keeping 10% confirms too", async () => {
+        const t = live("seller", { offer: PBN_ASKS_15 });
+        drawer(t, "seller");
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        fireEvent.click(await within(card()).findByRole("button", { name: "Keep 10%" }));
+        const dlg = await screen.findByRole("dialog", { name: "Keep 10%?" });
+        expect(dlg.textContent).toContain("PBN's proposal of 15% is declined. Nothing changes.");
+        fireEvent.click(within(dlg).getByRole("button", { name: "Keep 10%" }));
+        await waitFor(() => expect(t.respond).toHaveBeenCalledWith("pr15", "REJECTED"));
+    });
+
+    it("on a paused listing it says sales stay paused", async () => {
+        drawer(live("seller", { status: "PAUSED", offer: PBN_ASKS_15 }), "seller");
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        await waitFor(() => expect(card().textContent).toContain("It stays at 10% while you decide, and sales stay paused."));
+    });
+});
+
+describe("new terms on a live listing: Thiago asks (replaces Change package)", () => {
+    it("proposes one of PBN's packages; nothing goes back to review", async () => {
+        const t = live("seller");
+        t.switchPackage = vi.fn(async () => null);
+        drawer(t, "seller");
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        expect(screen.queryByRole("button", { name: /Change package/ })).toBeNull();
+        fireEvent.click(await proposeButton());
+        const dlg = await screen.findByRole("dialog", { name: "Ask PBN for different terms" });
+        expect(dlg.textContent).toContain("Nothing changes while PBN decides: it stays at 10%.");
+        fireEvent.click(await within(dlg).findByRole("radio", { name: /Champion listing/ }));
+        fireEvent.click(within(dlg).getByRole("button", { name: "Send to PBN" }));
+        await waitFor(() => expect(t.propose).toHaveBeenCalledWith({ packageId: "pk0" }));
+        expect(t.switchPackage).not.toHaveBeenCalled();
+    });
+
+    it("types a rate where the community has no packages", async () => {
+        const t = live("seller", { packages: [] });
+        drawer(t, "seller");
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        await waitFor(() => expect(t.packages).toHaveBeenCalled());
+        fireEvent.click(await proposeButton());
+        const dlg = await screen.findByRole("dialog", { name: "Ask PBN for different terms" });
+        fireEvent.click(within(dlg).getByRole("button", { name: "5%" }));
+        fireEvent.click(await within(dlg).findByRole("button", { name: "Send 5% to PBN" }));
+        await waitFor(() => expect(t.propose).toHaveBeenCalledWith({ commissionRate: 5 }));
+    });
+
+    it("PBN answers: Accept, Keep, or another rate of its own", async () => {
+        drawer(live("community", { offer: THIAGO_ASKS_0 }), "community");
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        await waitFor(() => expect(within(card()).getByText("Thiago Vieira asks for Champion listing · 0% instead of 10%")).toBeTruthy());
+        const buttons = within(card()).getAllByRole("button").map((b) => b.textContent);
+        expect(buttons).toEqual(["Accept 0%", "Keep 10%", "Propose another rate"]);
+    });
+});
+
 describe("closing", () => {
     it("closes from the head", async () => {
         const onClose = vi.fn();

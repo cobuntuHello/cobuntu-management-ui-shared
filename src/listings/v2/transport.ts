@@ -60,6 +60,8 @@ export interface ListingTransport {
     /** A package, or (the community only) a typed rate for this one listing (T-414). */
     propose(input: { packageId?: string; commissionRate?: number; message?: string }): Promise<void>;
     respond(proposalId: string, response: "ACCEPTED" | "REJECTED"): Promise<void>;
+    /** Take back your side's new terms before the other side answers. Optional: a host without it shows no Withdraw proposal. */
+    withdrawProposal?(proposalId: string): Promise<void>;
     /**
      * The seller moves their own listing onto another package their tier is
      * offered (T-415). A live listing goes back to the community's review;
@@ -155,6 +157,7 @@ export function restTransport(cfg: RestTransportConfig): ListingTransport {
         propose: async (input) => { await call(`${base}/${id}/proposals`, { method: "POST", body: input }); },
         switchPackage: (packageId) => call<{ status: string; sentBackToReview: boolean }>(`${base}/${id}/package`, { method: "POST", body: { packageId } }),
         respond: async (proposalId, response) => { await call(`${base}/proposals/${encodeURIComponent(proposalId)}/respond`, { method: "POST", body: { response } }); },
+        withdrawProposal: async (proposalId) => { await call(`${base}/proposals/${encodeURIComponent(proposalId)}/withdraw`, { method: "POST", body: {} }); },
 
         openTopic: async (input) => { await call(`${base}/${id}/topics`, { method: "POST", body: input }); },
         comment: async (topicId, body) => { await call(`${topicBase}/${encodeURIComponent(topicId)}/comments`, { method: "POST", body: { body } }); },

@@ -42,7 +42,8 @@ export type MoveId =
     | "acceptBooking"
     | "declineBooking"
     | "changeTerms"      // community: a custom rate for THIS listing (T-414)
-    | "changePackage"    // seller: move their own listing onto another of their tier's packages (T-415)
+    | "changePackage"    // seller: move their own listing onto another of their tier's packages (T-415, in review)
+    | "withdrawOffer"    // take back new terms before the other side answers
     | "reply";           // open Negotiation
 
 export interface Move {
@@ -101,6 +102,13 @@ export interface DecisionInput {
      */
     reviewer: string[];
     owner: string[];
+    /**
+     * This seat can propose new terms on a listing already agreed (live or
+     * paused): the community any rate, the seller one of the community's
+     * packages (or a rate where it has none). Optional so older hosts draw
+     * nothing new.
+     */
+    liveTerms?: boolean;
 }
 
 /** "Standard · 10%", "10%", or "no commission". */
@@ -108,6 +116,11 @@ export function termsLabel(say: Say, rate: number | null, packageName: string | 
     if (rate == null) return "";
     const r = rate === 0 ? (kind === "event" ? say("lineCommissionNone") : say("lineCommissionNoneProduct")) : percent(rate);
     return packageName ? `${packageName} · ${r}` : r;
+}
+
+/** New terms as the live-terms card says them: "Champion listing · 0%" or "15%". */
+export function offerTermsPct(rate: number, packageName: string | null): string {
+    return packageName ? `${packageName} · ${percent(rate)}` : percent(rate);
 }
 
 export function decisionOf(x: DecisionInput, say: Say): Decision {
@@ -302,20 +315,77 @@ function draft(x: DecisionInput, say: Say): Decision {
     }
 
     const since = shortDate(x.approvedAt);
+    const onSale = status === "ACTIVE" && !x.isHidden;
+    const pausedBySeller = status === "PAUSED";
+    const mine = (seat === "community" && !pausedBySeller) || (seat === "seller" && pausedBySeller);
 
-    if (status === "ACTIVE" && !x.isHidden) {
+    /** The moves that end or pause an agreed listing (the drawer's footer), the same with or without new terms open. */
+    const ending = (): Move[] => {
         const moves: Move[] = [];
-        if (seat === "community") {
-            if (can.setStatus) moves.push({ id: "remove", label: say("barRemove") });
-            if (can.setHidden) moves.push({ id: "pause", label: say("barPause") });
-        } else {
-            // T-415: another package sends it back to review (the sheet says so first).
-            if (can.switchPackage) moves.push({ id: "changePackage", label: say("chgMove"), text: true });
-            if (can.setStatus) {
+        if (onSale) {
+            if (seat === "community") {
+                if (can.setStatus) moves.push({ id: "remove", label: say("barRemove") });
+                if (can.setHidden) moves.push({ id: "pause", label: say("barPause") });
+            } else if (can.setStatus) {
                 moves.push({ id: "withdraw", label: say("withdraw") });
                 moves.push({ id: "pause", label: say("barPause") });
             }
+        } else if (seat === "community") {
+            if (can.setStatus) moves.push({ id: "remove", label: say("barRemove") });
+            if (mine && can.setHidden) moves.push({ id: "resume", label: say("barResume") });
+        } else if (can.setStatus) {
+            moves.push({ id: "withdraw", label: say("withdraw") });
+            if (mine) moves.push({ id: "resume", label: say("barResume") });
         }
+        return moves;
+    };
+
+    /*
+     * NEW TERMS ON A LISTING ALREADY AGREED (26 Nov 2026; canvas
+     * 8YTrdyqmNdkKECpACpdd7c, page "Listing chat", LiveTerms*). Either side
+     * proposes; the listing stays where it is until the other side answers.
+     * It replaces the seller's Change package on a live listing, which sent
+     * it back to review.
+     */
+    if (offer && (status === "ACTIVE" || status === "PAUSED")) {
+        const now = percent(x.rate ?? 0);
+        const r = percent(Number(offer.proposal.commissionRate ?? 0));
+        // Said as a percent, never "no commission": the comparison is the point ("0% instead of 10%").
+        const offerTerms = offerTermsPct(Number(offer.proposal.commissionRate ?? 0), offer.proposal.package?.name ?? null);
+        if (offer.by !== seat) {
+            const moves: Move[] = [];
+            if (can.respond) moves.push({ id: "declineOffer", label: say("askKeep", { rate: now }) });
+            // The community answers with another rate of its own (a counter-offer),
+            // beside Keep in the decision card (not the Terms card's quiet button).
+            if (seat === "community" && can.propose) moves.push({ id: "changeTerms", label: say("ltCounter") });
+            if (can.respond) moves.push({ id: "acceptOffer", label: say("ltAccept", { rate: r }), primary: true });
+            return {
+                tone: "answer",
+                eyebrow: seat === "seller" ? say("ltNewTerms") : say("ltTheyAsk", { who: seller }),
+                title: seat === "seller"
+                    ? say("ltTitleFromCommunity", { community, terms: offerTerms, now })
+                    : say("ltTitleFromSeller", { seller, terms: offerTerms, now }),
+                sub: say(onSale ? "ltSubLive" : "ltSubPaused", { now, rate: r }),
+                moves: [...moves, ...ending()],
+            };
+        }
+        const moves: Move[] = [{ id: "withdrawOffer", label: say("ltWithdraw") }];
+        return {
+            tone: onSale ? "live" : "paused",
+            eyebrow: onSale ? say("stateLive") : say("barPaused"),
+            title: onSale ? say("ltWaitingLive", { community, now }) : say("ltWaitingPaused", { now }),
+            sub: say("ltYouProposed", { terms: offerTerms, date: shortDate(offer.proposal.createdAt), who: seat === "seller" ? community : seller, now }),
+            moves: [...moves, ...ending()],
+        };
+    }
+
+    /** Propose new terms: the Terms card's quiet button. */
+    const proposeMove: Move[] = x.liveTerms && (seat === "community" ? can.propose : true)
+        ? [{ id: "changeTerms", label: say("ltPropose"), text: true }]
+        : [];
+
+    if (onSale) {
+        const moves: Move[] = [...proposeMove, ...ending()];
         return {
             tone: "live", eyebrow: say("stateLive"),
             title: since ? say("barLiveSince", { community, date: since }) : say("barLiveOn", { community }),
@@ -325,20 +395,8 @@ function draft(x: DecisionInput, say: Say): Decision {
         };
     }
 
-    // Paused: by the community (hidden) or by the seller (PAUSED).
-    const pausedBySeller = status === "PAUSED";
-    const mine = (seat === "community" && !pausedBySeller) || (seat === "seller" && pausedBySeller);
-    const moves: Move[] = [];
-    if (seat === "community") {
-        if (can.setStatus) moves.push({ id: "remove", label: say("barRemove") });
-        if (mine && can.setHidden) moves.push({ id: "resume", label: say("barResume"), primary: true });
-    } else {
-        if (mine && can.switchPackage) moves.push({ id: "changePackage", label: say("chgMove"), text: true });
-        if (can.setStatus) {
-            moves.push({ id: "withdraw", label: say("withdraw") });
-            if (mine) moves.push({ id: "resume", label: say("barResume"), primary: true });
-        }
-    }
+    // Paused: by the community (hidden) or by the seller (PAUSED). Resume is the main move.
+    const moves: Move[] = [...proposeMove, ...ending().map((m) => (m.id === "resume" ? { ...m, primary: true } : m))];
     return {
         tone: "paused",
         eyebrow: mine ? say("barPaused") : say("barPausedBy", { who: seat === "community" ? seller : community }),

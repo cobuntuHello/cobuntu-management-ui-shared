@@ -15,6 +15,11 @@
  *   - Switch applies it. A pending listing stays in review on the new package;
  *     a live one goes back to the community's review first (its own confirm).
  *
+ * ON A LISTING ALREADY AGREED it proposes instead (`propose`, 26 Nov 2026,
+ * "replace change package with this"): the pick goes to the community as new
+ * terms, and the listing stays live (or paused) on what it has until the
+ * community accepts. No going back to review.
+ *
  * The backend rule lives in core shared/listings/switchPackage.ts.
  */
 
@@ -109,13 +114,17 @@ function SplitChart({ say, split, cur, parties, community, rate }: {
     );
 }
 
-export function PackageSwitchSheet({ say, transport, names, parties, currentId, live, onClose, onDone }: {
+export function PackageSwitchSheet({ say, transport, names, parties, currentId, live, propose = false, nowTerms = "", onClose, onDone }: {
     say: Say; transport: ListingTransport;
     names: { community: string; seller: string }; parties: Parties;
     /** The package the listing is on now. */
     currentId: string | null;
     /** The listing is live (or paused): switching sends it back to review. */
     live: boolean;
+    /** Propose the pick to the community as new terms instead of switching (an agreed listing). */
+    propose?: boolean;
+    /** Today's terms, as the footer says them while proposing ("10%"). */
+    nowTerms?: string;
     onClose: () => void;
     onDone: (message: string) => void;
 }) {
@@ -160,7 +169,19 @@ export function PackageSwitchSheet({ say, transport, names, parties, currentId, 
     const isCurrent = !!pkg && pkg.id === currentId;
 
     const run = async () => {
-        if (!pkg || !transport.switchPackage) return;
+        if (!pkg) return;
+        if (propose) {
+            setBusy(true); setError("");
+            try {
+                await transport.propose({ packageId: pkg.id });
+                onDone(say("ltSent", { who: names.community }));
+            } catch (e: any) {
+                setError(e?.message || say("failed"));
+                setBusy(false);
+            }
+            return;
+        }
+        if (!transport.switchPackage) return;
         setBusy(true); setError("");
         try {
             const out = await transport.switchPackage(pkg.id);
@@ -174,19 +195,19 @@ export function PackageSwitchSheet({ say, transport, names, parties, currentId, 
             setConfirming(false);
         }
     };
-    const submit = () => { if (live) setConfirming(true); else void run(); };
+    const submit = () => { if (live && !propose) setConfirming(true); else void run(); };
 
     const keepOn = (id: string) => splitOf(previews[id])?.keep ?? null;
     const now = currentId ? keepOn(currentId) : null;
 
     return (
         <div className="cbtl-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
-            <div className="cbtl-sheet cbtl-wide cbtl-chg" role="dialog" aria-modal="true" aria-label={say("chgTitle", { community: names.community })} tabIndex={-1} ref={ref}>
+            <div className="cbtl-sheet cbtl-wide cbtl-chg" role="dialog" aria-modal="true" aria-label={propose ? say("ltAskTitle", { community: names.community }) : say("chgTitle", { community: names.community })} tabIndex={-1} ref={ref}>
                 <span className="cbtl-wide-head">
                     {parties.community.icon && <img className="cbtl-chg-logo" src={parties.community.icon} alt="" />}
                     <span>
-                        <h3>{say("chgTitle", { community: names.community })}</h3>
-                        <p>{say("chgSub", { community: names.community })}</p>
+                        <h3>{propose ? say("ltAskTitle", { community: names.community }) : say("chgTitle", { community: names.community })}</h3>
+                        <p>{propose ? say("ltAskSub", { community: names.community }) : say("chgSub", { community: names.community })}</p>
                     </span>
                     <button type="button" className="cbtl-x" aria-label={say("cancel")} onClick={onClose} disabled={busy}><Icon d="M18 6L6 18M6 6l12 12" size={16} stroke={2} /></button>
                 </span>
@@ -232,11 +253,11 @@ export function PackageSwitchSheet({ say, transport, names, parties, currentId, 
                 <span className="cbtl-wide-foot">
                     <span className="cbtl-wide-sum cbtl-chg-note">
                         <span className="cbtl-chg-clock" aria-hidden="true"><Icon d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2" size={17} stroke={2} /></span>
-                        {say("chgReviewNote", { community: names.community })}
+                        {propose ? say("ltAskNote", { community: names.community, now: nowTerms }) : say("chgReviewNote", { community: names.community })}
                     </span>
                     <button type="button" className="cbtl-hbtn" onClick={onClose} disabled={busy}>{say("cancel")}</button>
                     <button type="button" className="cbtl-hbtn" data-kind="primary" disabled={busy || !pkg || isCurrent} onClick={submit}>
-                        {!pkg ? say("chgMove") : isCurrent ? say("chgYourNow") : say("chgSwitchTo", { name: pkg.name })}
+                        {!pkg ? say("chgMove") : isCurrent ? say("chgYourNow") : propose ? say("ltSendTo", { community: names.community }) : say("chgSwitchTo", { name: pkg.name })}
                     </button>
                 </span>
 
