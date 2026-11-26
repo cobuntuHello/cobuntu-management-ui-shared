@@ -145,22 +145,18 @@ describe("the sheet", () => {
         expect(await screen.findByText("Switched to Champion promoted. PBN reviews it next.")).toBeTruthy();
     });
 
-    it("a live listing asks first, and Keep it live switches nothing", async () => {
+    it("a live listing proposes the package to PBN instead: it stays live, nothing goes back to review (26 Nov 2026)", async () => {
         const t = transport({ status: "ACTIVE" });
         mount(t);
         await screen.findByRole("heading", { level: 1 });
-        fireEvent.click(await within(bar()).findByRole("button", { name: "Change package" }));
-        const sheet = await screen.findByRole("dialog", { name: "Change your package with PBN" });
+        expect(within(bar()).queryByRole("button", { name: "Change package" })).toBeNull();
+        fireEvent.click(await within(bar()).findByRole("button", { name: "Propose new terms" }));
+        const sheet = await screen.findByRole("dialog", { name: "Ask PBN for different terms" });
         await within(sheet).findByText("On Champion promoted");
-        fireEvent.click(within(sheet).getByRole("button", { name: "Switch to Champion promoted" }));
+        fireEvent.click(within(sheet).getByRole("button", { name: "Send to PBN" }));
 
-        const ask = await screen.findByRole("alertdialog", { name: "Switch the package of a live listing?" });
-        expect(within(ask).getByText(/comes off PBN's marketplace while PBN reviews Champion promoted/)).toBeTruthy();
-        fireEvent.click(within(ask).getByRole("button", { name: "Keep it live" }));
+        expect(screen.queryByRole("alertdialog")).toBeNull();
+        await waitFor(() => expect(t.propose).toHaveBeenCalledWith({ packageId: "pkg10" }));
         expect(t.switchPackage).not.toHaveBeenCalled();
-
-        fireEvent.click(within(sheet).getByRole("button", { name: "Switch to Champion promoted" }));
-        fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Switch and send to PBN" }));
-        await waitFor(() => expect(t.switchPackage).toHaveBeenCalledWith("pkg10"));
     });
 });
