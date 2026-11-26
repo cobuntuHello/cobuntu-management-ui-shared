@@ -162,3 +162,38 @@ describe("formatMoney", () => {
         expect(formatMoney(0, "EUR")).toContain("0.00");
     });
 });
+
+/*
+ * Converts counts SIGN-UPS on an event, not sales: a free event with fifty
+ * sign-ups from 273 views showed "0.0%" because nothing was sold. Sold stays
+ * paid sales; only the conversion numerator changed.
+ */
+import { converted, sortListings, rollupOthers } from "../overview/format";
+
+describe("who converted", () => {
+    it("is the event's sign-ups when the backend sends them, free entries included", () => {
+        expect(converted({ sold: 0, signups: 50 })).toBe(50);
+        expect(conversion(converted({ sold: 0, signups: 50 }), 273)).toBeCloseTo(18.3, 1);
+    });
+
+    it("falls back to sales for a product or an older backend", () => {
+        expect(converted({ sold: 7 })).toBe(7);
+    });
+
+    it("sorts by converts on sign-ups", () => {
+        const rows = [
+            { id: "a", sold: 0, signups: 5, views: 100, net: 0 },
+            { id: "b", sold: 0, signups: 40, views: 100, net: 0 },
+        ];
+        expect(sortListings(rows, "converts").map((r) => r.id)).toEqual(["b", "a"]);
+    });
+
+    it("folds sign-ups into the 'others' row", () => {
+        const r = rollupOthers([
+            { sold: 1, views: 10, gross: 0, net: 0, signups: 4 },
+            { sold: 2, views: 20, gross: 0, net: 0 },
+        ]);
+        expect(r.signups).toBe(6);
+        expect(r.sold).toBe(3);
+    });
+});

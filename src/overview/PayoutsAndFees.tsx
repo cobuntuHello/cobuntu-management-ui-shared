@@ -16,7 +16,7 @@ import { FallbackImg, StripeGlyph, personAvatarCandidates } from "../listings/v2
  *   2. NEVER A ROW OF ZEROS. Before the first sale the card shows ONE sale's
  *      split ("Impact Hub gets €32.96 of every €36.90"), which the backend
  *      sends as `money.oneSale`, split by finances through the item's one
- *      live listing. A free item gets one line instead of the card.
+ *      live listing. A free item with no sales gets no card at all.
  *
  *   3. EVERY PARTY BY NAME, WITH ITS REAL MARK. "Impact Hub keeps", "PBN's
  *      commission", Cobuntu, Stripe. VAT is a line under the owner's own row
@@ -286,15 +286,11 @@ export function PayoutsAndFees({
     const isMember = ownership === "member";
     const isEvent = kind === "event";
 
-    // A free item: nothing changes hands, so there is nothing to break down.
-    if (!hasSales && money.free) {
-        return (
-            <div className="flex flex-col gap-1 rounded-2xl border border-zinc-200 bg-zinc-50 px-5 py-4 sm:px-8">
-                <h3 className="m-0 text-[17px] font-bold tracking-tight text-zinc-900">{t("overviewMoneyTitle")}</h3>
-                <p className="m-0 text-[13.5px] text-zinc-600">{t("feesFree")}</p>
-            </div>
-        );
-    }
+    // A free item: nothing changes hands, so the card is not drawn at all. It
+    // used to stand there saying "It's free, so no money changes hands" under a
+    // money heading, a whole card about the absence of money on a page whose
+    // tiles already say €0.00.
+    if (!hasSales && money.free) return null;
 
     // Before the first sale: one sale's split, when the backend could say it.
     const one = !hasSales ? money.oneSale ?? null : null;
