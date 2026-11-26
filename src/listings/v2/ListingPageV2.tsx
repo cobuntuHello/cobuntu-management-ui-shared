@@ -525,6 +525,8 @@ export function ListingPageV2(props: ListingPageV2Props) {
         );
     }
 
+    const returnUrl = typeof window !== "undefined" ? (() => { const u = new URL(window.location.href); u.searchParams.set("card", "done"); return u.toString(); })() : "";
+
     /** The listing beside its chat (T-417): one column, the same moves and dialogs as the page. */
     function drawerView() {
         const community = names.community;
@@ -643,7 +645,6 @@ export function ListingPageV2(props: ListingPageV2Props) {
     }
 
     const crumbs = props.breadcrumbs ?? [{ label: seat === "seller" ? say("crumbYours") : say("crumbRequests"), href: props.backHref }];
-    const returnUrl = typeof window !== "undefined" ? (() => { const u = new URL(window.location.href); u.searchParams.set("card", "done"); return u.toString(); })() : "";
     const sectionName = { overview: say("secOverview"), earnings: say("secEarnings"), negotiation: say("secNegotiation") }[active];
 
     return (
