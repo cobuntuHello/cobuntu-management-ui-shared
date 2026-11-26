@@ -64,13 +64,15 @@ describe("before the first sale, one sale's split", () => {
         expect(screen.getByText("Impact Hub keeps")).toBeInTheDocument();
         expect(screen.getByText("Includes €6.90 VAT, theirs to declare")).toBeInTheDocument();
         expect(screen.getByText("PBN’s commission")).toBeInTheDocument();
-        expect(screen.getByText("8% of the price before VAT")).toBeInTheDocument();
+        expect(screen.getByText("8% of the price before VAT · €2.40 a ticket")).toBeInTheDocument();
         expect(screen.getByText("€2.40")).toBeInTheDocument();
         expect(screen.getByText("€0.74")).toBeInTheDocument();
         // One sale's Stripe fee depends on the card, so it is said as an estimate.
         expect(screen.getByText("≈ €0.80")).toBeInTheDocument();
         expect(screen.getByText("89%")).toBeInTheDocument();
-        expect(screen.getByText("6.5%")).toBeInTheDocument();
+        // The commission says its agreed 8%, not its 6.5% share of the €36.90 with VAT.
+        expect(screen.getAllByText("8%").length).toBeGreaterThan(0);
+        expect(screen.queryByText("6.5%")).not.toBeInTheDocument();
     });
 
     it("draws one arc per party in the ring", () => {
