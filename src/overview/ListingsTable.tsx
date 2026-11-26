@@ -3,7 +3,7 @@ import type { OverviewListing, OverviewViewerRole } from "./types";
 import { CommunityPicker } from "./CommunityPicker";
 import {
     LISTING_PICKER_MIN, LISTING_TOP_N,
-    conversion, countByStatus, formatCount, rollupOthers, sortListings, type ListingSort,
+    conversion, converted, countByStatus, formatCount, rollupOthers, sortListings, type ListingSort,
 } from "./format";
 
 type T = (key: string, vars?: Record<string, string | number>) => string;
@@ -138,7 +138,7 @@ export function ListingsTable({
         ].filter(Boolean).join(" · ");
 
     const pct = (l: OverviewListing) => {
-        const c = conversion(l.sold, l.views);
+        const c = conversion(converted(l), l.views);
         return c === null ? "—" : `${c.toFixed(1)}%`;
     };
 
@@ -235,7 +235,7 @@ export function ListingsTable({
                                 <td className="px-5 py-3.5 font-semibold">{t("overviewOthers", { count: rest.length })}</td>
                                 <td className="px-3 py-3.5 text-right">{formatCount(others.views, locale)}</td>
                                 <td className="px-3 py-3.5 text-right font-semibold">{formatCount(others.sold, locale)}</td>
-                                <td className="px-3 py-3.5 text-right">{(() => { const c = conversion(others.sold, others.views); return c === null ? "—" : `${c.toFixed(1)}%`; })()}</td>
+                                <td className="px-3 py-3.5 text-right">{(() => { const c = conversion(others.signups, others.views); return c === null ? "—" : `${c.toFixed(1)}%`; })()}</td>
                                 <td className="px-3 py-3.5 text-right">{cash(others.gross)}</td>
                                 {keeps.map((k) => <td key={k.label} className="px-3 py-3.5 text-right font-semibold">{cash(rest.filter((l) => l.status === "ACTIVE").reduce((n, l) => n + k.of(l), 0))}</td>)}
                                 <td className="px-3 py-3.5" /><td className="px-5 py-3.5" />

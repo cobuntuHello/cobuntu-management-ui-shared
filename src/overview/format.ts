@@ -144,14 +144,23 @@ export function emptyTrendSpan(weekly: Array<{ week: string }>, range: OverviewR
 
 export type ListingSort = "sold" | "views" | "converts" | "keep";
 
-type Row = { sold: number; views: number; net: number };
+type Row = { sold: number; views: number; net: number; signups?: number };
+
+/**
+ * Who CONVERTED on a listing: for an event, everyone who signed up (free or
+ * paid); for a product, the sales. Sold stays paid sales; this is the
+ * numerator of the conversion rate only.
+ */
+export function converted(l: { sold: number; signups?: number }): number {
+    return l.signups ?? l.sold;
+}
 
 /** Sort descending by the chosen measure. Ties keep their given order. */
 export function sortListings<L extends Row>(rows: L[], by: ListingSort): L[] {
     const key = (l: L): number => {
         if (by === "views") return l.views;
         if (by === "keep") return l.net;
-        if (by === "converts") return l.views > 0 ? l.sold / l.views : -1;
+        if (by === "converts") return l.views > 0 ? converted(l) / l.views : -1;
         return l.sold;
     };
     return rows
@@ -174,11 +183,11 @@ export function countByStatus(rows: Array<{ status: string }>): Array<{ status: 
 export const LISTING_TOP_N = 5;
 export const LISTING_PICKER_MIN = 4;
 
-export function rollupOthers<L extends { sold: number; views: number; gross: number; net: number }>(
+export function rollupOthers<L extends { sold: number; views: number; gross: number; net: number; signups?: number }>(
     rest: L[],
-): { sold: number; views: number; gross: number; net: number; count: number } {
+): { sold: number; views: number; gross: number; net: number; count: number; signups: number } {
     return rest.reduce(
-        (a, l) => ({ sold: a.sold + l.sold, views: a.views + l.views, gross: a.gross + l.gross, net: a.net + l.net, count: a.count + 1 }),
-        { sold: 0, views: 0, gross: 0, net: 0, count: 0 },
+        (a, l) => ({ sold: a.sold + l.sold, views: a.views + l.views, gross: a.gross + l.gross, net: a.net + l.net, count: a.count + 1, signups: a.signups + converted(l) }),
+        { sold: 0, views: 0, gross: 0, net: 0, count: 0, signups: 0 },
     );
 }

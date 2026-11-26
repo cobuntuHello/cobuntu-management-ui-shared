@@ -34,7 +34,16 @@ export interface OverviewListing {
     approvedAt?: string | null;
     requestedAt?: string | null;
     views: number;
+    /** Paid SALES through this listing. A free sign-up is not a sale. */
     sold: number;
+    /**
+     * EVENTS: people who signed up through this community, free entries and
+     * paid tickets alike (approved or awaiting approval; not host-added).
+     * Conversion reads this, so a free event with fifty sign-ups no longer
+     * shows 0% because nothing was SOLD. Absent on products and on an older
+     * backend, where conversion falls back to `sold`.
+     */
+    signups?: number;
     gross: number;
     /**
      * What the SELLER keeps. Named `net` for history; read it as the seller's.

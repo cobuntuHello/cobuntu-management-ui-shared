@@ -181,7 +181,7 @@ describe("ringName", () => {
 });
 
 describe("a free item", () => {
-    it("says so in one line instead of splitting nothing", () => {
+    it("draws no money card at all (the tiles already say nothing was taken)", () => {
         const { container } = render(
             <PayoutsAndFees
                 money={money({ oneSale: null, free: true })}
@@ -193,9 +193,8 @@ describe("a free item", () => {
                 kind="event"
             />,
         );
-        expect(screen.getByText("Where the money goes")).toBeInTheDocument();
-        expect(screen.getByText("It’s free, so no money changes hands.")).toBeInTheDocument();
-        expect(container.querySelector("svg[role=img]")).toBeNull();
+        expect(container.firstChild).toBeNull();
+        expect(screen.queryByText("Where the money goes")).toBeNull();
         expect(screen.queryByText(/Connect Stripe/)).toBeNull();
     });
 });
