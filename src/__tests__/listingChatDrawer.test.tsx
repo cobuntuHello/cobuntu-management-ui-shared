@@ -231,6 +231,18 @@ const proposeButton = async () => {
     return within(el).findByRole("button", { name: /Propose new terms/ });
 };
 
+describe("new terms on a free item", () => {
+    it("are never offered: the core refuses a commission on it (a US$0.00 model, seen live 26 Nov 2026)", async () => {
+        const t = live("community");
+        t.money = vi.fn(async () => ({ ...moneyAt("community", 0, true), oneSale: null, prices: [{ free: true }] } as any));
+        drawer(t, "community");
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        await waitFor(() => expect(t.money).toHaveBeenCalled());
+        await waitFor(() => expect(document.querySelector(".cbtl-dm")).not.toBeNull());
+        expect(screen.queryByRole("button", { name: /Propose new terms/ })).toBeNull();
+    });
+});
+
 describe("new terms on a live listing: PBN proposes", () => {
     it("offers Propose new terms in the Terms card, and the sheet says nothing changes while Thiago decides", async () => {
         const t = live("community");
