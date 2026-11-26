@@ -384,7 +384,6 @@ export const LISTING_PAGE_COPY = {
     drwSeller: "Seller",
     drwCommunity: "Community",
     drwViewOn: "View on {community}",
-    drwShare: "Share",
     // ── the sections (the redesign, 24 Nov 2026) ──
     secOverview: "Overview",
     secEarnings: "Earnings",

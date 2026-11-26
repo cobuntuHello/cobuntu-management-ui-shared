@@ -5,9 +5,9 @@
  *
  * The drawer is ListingPageV2 with layout="drawer": the same loads, moves and
  * confirmations as the page, in one column. What each test pins is a way it
- * could mislead or misfire in the chat: a move without a confirmation, "Reply"
- * doing anything but focusing the composer, ending moves mixed in with the
- * decision, the wrong seat's money, shelf wording.
+ * could mislead or misfire in the chat: a move without a confirmation, a
+ * "Reply" or "Share" repeating what the chat already gives, ending moves mixed
+ * in with the decision, the wrong seat's money, shelf wording.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within, cleanup } from "@testing-library/react";
@@ -84,17 +84,14 @@ describe("the seller, while PBN asks 10%", () => {
         expect(document.querySelector(".cbtl-dbar")).toBeNull();
     });
 
-    it("answers in the decision card, and Reply only focuses the chat", async () => {
-        const onReply = vi.fn();
+    it("answers in the decision card, with no Reply: the chat's message box is the reply", async () => {
         const t = transport("seller", { ask: true });
-        drawer(t, "seller", { onReply });
+        drawer(t, "seller");
         await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
         expect(within(card()).getByText("PBN asks 10% for this listing")).toBeTruthy();
         const buttons = within(card()).getAllByRole("button").map((b) => b.textContent);
-        expect(buttons).toEqual(["Accept 10% and go live", "Keep 0%", "Reply"]);
-        fireEvent.click(within(card()).getByRole("button", { name: "Reply" }));
-        expect(onReply).toHaveBeenCalledTimes(1);
-        expect(screen.queryByRole("dialog")).toBeNull();
+        expect(buttons).toEqual(["Accept 10% and go live", "Keep 0%"]);
+        expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
         expect(t.respond).not.toHaveBeenCalled();
     });
 
@@ -166,12 +163,12 @@ describe("a live listing", () => {
         await waitFor(() => expect(t.setStatus).toHaveBeenCalledWith("PAUSED"));
     });
 
-    it("links to the live page and shares it", async () => {
+    it("links to the live page, and nothing else in the card: no Reply, no Share", async () => {
         drawer(transport("seller", { status: "ACTIVE" }), "seller", { links: { live: "https://pbn.community/p/immersion" } });
         await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
         const view = within(card()).getByRole("link", { name: "View on PBN" }) as HTMLAnchorElement;
         expect(view.href).toBe("https://pbn.community/p/immersion");
-        expect(within(card()).getByRole("button", { name: "Share" })).toBeTruthy();
+        expect(within(card()).queryAllByRole("button")).toHaveLength(0);
     });
 
     it("never says shelf", async () => {
@@ -220,5 +217,24 @@ describe("the drawer's colours", () => {
         expect(LISTING_PAGE_CSS).toContain(".cbtl .cbtl-dd-p{");
         expect(LISTING_PAGE_CSS).not.toMatch(/(^|\n)\.cbtl-dd-p\{/);
         expect(LISTING_PAGE_CSS).toContain(".cbtl .cbtl-prem-go{");
+    });
+
+    it("lights every drawer button on hover, only where a pointer hovers, and presses on click", async () => {
+        const { LISTING_PAGE_CSS } = await import("../listings/v2/styles");
+        const hover = LISTING_PAGE_CSS.slice(LISTING_PAGE_CSS.indexOf("@media (hover:hover){"));
+        for (const sel of [".cbtl .cbtl-dh-x:hover", ".cbtl .cbtl-dd-p:not(:disabled):hover", ".cbtl .cbtl-dd-s:not(:disabled):hover",
+            ".cbtl .cbtl-df-btn:not(:disabled):hover", ".cbtl .cbtl-df-btn[data-danger]:not(:disabled):hover", ".cbtl .cbtl-dt-btn:not(:disabled):hover"]) {
+            expect(hover, sel).toContain(sel + "{");
+        }
+        expect(LISTING_PAGE_CSS).toContain(".cbtl .cbtl-df-btn:not(:disabled):active");
+    });
+
+    it("draws the close button as the chat header's round button, with a 44px tap target", async () => {
+        const { LISTING_PAGE_CSS } = await import("../listings/v2/styles");
+        const rule = LISTING_PAGE_CSS.match(/\.cbtl \.cbtl-dh-x\{[^}]*\}/)?.[0] ?? "";
+        expect(rule).toContain("width:32px;height:32px");
+        expect(rule).toContain("border-radius:50%");
+        expect(rule).toContain("background:color-mix(in srgb,var(--cbtl-ink) 4%,transparent)");
+        expect(LISTING_PAGE_CSS).toContain(".cbtl .cbtl-dh-x::after{content:\"\";position:absolute;inset:-6px");
     });
 });
