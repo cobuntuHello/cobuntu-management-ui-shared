@@ -48,12 +48,18 @@ export interface TileState { sub: string; dot?: boolean; badge?: number }
 
 const SECTION_ICON: Record<SectionId, string> = { overview: ICON.request, earnings: ICON.money, negotiation: ICON.talk };
 
-export function SectionTiles({ say, active, onPick, states }: {
+export function SectionTiles({ say, active, onPick, states, labels }: {
     say: Say; active: SectionId; onPick: (id: SectionId) => void; states: Record<SectionId, TileState>;
+    /** A host's own name for a tile ("Chat" when the talk lives in /conversations, T-417). */
+    labels?: Partial<Record<SectionId, string>>;
 }) {
-    const label: Record<SectionId, string> = { overview: say("secOverview"), earnings: say("secEarnings"), negotiation: say("secNegotiation") };
+    const label: Record<SectionId, string> = {
+        overview: labels?.overview ?? say("secOverview"),
+        earnings: labels?.earnings ?? say("secEarnings"),
+        negotiation: labels?.negotiation ?? say("secNegotiation"),
+    };
     return (
-        <nav className="cbtl-secs" aria-label={say("secOverview") + ", " + say("secEarnings") + ", " + say("secNegotiation")}>
+        <nav className="cbtl-secs" aria-label={label.overview + ", " + label.earnings + ", " + label.negotiation}>
             {SECTIONS.map((id) => {
                 const s = states[id];
                 return (

@@ -90,6 +90,12 @@ export interface ListingPageV2Props {
     onReply?: () => void;
     /** Drawer: the close button. */
     onClose?: () => void;
+    /**
+     * The listing's chat in /conversations (T-417). With it, the third tile is
+     * "Chat" and opens that chat, and "Reply" goes there too: the talk lives in
+     * the chat, not on this page. Without it, the page keeps its own thread.
+     */
+    chatHref?: string;
 }
 
 interface Loaded {
@@ -335,6 +341,13 @@ export function ListingPageV2(props: ListingPageV2Props) {
         reviewer: reviewerListingActions(status), owner: ownerListingActions(status),
     }, say);
 
+    /** The listing's chat in /conversations, when the host gives one (T-417). */
+    const openChat = () => {
+        if (!props.chatHref) return;
+        if (props.navigate) props.navigate(props.chatHref);
+        else window.location.assign(props.chatHref);
+    };
+
     /** One move: confirm what it does, run, reload, say it worked. */
     const lever = (spec: Omit<ConfirmSpec, "run"> & { act: (note?: string) => Promise<void> }) =>
         setConfirm({ ...spec, run: async (note) => { await spec.act(note); await after(say("saved")); } });
@@ -354,6 +367,7 @@ export function ListingPageV2(props: ListingPageV2Props) {
                 return;
             case "reply":
                 if (props.layout === "drawer") { props.onReply?.(); return; }
+                if (props.chatHref) { openChat(); return; }
                 setFocus("negotiation");
                 return;
             case "acceptOffer": {
@@ -430,10 +444,12 @@ export function ListingPageV2(props: ListingPageV2Props) {
             dot: !!theirOffer,
             badge: d.myAddons.length || undefined,
         },
-        negotiation: {
-            sub: lastMsg ? (lastMsg.mine ? say("secYouWrote", { time: timeOf(lastMsg.at) }) : say("secWrote", { who: lastMsg.name, time: timeOf(lastMsg.at) })).trim() : say("secNoMessages"),
-            dot: !!lastMsg && !lastMsg.mine,
-        },
+        negotiation: props.chatHref
+            ? { sub: say("secChatSub", { who: other }) }
+            : {
+                sub: lastMsg ? (lastMsg.mine ? say("secYouWrote", { time: timeOf(lastMsg.at) }) : say("secWrote", { who: lastMsg.name, time: timeOf(lastMsg.at) })).trim() : say("secNoMessages"),
+                dot: !!lastMsg && !lastMsg.mine,
+            },
     };
     const active: SectionId = focus ?? "overview";
 
@@ -706,7 +722,9 @@ export function ListingPageV2(props: ListingPageV2Props) {
                     {toolsNode && <span className="cbtl-tools">{toolsNode}</span>}
                 </header>
 
-                <SectionTiles say={say} active={active} onPick={setFocus} states={tiles} />
+                <SectionTiles say={say} active={active} states={tiles}
+                    labels={props.chatHref ? { negotiation: say("secChat") } : undefined}
+                    onPick={(id) => { if (id === "negotiation" && props.chatHref) openChat(); else setFocus(id); }} />
 
                 <section className="cbtl-section" aria-label={sectionName}>{section}</section>
 

@@ -190,3 +190,23 @@ describe("closing", () => {
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 });
+
+describe("the listing page, once the talk lives in the chat", () => {
+    it("turns the third tile into Chat, which opens the listing's chat", async () => {
+        const navigate = vi.fn();
+        render(<ListingPageV2 transport={transport("seller", { ask: true })} seat="seller" kind="product" backHref="/back"
+            chatHref="/conversations/conv-1" navigate={navigate} />);
+        await screen.findByRole("heading", { level: 1 });
+        const tile = screen.getByRole("button", { name: /^Chat/ });
+        expect(tile.textContent).toContain("Talk it through with PBN");
+        expect(screen.queryByRole("button", { name: /^Negotiation/ })).toBeNull();
+        fireEvent.click(tile);
+        expect(navigate).toHaveBeenCalledWith("/conversations/conv-1");
+    });
+
+    it("keeps its own thread when the host has no chat for it", async () => {
+        render(<ListingPageV2 transport={transport("seller", { ask: true })} seat="seller" kind="product" backHref="/back" />);
+        await screen.findByRole("heading", { level: 1 });
+        expect(screen.getByRole("button", { name: /^Negotiation/ })).toBeTruthy();
+    });
+});

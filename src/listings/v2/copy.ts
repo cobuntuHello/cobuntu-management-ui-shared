@@ -389,6 +389,8 @@ export const LISTING_PAGE_COPY = {
     secOverview: "Overview",
     secEarnings: "Earnings",
     secNegotiation: "Negotiation",
+    secChat: "Chat",
+    secChatSub: "Talk it through with {who}",
     secSent: "Sent {date}",
     secNoPackage: "No package yet",
     secProposed: "Proposed · {terms}",
