@@ -210,3 +210,15 @@ describe("the listing page, once the talk lives in the chat", () => {
         expect(screen.getByRole("button", { name: /^Negotiation/ })).toBeTruthy();
     });
 });
+
+describe("the drawer's colours", () => {
+    it("keeps the primary move's label visible: its colour outranks .cbtl button{color:inherit}", async () => {
+        // jsdom does not compute the cascade, so pin the selectors. A bare
+        // .cbtl-dd-p lost to ".cbtl button" and inherited the card's white into
+        // a white button: the primary move rendered as a blank box (26 Nov 2026).
+        const { LISTING_PAGE_CSS } = await import("../listings/v2/styles");
+        expect(LISTING_PAGE_CSS).toContain(".cbtl .cbtl-dd-p{");
+        expect(LISTING_PAGE_CSS).not.toMatch(/(^|\n)\.cbtl-dd-p\{/);
+        expect(LISTING_PAGE_CSS).toContain(".cbtl .cbtl-prem-go{");
+    });
+});
