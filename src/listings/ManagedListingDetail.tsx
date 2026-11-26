@@ -1381,7 +1381,7 @@ export function ManagedListingDetail({
               return (
                 <button key={action} type="button" onClick={() => setPending({
                     to: "PAUSED",
-                    title: t("confirmPauseTitle"),
+                    title: t("confirmPauseTitle", { community: community?.name || t("community") }),
                     body: t("confirmPauseBody"),
                     confirm: t("pause"),
                   })} disabled={busy}
@@ -1394,7 +1394,7 @@ export function ManagedListingDetail({
               return (
                 <button key={action} type="button" onClick={() => setPending({
                     to: "ACTIVE",
-                    title: t("confirmResumeTitle"),
+                    title: t("confirmResumeTitle", { community: community?.name || t("community") }),
                     body: t("confirmResumeBody"),
                     confirm: t("resume"),
                   })} disabled={busy}

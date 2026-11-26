@@ -59,6 +59,8 @@ export interface PremiumCheckout {
     /** Display prices before VAT, e.g. "€8" and "€88". */
     monthly: string;
     yearly: string;
+    /** The monthly price in minor units, for "pays for itself on this sale". Optional: without it the line is not shown. */
+    monthlyAmount?: { minor: number; currency: string };
 }
 
 /** Focus the dialog, close on Escape, give focus back: what every sheet here does. */
@@ -74,12 +76,59 @@ function useDialog(onClose: () => void, busy: boolean) {
     return ref;
 }
 
-const SEAL = (
-    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24">
-        <path fill="#d9a441" d="M12 1.5l2.6 2.1 3.3-.4 1.1 3.1 2.9 1.7-.9 3.2 1.4 3-2.6 2.1-.2 3.3-3.3.5-1.8 2.8L12 21.3l-2.5 1.6-1.8-2.8-3.3-.5-.2-3.3L1.6 14.2l1.4-3-.9-3.2 2.9-1.7 1.1-3.1 3.3.4z" />
-        <path d="M8.3 12.3l2.4 2.4 5-5" fill="none" stroke="#2a2416" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+/**
+ * Cobuntu's own lockup for the Premium blocks: the real mark, the spaced
+ * wordmark and a PREMIUM tag, as on the /premium page (premium.module.css).
+ */
+function PremiumLockup({ say, price }: { say: Say; price?: ReactNode }) {
+    return (
+        <span className="cbtl-prem-top">
+            <span className="cbtl-prem-brand">
+                <span className="cbtl-prem-mark" aria-hidden="true"><CobuntuMark size={20} /></span>
+                <span className="cbtl-prem-word">{say("premWordmark")}</span>
+                <span className="cbtl-prem-tag">{say("premTag")}</span>
+            </span>
+            {price}
+        </span>
+    );
+}
+
+const TICK = (
+    <i className="cbtl-prem-tick" aria-hidden="true">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+    </i>
 );
+
+/**
+ * Cobuntu's fee today against Premium's 0%: the only numbers a Premium block
+ * shows besides the amount it keeps (the user, 25 Nov 2026: "just the
+ * commission we take, 2.5% to 0%, and the money we wouldn't be taking").
+ */
+function PremiumFees({ say, feePct }: { say: Say; feePct: number }) {
+    return (
+        <span className="cbtl-prem-fees" role="group" aria-label={`${say("premFeeNow")} ${percent(feePct)}, ${say("premWith")} 0%`}>
+            <span className="cbtl-prem-fee"><small>{say("premFeeNow")}</small><b>{percent(feePct)}</b></span>
+            <Icon d="M5 12h14M13 6l6 6-6 6" size={18} stroke={2.4} />
+            <span className="cbtl-prem-fee" data-with=""><small>{say("premWith")}</small><b>0%</b></span>
+        </span>
+    );
+}
+
+/** Currencies close enough in value that a 1.5x margin covers any rate between them. */
+const NEAR_CURRENCIES = new Set(["EUR", "USD", "GBP", "CHF"]);
+
+/**
+ * Whether Premium's monthly price is covered by the fee on ONE sale. Said only
+ * when it is certainly true: the same currency, or two of the close ones with a
+ * 1.5x margin. Never an exchange rate, so never a claim that might be false.
+ */
+export function paysForItself(fee: number, cur: string, monthly?: { minor: number; currency: string }): boolean {
+    if (!monthly || fee <= 0) return false;
+    const a = cur.toUpperCase();
+    const b = monthly.currency.toUpperCase();
+    if (a === b) return fee >= monthly.minor;
+    return NEAR_CURRENCIES.has(a) && NEAR_CURRENCIES.has(b) && fee >= monthly.minor * 1.5;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The community: Change terms
@@ -268,24 +317,22 @@ export function AskCompare({ say, names, now, ask, base, at, cur }: {
     );
 }
 
-/** Cobuntu Premium, Cobuntu-branded: only for the seller, on their own item, while they are not Premium. */
-export function PremiumCard({ say, keep, fee, cur, onGet, onDismiss }: {
-    say: Say; keep: number; fee: number; cur: string; onGet: () => void; onDismiss: () => void;
+/**
+ * Cobuntu Premium, in Cobuntu's brand: only for the seller, on their own item,
+ * while they still pay Cobuntu's fee. It names the fee going to 0% and the
+ * amount Cobuntu would not take on a sale; never the seller's totals.
+ */
+export function PremiumCard({ say, fee, feePct, cur, onGet, onDismiss }: {
+    say: Say; fee: number; feePct: number; cur: string; onGet: () => void; onDismiss: () => void;
 }) {
     return (
-        <section className="cbtl-prem" aria-label={say("premKicker")}>
-            <span className="cbtl-prem-who">
-                <span className="cbtl-prem-mark"><CobuntuMark size={34} /></span>
-                <span className="cbtl-prem-text">
-                    <span className="cbtl-prem-kick">{SEAL}{say("premKicker")}</span>
-                    <b>{say("premTitle", { fee: money(fee, cur) })}</b>
-                    <small>{say("premBody")}</small>
-                </span>
+        <section className="cbtl-prem cbtl-prem-card" aria-label={say("premKicker")}>
+            <span className="cbtl-prem-main">
+                <PremiumLockup say={say} />
+                <b className="cbtl-prem-h">{say("premTitle", { fee: money(fee, cur) })}</b>
+                <small className="cbtl-prem-lede">{say("premLede")}</small>
             </span>
-            <span className="cbtl-prem-cmp" role="group" aria-label={say("premWith")}>
-                <span className="cbtl-prem-row"><span>{say("premNow")}</span><b>{money(keep, cur)}</b></span>
-                <span className="cbtl-prem-row" data-with=""><span>{say("premWith")}</span><span className="cbtl-prem-gain"><i>+{money(fee, cur)}</i><b>{money(keep + fee, cur)}</b></span></span>
-            </span>
+            <PremiumFees say={say} feePct={feePct} />
             <span className="cbtl-prem-acts">
                 <button type="button" className="cbtl-prem-go" onClick={onGet}>{say("premGet")}</button>
                 <button type="button" className="cbtl-prem-later" onClick={onDismiss}>{say("premNotNow")}</button>
@@ -357,7 +404,8 @@ export function AcceptDialog({ say, item, names, parties, offer, ask, now, premi
     const keep = amountOf(sale?.lines, "keep");
     const fee = amountOf(sale?.lines, "cobuntu");
     const feeRate = sellerFeeRate(say, ask);
-    const offerPremium = !!premium && fee > 0;
+    const feePct = ask?.rates?.sellerFeePct ?? 0;
+    const offerPremium = !!premium && fee > 0 && feePct > 0;
     const icon = parties.community.icon;
 
     const accept = async () => {
@@ -390,15 +438,16 @@ export function AcceptDialog({ say, item, names, parties, offer, ask, now, premi
 
                     {offerPremium && premium && (
                         <section className="cbtl-prem cbtl-prem-in" aria-label={say("premKicker")}>
-                            <span className="cbtl-prem-who">
-                                <span className="cbtl-prem-mark"><CobuntuMark size={30} /></span>
-                                <span className="cbtl-prem-text">
-                                    <span className="cbtl-prem-kick">{SEAL}{say("accPremKicker")}</span>
-                                    <b>{say("accPremTitle", { fee: money(fee, cur) })}</b>
-                                </span>
+                            <PremiumLockup say={say} price={
+                                <span className="cbtl-prem-price">{say("premPerMonth", { price: premium.monthly })}<br />{say("premPriceSub")}</span>
+                            } />
+                            <b className="cbtl-prem-h">{say("premTitle", { fee: money(fee, cur) })}</b>
+                            <small className="cbtl-prem-lede">{say("premLede")}</small>
+                            <PremiumFees say={say} feePct={feePct} />
+                            <span className="cbtl-prem-ticks">
+                                <span>{TICK}{say("premEverywhere")}</span>
+                                {paysForItself(fee, cur, premium.monthlyAmount) && <span>{TICK}{say("premPaysItself")}</span>}
                             </span>
-                            <span className="cbtl-prem-row" data-with=""><span>{say("accPremWith")}</span><span className="cbtl-prem-gain"><i>+{money(fee, cur)}</i><b>{money(keep + fee, cur)}</b></span></span>
-                            <small className="cbtl-prem-note">{say("accPremBody", { rate: feeRate ?? money(fee, cur) })}</small>
                             {step === "main"
                                 ? <button type="button" className="cbtl-prem-go" onClick={() => setStep("premium")} disabled={busy}>{say("accPremGo")}</button>
                                 : <PremiumStep say={say} premium={premium} returnPath={returnPath} />}
@@ -424,13 +473,8 @@ export function PremiumSheet({ say, premium, returnPath, onClose }: {
     return (
         <div className="cbtl-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
             <div className="cbtl-sheet cbtl-prem cbtl-prem-in cbtl-prem-sheet" role="dialog" aria-modal="true" aria-label={say("premKicker")} tabIndex={-1} ref={ref}>
-                <span className="cbtl-prem-who">
-                    <span className="cbtl-prem-mark"><CobuntuMark size={30} /></span>
-                    <span className="cbtl-prem-text">
-                        <span className="cbtl-prem-kick">{SEAL}{say("premKicker")}</span>
-                        <small>{say("premBody")}</small>
-                    </span>
-                </span>
+                <PremiumLockup say={say} />
+                <small className="cbtl-prem-lede">{say("premBody")}</small>
                 <PremiumStep say={say} premium={premium} returnPath={returnPath} />
                 <button type="button" className="cbtl-prem-later" onClick={onClose}>{say("cancel")}</button>
             </div>

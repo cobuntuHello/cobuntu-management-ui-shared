@@ -21,7 +21,7 @@ const TONE: Record<CardState, string> = {
 const DEFAULT_LABELS: Record<CardState, string> = {
   LIVE: "Live",
   PENDING: "In review",
-  HIDDEN: "Off shelf",
+  HIDDEN: "Paused",
   REJECTED: "Declined",
   DRAFT: "Unpublished",
   UNFINISHED: "Draft",
