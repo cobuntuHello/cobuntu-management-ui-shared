@@ -16,8 +16,9 @@
  *   details   price, kind or date, when it was sent, the owner
  *   footer    the moves that end or pause it (withdraw, pause, remove)
  *
- * Every move confirms first, exactly as on the listing page. "Reply" never
- * opens anything here: it focuses the chat's composer (`onReply`).
+ * Every move confirms first, exactly as on the listing page. There is no
+ * "Reply" or "Share" here: the chat's own message box is the reply, and the
+ * live page is one link away.
  */
 
 import type { ReactNode } from "react";
@@ -59,7 +60,7 @@ export function DrawerHead({ say, image, name, parties, status, statusLabel, ter
             </span>
             {onClose && (
                 <button type="button" className="cbtl-dh-x" onClick={onClose} aria-label={say("drwClose")}>
-                    <Icon d="M18 6 6 18M6 6l12 12" size={14} stroke={2.4} />
+                    <Icon d="M18 6 6 18M6 6l12 12" size={16} stroke={2} />
                 </button>
             )}
         </header>

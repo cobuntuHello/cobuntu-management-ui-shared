@@ -517,8 +517,12 @@ a.cbtl-crumb-link:hover{opacity:.8}
 .cbtl-dh-pill[data-tone="paused"] i{background:var(--cbtl-blue-line)}
 .cbtl-dh-pill[data-tone="closed"]{background:var(--cbtl-sand);color:var(--cbtl-muted)}
 .cbtl-dh-pill[data-tone="closed"] i{background:var(--cbtl-faint)}
-.cbtl .cbtl-dh-x{width:44px;height:44px;margin:-6px -6px 0 0;flex:none;border-radius:50%;border:none;background:transparent;color:var(--cbtl-muted);display:flex;align-items:center;justify-content:center;cursor:pointer}
-.cbtl-dh-x:hover{background:var(--cbtl-sand)}
+/* The close button wears the chat header's round buttons (search, more,
+   close): a 32px disc, a faint ring and wash of the ink, the icon brightening
+   on hover. ::after widens the tap target to 44px without growing the disc. */
+.cbtl .cbtl-dh-x{position:relative;width:32px;height:32px;margin-top:-2px;flex:none;border-radius:50%;border:1px solid color-mix(in srgb,var(--cbtl-ink) 5.5%,transparent);background:color-mix(in srgb,var(--cbtl-ink) 4%,transparent);color:color-mix(in srgb,var(--cbtl-ink) 70%,transparent);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background-color .15s ease,color .15s ease}
+.cbtl .cbtl-dh-x::after{content:"";position:absolute;inset:-6px;border-radius:50%}
+.cbtl .cbtl-dh-x:focus-visible{outline:2px solid var(--cbtl-ink);outline-offset:2px}
 .cbtl-db{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:12px 14px 16px}
 .cbtl-dd{display:flex;flex-direction:column;gap:8px;padding:14px;border-radius:16px;background:var(--cbtl-commit);color:#fff}
 .cbtl-dd-eyebrow{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--cbtl-amber)}
@@ -534,6 +538,18 @@ a.cbtl-crumb-link:hover{opacity:.8}
    move rendered as a blank box, live, 26 Nov 2026). */
 .cbtl-dd-p:disabled,.cbtl-dd-s:disabled{opacity:.5;cursor:default}
 .cbtl-dd-p:focus-visible,.cbtl-dd-s:focus-visible{outline:2px solid #fff;outline-offset:2px}
+/* Hover and press on every drawer button. Hover only where a pointer hovers,
+   so a tap on a phone never leaves a button stuck lit. Scoped under .cbtl so
+   ".cbtl button" never outranks a hover colour. */
+@media (hover:hover){
+  .cbtl .cbtl-dh-x:hover{background:color-mix(in srgb,var(--cbtl-ink) 10%,transparent);color:var(--cbtl-ink)}
+  .cbtl .cbtl-dd-p:not(:disabled):hover{background:rgba(255,255,255,.86)}
+  .cbtl .cbtl-dd-s:not(:disabled):hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.5)}
+  .cbtl .cbtl-df-btn:not(:disabled):hover{background:var(--cbtl-sand);border-color:color-mix(in srgb,var(--cbtl-ink) 22%,var(--cbtl-line))}
+  .cbtl .cbtl-df-btn[data-danger]:not(:disabled):hover{background:color-mix(in srgb,var(--cbtl-red) 7%,var(--cbtl-card));border-color:var(--cbtl-red)}
+  .cbtl .cbtl-dt-btn:not(:disabled):hover{background:var(--cbtl-sand);border-color:color-mix(in srgb,var(--cbtl-ink) 22%,var(--cbtl-line))}
+}
+.cbtl .cbtl-dd-p:not(:disabled):active,.cbtl .cbtl-dd-s:not(:disabled):active,.cbtl .cbtl-df-btn:not(:disabled):active,.cbtl .cbtl-dt-btn:not(:disabled):active,.cbtl .cbtl-dh-x:active{transform:scale(.97)}
 .cbtl-dc{display:flex;flex-direction:column;gap:10px;padding:12px 14px;border-radius:16px;background:var(--cbtl-card);border:1px solid var(--cbtl-line-soft)}
 .cbtl-dc-head{display:flex;align-items:center;gap:8px}
 .cbtl-dc-k{flex:1;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--cbtl-faint)}
@@ -572,7 +588,7 @@ a.cbtl-crumb-link:hover{opacity:.8}
 @media (prefers-reduced-motion: no-preference){
   .cbtl-dd,.cbtl-dc{animation:cbtl-drw-in .28s ease both}
   .cbtl-dh-pill,.cbtl-dh-pill i,.cbtl-dt-box{transition:background-color .3s ease,color .3s ease,box-shadow .3s ease}
-  .cbtl-dd-p,.cbtl-dd-s,.cbtl-df-btn,.cbtl-dt-btn{transition:background-color .15s ease,border-color .15s ease,opacity .15s ease}
+  .cbtl-dd-p,.cbtl-dd-s,.cbtl-df-btn,.cbtl-dt-btn{transition:background-color .15s ease,border-color .15s ease,opacity .15s ease,transform .1s ease}
 }
 @keyframes cbtl-drw-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 .cbtl-acc{max-width:640px}

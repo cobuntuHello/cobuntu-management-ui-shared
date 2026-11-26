@@ -86,8 +86,6 @@ export interface ListingPageV2Props {
      * the page's trail, tiles and sections. Same loads, moves and dialogs.
      */
     layout?: "page" | "drawer";
-    /** Drawer: "Reply" focuses the chat's composer. */
-    onReply?: () => void;
     /** Drawer: the close button. */
     onClose?: () => void;
     /**
@@ -366,7 +364,6 @@ export function ListingPageV2(props: ListingPageV2Props) {
                 setSheet("package");
                 return;
             case "reply":
-                if (props.layout === "drawer") { props.onReply?.(); return; }
                 if (props.chatHref) { openChat(); return; }
                 setFocus("negotiation");
                 return;
@@ -557,22 +554,14 @@ export function ListingPageV2(props: ListingPageV2Props) {
         // Ending or pausing it: the footer. Text-styled terms moves: the terms card. The rest: the decision card.
         const footer = decision.moves.filter((mv) => FOOTER_MOVES.includes(mv.id) && !mv.primary);
         const termsMoves = decision.moves.filter((mv) => TERMS_MOVES.includes(mv.id) && mv.text);
+        // No "Reply" here: the drawer sits beside the chat, whose message box
+        // already is the reply. A button for it would only repeat it.
         const main = decision.moves
-            .filter((mv) => !footer.includes(mv) && !termsMoves.includes(mv))
-            .sort((a, b) => Number(a.id === "reply") - Number(b.id === "reply"));
-        const open = status === "PENDING" || status === "ACTIVE" || status === "PAUSED";
-        if (open && props.onReply && !main.some((mv) => mv.id === "reply")) main.push({ id: "reply", label: say("askReply") });
+            .filter((mv) => mv.id !== "reply" && !footer.includes(mv) && !termsMoves.includes(mv));
 
         const liveUrl = props.links?.live ?? null;
-        const share = async () => {
-            if (!liveUrl) return;
-            try { await navigator.clipboard.writeText(liveUrl); setToast(say("linkCopied")); } catch { setToast(liveUrl); }
-        };
         const extra = status === "ACTIVE" && !hiddenLive && liveUrl ? (
-            <>
-                <a className="cbtl-dd-s" href={liveUrl} target="_blank" rel="noreferrer">{say("drwViewOn", { community })}</a>
-                <button type="button" className="cbtl-dd-s" onClick={() => void share()}>{say("drwShare")}</button>
-            </>
+            <a className="cbtl-dd-s" href={liveUrl} target="_blank" rel="noreferrer">{say("drwViewOn", { community })}</a>
         ) : null;
 
         const cur = m?.currency ?? "EUR";
