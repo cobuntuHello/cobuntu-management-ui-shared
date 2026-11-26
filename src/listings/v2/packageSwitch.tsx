@@ -114,7 +114,7 @@ function SplitChart({ say, split, cur, parties, community, rate }: {
     );
 }
 
-export function PackageSwitchSheet({ say, transport, names, parties, currentId, live, propose = false, now = "", onClose, onDone }: {
+export function PackageSwitchSheet({ say, transport, names, parties, currentId, live, propose = false, nowTerms = "", onClose, onDone }: {
     say: Say; transport: ListingTransport;
     names: { community: string; seller: string }; parties: Parties;
     /** The package the listing is on now. */
@@ -124,7 +124,7 @@ export function PackageSwitchSheet({ say, transport, names, parties, currentId, 
     /** Propose the pick to the community as new terms instead of switching (an agreed listing). */
     propose?: boolean;
     /** Today's terms, as the footer says them while proposing ("10%"). */
-    now?: string;
+    nowTerms?: string;
     onClose: () => void;
     onDone: (message: string) => void;
 }) {
@@ -253,7 +253,7 @@ export function PackageSwitchSheet({ say, transport, names, parties, currentId, 
                 <span className="cbtl-wide-foot">
                     <span className="cbtl-wide-sum cbtl-chg-note">
                         <span className="cbtl-chg-clock" aria-hidden="true"><Icon d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2" size={17} stroke={2} /></span>
-                        {propose ? say("ltAskNote", { community: names.community, now }) : say("chgReviewNote", { community: names.community })}
+                        {propose ? say("ltAskNote", { community: names.community, now: nowTerms }) : say("chgReviewNote", { community: names.community })}
                     </span>
                     <button type="button" className="cbtl-hbtn" onClick={onClose} disabled={busy}>{say("cancel")}</button>
                     <button type="button" className="cbtl-hbtn" data-kind="primary" disabled={busy || !pkg || isCurrent} onClick={submit}>

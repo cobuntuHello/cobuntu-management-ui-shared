@@ -692,7 +692,7 @@ export function ListingPageV2(props: ListingPageV2Props) {
                 <PackageSwitchSheet say={say} transport={transport} names={names} parties={parties} currentId={onPackageId}
                     live={status === "ACTIVE" || status === "PAUSED"}
                     // On an agreed listing it proposes the package to the community; it stays as it is meanwhile.
-                    propose={status === "ACTIVE" || status === "PAUSED"} now={terms}
+                    propose={status === "ACTIVE" || status === "PAUSED"} nowTerms={terms}
                     onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); void after(msg); }} />
             )}
             {sheet === "terms" && (
