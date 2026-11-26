@@ -368,8 +368,11 @@ export function ListingPageV2(props: ListingPageV2Props) {
         can: { decideBooking: !!(transport.decideBooking && eventId), setHidden: !!transport.setHidden, respond: true, propose: true, setStatus: true, switchPackage },
         reviewer: reviewerListingActions(status), owner: ownerListingActions(status),
         // New terms on an agreed listing: never on a community's own item in itself, never on a free
-        // one; the seller's waits for their packages, which decide between the package sheet and a rate.
-        liveTerms: !parties.listedOnOwner && paid && (seat === "community" || myPackages !== null),
+        // one (the core refuses a commission there: seen live on a US$0.00 DDDIMO model, 26 Nov 2026),
+        // so not before its money says which it is; the seller's waits for their packages, which
+        // decide between the package sheet and a rate.
+        liveTerms: !parties.listedOnOwner && paid && !!m && (!!m.oneSale || (m.prices ?? []).some((p) => !p.free))
+            && (seat === "community" || myPackages !== null),
     }, say);
 
     /** The listing's chat in /conversations, when the host gives one (T-417). */
