@@ -371,7 +371,7 @@ export {
   StorefrontCard, ListingReviewCard,
 } from "./cards";
 export type {
-  StarRatingCopy, CardState, StorefrontCardData, StorefrontCardProps,
+  StarRatingCopy, CardState, StorefrontCardData, StorefrontCardProps, CardStateTone,
   ListingReviewCardProps, ListingReviewCardKind, ReviewStatusTone,
 } from "./cards";
 

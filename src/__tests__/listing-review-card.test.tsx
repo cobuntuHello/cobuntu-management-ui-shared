@@ -25,7 +25,7 @@ describe("StorefrontCard", () => {
   });
 });
 
-describe("ListingReviewCard (Option A overlay)", () => {
+describe("ListingReviewCard (the /marketplace card with the reviewer's layer)", () => {
   const base = {
     data: DATA,
     status: { label: "Pending", tone: "pending" as const },
@@ -39,7 +39,7 @@ describe("ListingReviewCard (Option A overlay)", () => {
     expect(screen.getByText("Pending")).toBeInTheDocument();
     expect(screen.getByText("10% commission")).toBeInTheDocument();
     expect(screen.getByText("Alice Rivera")).toBeInTheDocument();
-    expect(screen.getByText("Requested 6h ago")).toBeInTheDocument();
+    expect(screen.getByText(/· requested 6h ago/)).toBeInTheDocument();
     expect(screen.getByText("A")).toBeInTheDocument(); // avatar initial
     expect(screen.getByText("Review request")).toBeInTheDocument();
   });
@@ -78,9 +78,9 @@ describe("ListingReviewCard (Option A overlay)", () => {
     expect(screen.queryByText(/commission/)).not.toBeInTheDocument();
   });
 
-  it("renders a kind badge for courses/events", () => {
-    render(<ListingReviewCard {...base} kind={{ label: "Course · 4 lessons", icon: "course" }} onReview={() => {}} />);
-    expect(screen.getByText("Course · 4 lessons")).toBeInTheDocument();
+  it("leads the taxonomy line with the kind for courses", () => {
+    render(<ListingReviewCard {...base} kind={{ label: "Course", icon: "course" }} onReview={() => {}} />);
+    expect(screen.getByText("Course · Design · UX")).toBeInTheDocument();
   });
 
   it("event variant shows the date above the title (not a taxonomy) and a green price", () => {
@@ -102,12 +102,54 @@ describe("ListingReviewCard (Option A overlay)", () => {
     expect(price.className).toMatch(/text-green-600/);
   });
 
-  it("product variant keeps the taxonomy and 16:10 frame", () => {
+  it("product variant keeps the taxonomy and the /marketplace 4:3 frame", () => {
     const { container } = render(
       <ListingReviewCard {...base} data={{ ...DATA, taxonomy: "Design · UX", dateLabel: "ignored" }} onReview={() => {}} />,
     );
     expect(screen.getByText("Design · UX")).toBeInTheDocument();
     expect(screen.queryByText("ignored")).not.toBeInTheDocument();
-    expect(container.querySelector(".aspect-\\[16\\/10\\]")).not.toBeNull();
+    expect(container.querySelector(".aspect-\\[4\\/3\\]")).not.toBeNull();
+  });
+
+  it("says the state in words with a dot, never a pill on the picture (request cards, 26 Nov 2026)", () => {
+    render(<ListingReviewCard {...base} onReview={() => {}} />);
+    const state = screen.getByText("Pending");
+    expect(state.className).not.toMatch(/rounded-full/);
+    expect(state.className).toMatch(/text-amber-700/);
+    expect(screen.getByText("10% commission").parentElement!.textContent).toBe("Asks for 10% commission");
+  });
+
+  it("says On, not Asks for, once the terms are agreed", () => {
+    render(<ListingReviewCard {...base} status={{ label: "Live", tone: "approved" }} commission="PBN-promoted · 10%" onReview={() => {}} />);
+    expect(screen.getByText("PBN-promoted · 10%").parentElement!.textContent).toBe("On PBN-promoted · 10%");
+  });
+
+  it("gives the review action a 44px target", () => {
+    render(<ListingReviewCard {...base} onReview={() => {}} />);
+    expect(screen.getByRole("button", { name: /Review request/ }).className).toMatch(/min-h-\[44px\]/);
+  });
+});
+
+describe("StorefrontCard, the /marketplace anatomy", () => {
+  it("draws who sells it, two lines of description, and the members' price against the full one", () => {
+    render(<StorefrontCard data={{
+      ...DATA, description: "Cybertech Texas Mission: Austin and SXSW 2027.",
+      people: [{ name: "Thiago Vieira" }], peopleNote: "requested 9 days ago",
+      priceLabel: "$3,597.30", listPriceLabel: "$3,997.00",
+    }} />);
+    expect(screen.getByText("Thiago Vieira")).toBeInTheDocument();
+    expect(screen.getByText(/requested 9 days ago/)).toBeInTheDocument();
+    expect(screen.getByText("Cybertech Texas Mission: Austin and SXSW 2027.").className).toMatch(/line-clamp-2/);
+    expect(screen.getByText("$3,997.00").className).toMatch(/line-through/);
+  });
+
+  it("says when there is no description yet, instead of leaving a gap", () => {
+    render(<StorefrontCard data={{ ...DATA, description: "", descriptionFallback: "No description yet." }} />);
+    expect(screen.getByText("No description yet.")).toBeInTheDocument();
+  });
+
+  it("shows a state beside the price when given one", () => {
+    render(<StorefrontCard data={DATA} state={{ label: "Live", tone: "live" }} />);
+    expect(screen.getByText("Live").className).toMatch(/text-emerald-700/);
   });
 });
