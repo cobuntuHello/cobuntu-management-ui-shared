@@ -81,7 +81,7 @@ describe("whether it can be sold at all", () => {
     it("leads with the fact when there is no listing anywhere", () => {
         renderIt(stats({ listings: [], sold: 0, views: { total: 0, unattributed: 0 } }));
         expect(screen.getByText("Nobody can buy this yet")).toBeInTheDocument();
-        expect(screen.getByText(/not on any community's shelf/)).toBeInTheDocument();
+        expect(screen.getByText(/No community lists it yet/)).toBeInTheDocument();
     });
 
     it("says so too when listings exist but none is live", () => {
@@ -139,7 +139,7 @@ describe("whether it can be sold at all", () => {
     it("still leads with no-listings when there is no listing at all", () => {
         // everPublished must not outrank the more basic problem.
         renderIt(stats({ kind: "event", everPublished: false, listings: [] }));
-        expect(screen.getByText(/not on any community's shelf/)).toBeInTheDocument();
+        expect(screen.getByText(/No community lists it yet/)).toBeInTheDocument();
         expect(screen.queryByText(/has not been published yet/)).not.toBeInTheDocument();
     });
 });
