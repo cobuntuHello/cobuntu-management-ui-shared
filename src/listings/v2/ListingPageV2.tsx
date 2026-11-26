@@ -88,6 +88,8 @@ export interface ListingPageV2Props {
     layout?: "page" | "drawer";
     /** Drawer: the close button. */
     onClose?: () => void;
+    /** Drawer: the full listing page, opened from the expand button beside the close. */
+    fullPageHref?: string;
     /**
      * The listing's chat in /conversations (T-417). With it, the third tile is
      * "Chat" and opens that chat, and "Reply" goes there too: the talk lives in
@@ -646,17 +648,31 @@ export function ListingPageV2(props: ListingPageV2Props) {
             : item?.productType === "PHYSICAL" ? "drwKindPhysical"
                 : item?.productType === "COURSE" ? "drwKindCourse" : "drwKindDigital";
 
+        /*
+         * The money card draws what Earnings draws (EarningsSection decides the
+         * same two cases): no terms agreed or asked yet, unless it is the
+         * community's own item in itself; and a community that takes no
+         * commission on tickets, whose split stays drawn under "0%".
+         */
+        const drawerMoney = asking ? (askMoney ?? m) : liveOffer ? (offerMoney ?? m) : m;
+        const drawerOne = drawerMoney?.oneSale ?? null;
+        const drawerNoTerms = !asking && !liveOffer && !!drawerOne && drawerOne.rateSource === "none" && shownRate == null
+            && !(parties.owner && parties.listedOnOwner);
+        const drawerNoComm = seat === "community" && kind === "event" && !!drawerOne && !parties.owner
+            && (drawerOne.lines.find((l) => l.key === "commission")?.amount ?? 0) === 0;
+
         return (
             <div className="cbtl cbtl-drw" style={rootStyle} data-seat={seat}>
                 <style>{LISTING_PAGE_CSS}</style>
                 <DrawerHead say={say} image={imagesOf(item)[0] ?? null} name={itemName} parties={parties}
+                    fullPageHref={props.fullPageHref}
                     status={shownStatus} statusLabel={statusLabel}
                     terms={asking ? termsLabel(say, rate ?? 0, packageName, kind) : liveOffer ? `${terms} · ${say("ltProposed")}` : terms}
                     onClose={props.onClose} />
                 <div className="cbtl-db">
                     <DrawerDecision decision={decision} moves={main} extra={extra} onMove={onMove} />
                     <DrawerMoney say={say} seat={seat} kind={kind} parties={parties}
-                        m={asking ? (askMoney ?? m) : liveOffer ? (offerMoney ?? m) : m}
+                        m={drawerMoney} noTerms={drawerNoTerms} noComm={drawerNoComm}
                         base={asking || liveOffer ? m : null} baseRate={rate ?? 0}
                         rate={asking ? askRate : liveOffer ? Number(liveOffer.commissionRate ?? 0) : (rate ?? shownRate)} />
                     {liveOffer ? (

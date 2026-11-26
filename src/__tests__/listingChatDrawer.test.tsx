@@ -351,6 +351,94 @@ describe("new terms on a live listing: Thiago asks (replaces Change package)", (
     });
 });
 
+describe("the money card draws what Earnings draws (26 Nov 2026)", () => {
+    /*
+     * It used to say "Nothing to split" and draw nothing for a free item, while
+     * the full page's Earnings drew the split empty. Both now draw the same.
+     */
+    it("a free item: the dashed ring says Free, every other line is 0.00, and says why", async () => {
+        const t = live("seller");
+        t.money = vi.fn(async () => ({ ...moneyAt("seller", 0, true), oneSale: null, prices: [{ free: true }] } as any));
+        drawer(t, "seller");
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        await waitFor(() => expect(document.querySelector(".cbtl-dm[data-empty]")).not.toBeNull());
+        const card = document.querySelector(".cbtl-dm[data-empty]") as HTMLElement;
+        expect(card.querySelector('circle[stroke-dasharray="6 8"]')).not.toBeNull();
+        expect(within(card).getByText("Free")).toBeTruthy();
+        expect(within(card).getByText("Nothing to split")).toBeTruthy();
+        expect(within(card).getByText("You keep, each sale")).toBeTruthy();
+        expect(within(card).getByText("Nothing is sold, so there is nothing to split.")).toBeTruthy();
+        // You keep, and each other party's line, at 0.00.
+        expect(within(card).getAllByText("US$0.00").length).toBeGreaterThanOrEqual(3);
+    });
+
+    it("no terms yet: the dashed ring holds the price, the lines wait, and it says what fills them", async () => {
+        const t = transport("seller");
+        const base = t.listing;
+        t.listing = vi.fn(async () => ({ ...(await base()), commissionRate: null }));
+        t.money = vi.fn(async () => {
+            const m = moneyAt("seller", 0);
+            return { ...m, oneSale: { ...m.oneSale!, rateSource: "none" }, rates: { ...m.rates!, commissionPct: null, commissionSource: "none" } } as any;
+        });
+        drawer(t, "seller");
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        await waitFor(() => expect(document.querySelector(".cbtl-dm[data-empty]")).not.toBeNull());
+        const card = document.querySelector(".cbtl-dm[data-empty]") as HTMLElement;
+        expect(within(card).getByText("No package agreed yet")).toBeTruthy();
+        expect(within(card).getByText("US$3,997.00")).toBeTruthy();
+        expect(card.querySelectorAll(".cbtl-ghost").length).toBeGreaterThan(0);
+        expect(card.textContent).toContain("shows here once a package is agreed");
+    });
+
+    it("a community taking no commission on tickets: its split stays drawn, blurred under 0%", async () => {
+        const t = transport("community", { status: "ACTIVE" });
+        const base = t.listing;
+        t.listing = vi.fn(async () => {
+            const { products: _p, ...l } = (await base()) as any;
+            return { ...l, isPaid: true, listingPrice: { amount: 3997, currency: "USD" }, event: { id: "evt", name: "Immersion to Austin Texas", slug: "immersion", startDate: "2027-03-15T18:00:00Z" } };
+        });
+        t.money = vi.fn(async () => ({ ...moneyAt("community", 0, true), kind: "event" } as any));
+        render(<ListingPageV2 transport={t} seat="community" kind="event" backHref="/back" layout="drawer" />);
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        await waitFor(() => expect(document.querySelector(".cbtl-dm")).not.toBeNull());
+        const card = document.querySelector(".cbtl-dm") as HTMLElement;
+        expect(card.className).toContain("cbtl-blur");
+        expect(card.closest(".cbtl-blurwrap")?.textContent).toContain("PBN takes no commission on event ticket sales");
+    });
+
+    it("a paid listing with agreed terms keeps the full split, unblurred", async () => {
+        drawer(live("seller"), "seller");
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        await waitFor(() => expect(document.querySelector(".cbtl-dm .cbtl-ring")).not.toBeNull());
+        const card = document.querySelector(".cbtl-dm") as HTMLElement;
+        expect(card.hasAttribute("data-empty")).toBe(false);
+        expect(card.className).not.toContain("cbtl-blur");
+    });
+});
+
+describe("the full page", () => {
+    it("opens from the expand button beside the close, the same round disc", async () => {
+        drawer(transport("seller", { ask: true }), "seller", { onClose: vi.fn(), fullPageHref: "/marketplace/immersion/manage/listing/lst" });
+        const link = await screen.findByRole("link", { name: "Open full page" });
+        expect(link.getAttribute("href")).toBe("/marketplace/immersion/manage/listing/lst");
+        expect(link.className).toBe("cbtl-dh-x");
+        // Beside the close, in the head.
+        expect(link.parentElement?.querySelector('button[aria-label="Close"]')).not.toBeNull();
+    });
+
+    it("is not offered when the host has no page to open", async () => {
+        drawer(transport("community"), "community", { onClose: vi.fn() });
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        expect(screen.queryByRole("link", { name: "Open full page" })).toBeNull();
+    });
+
+    it("keeps the two tap targets from overlapping", async () => {
+        const { LISTING_PAGE_CSS } = await import("../listings/v2/styles");
+        // Each disc's ::after reaches 6px out, so they sit 12px apart.
+        expect(LISTING_PAGE_CSS).toContain(".cbtl-dh-acts{display:flex;gap:12px;flex:none}");
+    });
+});
+
 describe("closing", () => {
     it("closes from the head", async () => {
         const onClose = vi.fn();

@@ -447,7 +447,7 @@ export function OneSalePanel({ say, seat, kind, m, parties, meta, title, subtitl
 }
 
 /** Every line a seat reads, at zero: the shape of the split with nothing in it. */
-function zeroLines(seat: Seat): MoneyLine[] {
+export function zeroLines(seat: Seat): MoneyLine[] {
     const keys: MoneyLine["key"][] = seat === "seller"
         ? ["price", "stripe", "commission", "cobuntu", "keep", "commissionCut", "communityNet"]
         : ["price", "stripe", "seller", "sellerFee", "sellerNet", "commission", "cobuntu", "keep"];
@@ -474,12 +474,7 @@ function PlaceholderPanel({ say, seat, kind, parties, meta, cur, title, center, 
         <div className="cbtl-panel" data-placeholder="">
             <span className="cbtl-panel-head"><span className="cbtl-panel-title"><b>{title}</b></span></span>
             <div className="cbtl-panel-body">
-                <span className="cbtl-ring" style={{ width: 176, height: 176 }}>
-                    <svg width="176" height="176" viewBox="0 0 240 240" aria-hidden="true">
-                        <circle cx="120" cy="120" r="80" fill="none" stroke="var(--cbtl-line)" strokeWidth="24" strokeDasharray="6 8" />
-                    </svg>
-                    <span className="cbtl-ring-hole"><b style={{ fontSize: holeFontSize(center, 176) }}>{center}</b><small>{sub}</small></span>
-                </span>
+                <EmptyRing center={center} sub={sub} />
                 <span className="cbtl-lines">
                     {rows.map((r) => (
                         <span className="cbtl-line" data-mine={r.mine ? "" : undefined} key={r.key}>
@@ -493,6 +488,22 @@ function PlaceholderPanel({ say, seat, kind, parties, meta, cur, title, center, 
             </div>
             <span className="cbtl-panel-foot"><span>{foot}</span>{action}</span>
         </div>
+    );
+}
+
+/**
+ * The split's ring with nothing in it yet: dashed, the hole saying why
+ * ("Free", or the price before terms are agreed). Earnings and the drawer
+ * draw the same one.
+ */
+export function EmptyRing({ center, sub, size = 176 }: { center: string; sub: string; size?: number }) {
+    return (
+        <span className="cbtl-ring" style={{ width: size, height: size }}>
+            <svg width={size} height={size} viewBox="0 0 240 240" aria-hidden="true">
+                <circle cx="120" cy="120" r="80" fill="none" stroke="var(--cbtl-line)" strokeWidth="24" strokeDasharray="6 8" />
+            </svg>
+            <span className="cbtl-ring-hole"><b style={{ fontSize: holeFontSize(center, size) }}>{center}</b><small>{sub}</small></span>
+        </span>
     );
 }
 

@@ -363,6 +363,7 @@ export const LISTING_PAGE_COPY = {
     // ── the listing beside its chat in Conversations (T-417) ──
     drwWith: "with",
     drwClose: "Close",
+    drwFullPage: "Open full page",
     drwPending: "Pending",
     drwYourReview: "Your review",
     drwOneSale: "One sale · {amount}",
