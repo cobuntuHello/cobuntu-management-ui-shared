@@ -135,6 +135,11 @@ type Slice = {
     mark: ReactNode;
     /** The mark's corner, so the phone's party-coloured ring follows its shape. */
     round: boolean;
+    /**
+     * What the right column says under the amount, when it is not the slice's
+     * share of the whole: the commission says its agreed rate (see below).
+     */
+    figure?: string;
 };
 
 /*
@@ -304,6 +309,17 @@ export function PayoutsAndFees({
     const count = t(isEvent ? (sold === 1 ? "feesCountTicket" : "feesCountTickets") : (sold === 1 ? "feesCountSale" : "feesCountSales"), { count: sold });
 
     const commissionRate = rates?.communityPct ?? null;
+    /*
+     * The commission per ticket (or sale): what the community gained on each.
+     * So far, the average over what sold; before the first sale, the one sale.
+     */
+    const perUnit = b.community > 0
+        ? (hasSales ? (sold && sold > 0 ? b.community / sold : null) : b.community)
+        : null;
+    const perUnitText = perUnit == null ? null
+        : t(isEvent
+            ? (hasSales && (sold ?? 0) > 1 ? "feesPerTicketAvg" : "feesPerTicket")
+            : (hasSales && (sold ?? 0) > 1 ? "feesPerSaleAvg" : "feesPerSale"), { amount: cash(perUnit) });
     const cobuntuRate = !isMember ? rates?.cobuntuPct ?? null : null;
     // The member's own fee, stated as the rate it is (its amount's share of the price is not).
     const sellerFeePct = isMember ? rates?.sellerFeePct ?? null : null;
@@ -326,9 +342,18 @@ export function PayoutsAndFees({
             ? [{
                 key: "community" as const,
                 label: broker?.name ? t("feesPartyCommission", { name: broker.name }) : t("feesCommunityCommission"),
-                sub: commissionRate != null
-                    ? t(b.vat > 0 ? "feesRateOfPriceBeforeVat" : "feesRateOfPrice", { rate: pct(commissionRate) })
-                    : null,
+                sub: [
+                    commissionRate != null ? t(b.vat > 0 ? "feesRateOfPriceBeforeVat" : "feesRateOfPrice", { rate: pct(commissionRate) }) : null,
+                    perUnitText,
+                ].filter(Boolean).join(" · ") || null,
+                /*
+                 * The agreed rate, not the amount's share of the whole. The
+                 * commission is charged on the price BEFORE VAT, so its share of
+                 * a VAT-inclusive total is smaller than the rate: PBN's 8% on
+                 * "Food for Thought #1" read as 6.5% (26 Nov 2026) and looked
+                 * like a changed deal. The ring's arc stays the share.
+                 */
+                figure: commissionRate != null ? `${pct(commissionRate)}%` : undefined,
                 amount: b.community,
                 display: cash(b.community),
                 color: COLOR.community,
@@ -447,7 +472,7 @@ export function PayoutsAndFees({
                     <Line
                         key={s.key}
                         slice={shown ? s : { ...s, display: "" }}
-                        share={shown ? share(s.amount, whole) : ""}
+                        share={shown ? (s.figure ?? share(s.amount, whole)) : ""}
                         last={i === slices.length - 1}
                     />
                 ))}
