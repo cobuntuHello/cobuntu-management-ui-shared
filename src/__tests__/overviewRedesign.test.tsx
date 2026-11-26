@@ -222,7 +222,8 @@ describe("the list helpers", () => {
         expect(sortListings([...rows, { sold: 0, views: 0, net: 0, gross: 0, status: "ACTIVE" }], "converts")[3].views).toBe(0);
     });
     it("rolls the rest into one row of totals", () => {
-        expect(rollupOthers(rows)).toEqual({ sold: 19, views: 1050, gross: 200, net: 60, count: 3 });
+        // signups: these rows carry none, so each one converts on its sales.
+        expect(rollupOthers(rows)).toEqual({ sold: 19, views: 1050, gross: 200, net: 60, count: 3, signups: 19 });
     });
     it("counts statuses", () => {
         expect(countByStatus(rows)).toEqual([{ status: "ACTIVE", count: 2 }, { status: "PENDING", count: 1 }]);
