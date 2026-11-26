@@ -32,7 +32,7 @@ import { LISTING_PAGE_CSS, themeVars, type ListingTheme } from "./styles";
 import type { ListingTransport } from "./transport";
 import type { BookingAddons, BookingView, ListingDetail, ListingMoney, ListingStatus, Package, Proposal, Seat, Topic, UpfrontAddon } from "./types";
 import { derive } from "./derive";
-import { decisionOf, termsLabel, type MoveId } from "./decision";
+import { decisionOf, offerTermsPct, termsLabel, type MoveId } from "./decision";
 import { DecisionBar, EarningsSection, NegotiationSection, OverviewSection, PackageSheet, SectionTiles, chatItems, type SectionId, type TileState } from "./sections";
 import { Avatar, Confirm, type ConfirmSpec } from "./ui";
 import { AcceptDialog, AskCard, AskCompare, ChangeTermsSheet, PremiumCard, PremiumSheet, cheapestSale, type PremiumCheckout } from "./terms";
@@ -118,6 +118,8 @@ export function ListingPageV2(props: ListingPageV2Props) {
     const [myPackages, setMyPackages] = useState<Package[] | null>(null);
     /** The split at the rate the community asks (T-414), for the seller's Earnings and the accept dialog. */
     const [askMoney, setAskMoney] = useState<ListingMoney | null>(null);
+    /** The split at new terms open on a listing already agreed (either side's), for the drawer's money card. */
+    const [offerMoney, setOfferMoney] = useState<ListingMoney | null>(null);
     /** The seller said "Not now" to Premium on this listing (kept in this browser only). */
     const [premiumDismissed, setPremiumDismissed] = useState(false);
     const [toast, setToast] = useState("");
@@ -194,14 +196,42 @@ export function ListingPageV2(props: ListingPageV2Props) {
     const onPackageId: string | null = data && seat === "seller"
         ? ((data.listing as any).package?.id ?? (data.listing as any).packageId ?? null)
         : null;
+    /*
+     * And on a listing already agreed (live or paused), whatever it is on:
+     * "Propose new terms" offers the seller the community's packages, or a
+     * rate where it has none (26 Nov 2026; it replaced Change package there).
+     */
+    const agreedState = data ? normalizeListingState(data.listing.status) : null;
+    const wantPackages = seat === "seller" && !!data
+        && (!!(onPackageId && transport.switchPackage) || agreedState === "ACTIVE" || agreedState === "PAUSED");
     useEffect(() => {
-        if (!onPackageId || !transport.switchPackage) { setMyPackages(null); return; }
+        if (!wantPackages) { setMyPackages(null); return; }
         let live = true;
         transport.packages()
             .then((ps) => { if (live) setMyPackages(ps); })
             .catch(() => { if (live) setMyPackages(null); });
         return () => { live = false; };
-    }, [onPackageId, transport]);
+    }, [wantPackages, transport]);
+
+    /*
+     * NEW TERMS OPEN ON A LISTING ALREADY AGREED: either side's. Both read the
+     * split at those terms in the drawer's money card, against today's.
+     */
+    const liveOffer = useMemo(() => {
+        if (!data || (agreedState !== "ACTIVE" && agreedState !== "PAUSED")) return null;
+        return [...data.proposals]
+            .filter((p) => (p.status ?? "PENDING") === "PENDING")
+            .sort((a, b) => Date.parse(b.createdAt ?? "") - Date.parse(a.createdAt ?? ""))[0] ?? null;
+    }, [data, agreedState]);
+    useEffect(() => {
+        if (!liveOffer) { setOfferMoney(null); return; }
+        let live = true;
+        const ask = liveOffer.package?.id ? { packageId: liveOffer.package.id } : { rate: Number(liveOffer.commissionRate ?? 0) };
+        transport.money(ask)
+            .then((mm) => { if (live) setOfferMoney(mm ?? null); })
+            .catch(() => { if (live) setOfferMoney(null); });
+        return () => { live = false; };
+    }, [liveOffer, transport]);
 
     // "Not now" on the Premium card holds for this listing, in this browser.
     const listingKey = data?.listing.id ?? null;
@@ -337,6 +367,9 @@ export function ListingPageV2(props: ListingPageV2Props) {
         rejectionReason: listing.rejectionReason ?? null, d,
         can: { decideBooking: !!(transport.decideBooking && eventId), setHidden: !!transport.setHidden, respond: true, propose: true, setStatus: true, switchPackage },
         reviewer: reviewerListingActions(status), owner: ownerListingActions(status),
+        // New terms on an agreed listing: never on a community's own item in itself, never on a free
+        // one; the seller's waits for their packages, which decide between the package sheet and a rate.
+        liveTerms: !parties.listedOnOwner && paid && (seat === "community" || myPackages !== null),
     }, say);
 
     /** The listing's chat in /conversations, when the host gives one (T-417). */
@@ -358,8 +391,22 @@ export function ListingPageV2(props: ListingPageV2Props) {
                 setSheet({ pkg: theirOffer?.package?.id ?? null });
                 return;
             case "changeTerms":
+                // The seller on an agreed listing: the community's packages, or a rate where it has none.
+                if (seat === "seller" && (status === "ACTIVE" || status === "PAUSED")) { setSheet((myPackages?.length ?? 0) > 0 ? "package" : "terms"); return; }
                 setSheet("terms");
                 return;
+            case "withdrawOffer": {
+                const mineOpen = d.offer && d.offer.by === seat ? d.offer.proposal : null;
+                if (!mineOpen || !transport.withdrawProposal) return;
+                const t = offerTermsPct(Number(mineOpen.commissionRate ?? 0), mineOpen.package?.name ?? null);
+                lever({
+                    title: say("ltWithdrawTitle"),
+                    body: say("ltWithdrawBody", { who: other, terms: t, now: percent(rate ?? 0) }),
+                    confirm: say("ltWithdraw"),
+                    act: () => transport.withdrawProposal!(mineOpen.id),
+                });
+                return;
+            }
             case "changePackage":
                 setSheet("package");
                 return;
@@ -369,6 +416,18 @@ export function ListingPageV2(props: ListingPageV2Props) {
                 return;
             case "acceptOffer": {
                 if (!theirOffer) return;
+                // New terms on an agreed listing: the rate changes, nothing else (it stays live or paused).
+                if (status === "ACTIVE" || status === "PAUSED") {
+                    const offered = Number(theirOffer.commissionRate ?? 0);
+                    const t = offerTermsPct(offered, theirOffer.package?.name ?? null);
+                    lever({
+                        title: say("ltAcceptTitle", { terms: t }),
+                        body: say(status === "ACTIVE" && !listing.isHidden ? "ltAcceptBody" : "ltAcceptBodyPaused", { rate: percent(offered), now: percent(rate ?? 0), community }),
+                        confirm: say("ltAccept", { rate: percent(offered) }),
+                        act: () => transport.respond(theirOffer.id, "ACCEPTED"),
+                    });
+                    return;
+                }
                 // The community's custom ask: what going live means in money, and Premium once (T-414).
                 if (seat === "seller" && !theirOffer.package?.id && status === "PENDING") { setSheet("accept"); return; }
                 // With its package on offer, accepting shows the split first (the package sheet).
@@ -384,6 +443,16 @@ export function ListingPageV2(props: ListingPageV2Props) {
             }
             case "declineOffer":
                 if (!theirOffer) return;
+                if (status === "ACTIVE" || status === "PAUSED") {
+                    const t = offerTermsPct(Number(theirOffer.commissionRate ?? 0), theirOffer.package?.name ?? null);
+                    lever({
+                        title: say("ltKeepTitle", { now: percent(rate ?? 0) }),
+                        body: say("ltKeepBody", { who: other, terms: t }),
+                        confirm: say("askKeep", { rate: percent(rate ?? 0) }),
+                        act: () => transport.respond(theirOffer.id, "REJECTED"),
+                    });
+                    return;
+                }
                 lever({ title: say("confirmDeclineOfferTitle"), body: say("confirmDeclineOfferBody", { who: other }), confirm: say("declineOffer"), danger: true, act: () => transport.respond(theirOffer.id, "REJECTED") });
                 return;
             case "approve":
@@ -578,15 +647,26 @@ export function ListingPageV2(props: ListingPageV2Props) {
             <div className="cbtl cbtl-drw" style={rootStyle} data-seat={seat}>
                 <style>{LISTING_PAGE_CSS}</style>
                 <DrawerHead say={say} image={imagesOf(item)[0] ?? null} name={itemName} parties={parties}
-                    status={shownStatus} statusLabel={statusLabel} terms={asking ? termsLabel(say, rate ?? 0, packageName, kind) : terms}
+                    status={shownStatus} statusLabel={statusLabel}
+                    terms={asking ? termsLabel(say, rate ?? 0, packageName, kind) : liveOffer ? `${terms} · ${say("ltProposed")}` : terms}
                     onClose={props.onClose} />
                 <div className="cbtl-db">
                     <DrawerDecision decision={decision} moves={main} extra={extra} onMove={onMove} />
                     <DrawerMoney say={say} seat={seat} kind={kind} parties={parties}
-                        m={asking ? (askMoney ?? m) : m} base={asking ? m : null} baseRate={rate ?? 0}
-                        rate={asking ? askRate : (rate ?? shownRate)} />
-                    <DrawerTerms say={say} now={asking ? termsLabel(say, rate ?? 0, packageName, kind) : terms} nowSub={asking ? "" : termsSub}
-                        ask={askRate != null ? percent(askRate) : null} askWho={community} actions={termsMoves} onMove={onMove} />
+                        m={asking ? (askMoney ?? m) : liveOffer ? (offerMoney ?? m) : m}
+                        base={asking || liveOffer ? m : null} baseRate={rate ?? 0}
+                        rate={asking ? askRate : liveOffer ? Number(liveOffer.commissionRate ?? 0) : (rate ?? shownRate)} />
+                    {liveOffer ? (
+                        <DrawerTerms say={say} now={terms} nowSub={termsSub}
+                            ask={percent(Number(liveOffer.commissionRate ?? 0))}
+                            askWho={d.offer?.by === "seller" ? names.seller : community}
+                            askLabel={d.offer?.by === seat ? say("drwYouProposed") : undefined}
+                            askSub={liveOffer.package?.name ?? undefined}
+                            actions={termsMoves} onMove={onMove} />
+                    ) : (
+                        <DrawerTerms say={say} now={asking ? termsLabel(say, rate ?? 0, packageName, kind) : terms} nowSub={asking ? "" : termsSub}
+                            ask={askRate != null ? percent(askRate) : null} askWho={community} actions={termsMoves} onMove={onMove} />
+                    )}
                     <DrawerDetails say={say} items={[
                         { label: say("ovPrice"), value: priceText },
                         kind === "event"
@@ -611,10 +691,13 @@ export function ListingPageV2(props: ListingPageV2Props) {
             {sheet === "package" && (
                 <PackageSwitchSheet say={say} transport={transport} names={names} parties={parties} currentId={onPackageId}
                     live={status === "ACTIVE" || status === "PAUSED"}
+                    // On an agreed listing it proposes the package to the community; it stays as it is meanwhile.
+                    propose={status === "ACTIVE" || status === "PAUSED"} now={terms}
                     onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); void after(msg); }} />
             )}
             {sheet === "terms" && (
                 <ChangeTermsSheet say={say} kind={kind} transport={transport} names={names} parties={parties} now={rate} base={m}
+                    seat={seat} standing={status === "ACTIVE" && !listing.isHidden ? "live" : status === "ACTIVE" || status === "PAUSED" ? "paused" : null}
                     onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); void after(msg); }} />
             )}
             {sheet === "accept" && theirOffer && (

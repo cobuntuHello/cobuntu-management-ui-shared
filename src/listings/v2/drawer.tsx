@@ -165,10 +165,14 @@ export function DrawerMoney({ say, seat, kind, m, base, baseRate, rate, parties 
 }
 
 /** What is agreed, or the ask against it, and the moves about terms. */
-export function DrawerTerms({ say, now, nowSub, ask, askWho, actions, onMove, busy }: {
+export function DrawerTerms({ say, now, nowSub, ask, askWho, askLabel, askSub, actions, onMove, busy }: {
     say: Say; now: string; nowSub: string;
     /** The rate asked for this listing, when there is an open ask. */
     ask: string | null; askWho: string;
+    /** The ask's label when it is not "<who> asks" (your own: "You proposed"). */
+    askLabel?: string;
+    /** Under the asked rate: its package's name, else "this listing only". */
+    askSub?: string;
     actions: Move[]; onMove: (id: MoveId) => void; busy?: boolean;
 }) {
     if (!now && !ask && actions.length === 0) return null;
@@ -179,7 +183,7 @@ export function DrawerTerms({ say, now, nowSub, ask, askWho, actions, onMove, bu
                 <span className="cbtl-dt-cmp">
                     <span className="cbtl-dt-box"><small>{say("drwNow")}</small><b>{now || "-"}</b>{nowSub && <span>{nowSub}</span>}</span>
                     <Icon d="M5 12h14M13 6l6 6-6 6" size={16} stroke={2.2} />
-                    <span className="cbtl-dt-box" data-ask=""><small>{say("drwAsks", { who: askWho })}</small><b>{ask}</b><span>{say("drwThisListing")}</span></span>
+                    <span className="cbtl-dt-box" data-ask=""><small>{askLabel ?? say("drwAsks", { who: askWho })}</small><b>{ask}</b><span>{askSub ?? say("drwThisListing")}</span></span>
                 </span>
             ) : now ? (
                 <span className="cbtl-dt-now"><b>{now}</b>{nowSub && <small>{nowSub}</small>}</span>

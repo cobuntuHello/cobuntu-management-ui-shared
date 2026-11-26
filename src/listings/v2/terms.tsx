@@ -134,8 +134,16 @@ export function paysForItself(fee: number, cur: string, monthly?: { minor: numbe
 // The community: Change terms
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function ChangeTermsSheet({ say, kind, transport, names, parties, now, base, onClose, onDone }: {
+export function ChangeTermsSheet({ say, kind, transport, names, parties, now, base, seat = "community", standing = null, onClose, onDone }: {
     say: Say; kind: "event" | "product"; transport: ListingTransport;
+    /**
+     * Who proposes. The community (T-414), or the seller on an agreed listing
+     * whose community has no packages (26 Nov 2026): the same rate, sent the
+     * other way.
+     */
+    seat?: "seller" | "community";
+    /** The listing is already agreed: it stays live (or paused) on today's rate until the other side accepts. */
+    standing?: "live" | "paused" | null;
     names: { community: string; seller: string }; parties: Parties;
     /** This listing's rate today (percent), or null when none is set. */
     now: number | null;
@@ -184,7 +192,9 @@ export function ChangeTermsSheet({ say, kind, transport, names, parties, now, ba
     const shownRate = shown?.rate ?? start;
     const sale = cheapestSale(preview);
     const cur = (preview?.currency ?? base?.currency) ?? "EUR";
-    const keepsAt = sale ? keepOf("community", sale.lines, parties) : null;
+    // The other side, who answers; and what THIS side keeps at the rate on screen.
+    const who = seat === "seller" ? names.community : names.seller;
+    const keepsAt = sale ? keepOf(seat, sale.lines, parties) : null;
     // The rate glides in hundredths (rates like 2.5 exist); in flight it shows
     // whole percents, and it lands on the exact rate.
     const glided = useGlide({ rate: Math.round(rate * 100), keep: keepsAt ?? 0 }, true);
@@ -200,7 +210,7 @@ export function ChangeTermsSheet({ say, kind, transport, names, parties, now, ba
         setBusy(true); setError("");
         try {
             await transport.propose({ commissionRate: rate });
-            onDone(say("ctSent", { seller: names.seller }));
+            onDone(standing || seat === "seller" ? say("ltSent", { who }) : say("ctSent", { seller: names.seller }));
         } catch (e: any) {
             setError(e?.message || say("failed"));
             setBusy(false);
@@ -209,11 +219,13 @@ export function ChangeTermsSheet({ say, kind, transport, names, parties, now, ba
 
     return (
         <div className="cbtl-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
-            <div className="cbtl-sheet cbtl-wide cbtl-ct" role="dialog" aria-modal="true" aria-label={say("ctTitle")} tabIndex={-1} ref={ref}>
+            <div className="cbtl-sheet cbtl-wide cbtl-ct" role="dialog" aria-modal="true" aria-label={seat === "seller" ? say("ltAskTitle", { community: names.community }) : say("ctTitle")} tabIndex={-1} ref={ref}>
                 <span className="cbtl-wide-head">
                     <span>
-                        <h3>{say("ctTitle")}</h3>
-                        <p>{say("ctSub", { community: names.community, seller: names.seller })}</p>
+                        <h3>{seat === "seller" ? say("ltAskTitle", { community: names.community }) : say("ctTitle")}</h3>
+                        <p>{seat === "seller" ? say("ltAskSubRate", { community: names.community })
+                            : standing ? say("ltTermsSub", { seller: names.seller, now: percent(start) })
+                                : say("ctSub", { community: names.community, seller: names.seller })}</p>
                     </span>
                     <button type="button" className="cbtl-x" aria-label={say("cancel")} onClick={onClose} disabled={busy}><Icon d="M18 6L6 18M6 6l12 12" size={16} stroke={2} /></button>
                 </span>
@@ -245,13 +257,16 @@ export function ChangeTermsSheet({ say, kind, transport, names, parties, now, ba
                         </span>
                     </section>
 
+                    {standing && (
+                        <p className="cbtl-hint cbtl-ct-while">{say(standing === "live" ? "ltWhileLive" : "ltWhilePaused", { who, now: percent(start) })}</p>
+                    )}
                     {!shown ? <p className="cbtl-hint">{say("pkLoading")}</p>
                         : !preview ? <p className="cbtl-hint">{say("pkNoPreview")}</p>
                             : (
                                 <div className="cbtl-ct-split" aria-busy={working || undefined}>
-                                    <OneSalePanel say={say} seat="community" kind={kind} m={preview} parties={parties} meta={metaOf(preview, shownRate)} glide
+                                    <OneSalePanel say={say} seat={seat} kind={kind} m={preview} parties={parties} meta={metaOf(preview, shownRate)} glide
                                         title={say("ctSplitTitle", { price: money(sale?.gross ?? 0, cur), rate: percent(shownRate) })}
-                                        subtitle={say("ctSplitSub", { seller: names.seller })} />
+                                        subtitle={say("ctSplitSub", { seller: who })} />
                                 </div>
                             )}
                 </div>
@@ -259,11 +274,13 @@ export function ChangeTermsSheet({ say, kind, transport, names, parties, now, ba
                 {error && <span className="cbtl-error cbtl-wide-pad" role="alert">{error}</span>}
                 <span className="cbtl-wide-foot">
                     <span className="cbtl-wide-sum">
-                        {!same && shownRate !== start && keepsAt != null && <><b>{percent(shownRate)}</b> · {say("ctKeeps", { who: names.community, amount: money(glided.keep, cur) })}</>}
+                        {!same && shownRate !== start && keepsAt != null && <><b>{percent(shownRate)}</b> · {seat === "seller"
+                            ? say("ltYouKeep", { amount: money(glided.keep, cur) })
+                            : say("ctKeeps", { who: names.community, amount: money(glided.keep, cur) })}</>}
                     </span>
                     <button type="button" className="cbtl-hbtn" onClick={onClose} disabled={busy}>{say("cancel")}</button>
                     <button type="button" className="cbtl-hbtn" data-kind="primary" disabled={busy || same} onClick={send}>
-                        {say("ctSend", { rate: percent(rate), seller: names.seller })}
+                        {say("ctSend", { rate: percent(rate), seller: who })}
                     </button>
                 </span>
             </div>
