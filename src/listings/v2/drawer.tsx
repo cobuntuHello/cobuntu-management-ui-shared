@@ -122,6 +122,15 @@ export function DrawerMoney({ say, seat, kind, m, base, baseRate, rate, parties 
     const rows = rowsFor(say, seat, kind, lines, parties, metaOf(m, rate), cur);
     const keep = keepOf(seat, lines, parties);
     const share = p.gross > 0 ? Math.round((keep / p.gross) * 100) : 0;
+    /*
+     * The community's hole says its agreed rate, not its share of the price:
+     * the commission is taken on the price before VAT and Cobuntu's cut comes
+     * out of it, so the share reads lower than what was agreed (8% showed as
+     * 6% on PBN's event, 26 Nov 2026). The seller's hole stays their share.
+     */
+    const centre = seat === "community" && rate != null
+        ? { value: percent(rate), sub: say("drwCommission") }
+        : { value: `${share}%`, sub: "" };
     const basePrices = pricesOf(base ?? null);
     const baseP = basePrices[cheapestPaid(basePrices)] ?? null;
     const baseKeep = baseP && !baseP.free ? keepOf(seat, baseP.lines, parties) : null;
@@ -133,9 +142,11 @@ export function DrawerMoney({ say, seat, kind, m, base, baseRate, rate, parties 
                 {rate != null && <span className="cbtl-dc-at">{say("drwAt", { rate: percent(rate) })}</span>}
             </span>
             <span className="cbtl-dm-hero">
-                <Ring rows={rows} gross={p.gross} center={`${share}%`} sub="" size={84} />
+                <Ring rows={rows} gross={p.gross} center={centre.value} sub={centre.sub} size={84} />
                 <span className="cbtl-dm-keep">
-                    <small>{seat === "seller" ? say("drwYouKeep") : say("drwTheyKeep", { who: parties.community.name })}</small>
+                    <small>{seat === "seller"
+                        ? say(kind === "event" ? "drwYouKeepTicket" : "drwYouKeep")
+                        : say(kind === "event" ? "drwTheyKeepTicket" : "drwTheyKeep", { who: parties.community.name })}</small>
                     <b>{money(keep, cur)}</b>
                     {less > 0 && baseRate != null && <small className="cbtl-dm-less">{say("drwLess", { amount: money(less, cur), rate: percent(baseRate) })}</small>}
                 </span>

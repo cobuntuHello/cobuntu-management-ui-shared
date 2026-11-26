@@ -683,7 +683,8 @@ describe("where the money goes", () => {
     it("names every party with what it got, and Stripe's real cost apart from Cobuntu's", () => {
         renderIt(withFees());
         expect(screen.getByText("Porto Business Network’s commission")).toBeInTheDocument();
-        expect(screen.getByText("8% of the price")).toBeInTheDocument();
+        // The rate, then what it gained on each sale (26 Nov 2026: Art read a share as the rate).
+        expect(screen.getByText(/^8% of the price · €[\d.]+ a sale( on average)?$/)).toBeInTheDocument();
         expect(screen.getByText("€3.60")).toBeInTheDocument();
         expect(screen.getByText("Platform fee")).toBeInTheDocument();
         expect(screen.getByText("€1.70")).toBeInTheDocument();
@@ -699,7 +700,7 @@ describe("where the money goes", () => {
                 breakdown: { vat: 690, stripe: 40, cobuntu: 170, community: 360, net: 3930 } },
         }));
         expect(screen.getByText("Includes €6.90 VAT, yours to declare")).toBeInTheDocument();
-        expect(screen.getByText("8% of the price before VAT")).toBeInTheDocument();
+        expect(screen.getByText(/^8% of the price before VAT · €[\d.]+ a sale( on average)?$/)).toBeInTheDocument();
     });
 
     it("says where the money lands and when, as sentences", () => {

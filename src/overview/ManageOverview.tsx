@@ -101,6 +101,13 @@ export interface ManageOverviewProps {
  */
 function brokerOf(listings: OverviewListing[]): { kind: "community"; name: string; imageUrl: string | null } | null {
     const paid = listings.filter((l) => l.status === "ACTIVE");
+    // The one live listing that charges a commission, beside others at 0%:
+    // every commission euro came through it (PBN at 8% beside the host's own
+    // community at 0%), so it is THE community taking the commission.
+    const charging = paid.filter((l) => Number(l.commissionRate ?? 0) > 0);
+    if (charging.length === 1) {
+        return { kind: "community", name: charging[0].communityName, imageUrl: charging[0].communityIcon ?? null };
+    }
     const pool = paid.length > 0 ? paid : listings;
     if (pool.length !== 1) return null;
     const l = pool[0];

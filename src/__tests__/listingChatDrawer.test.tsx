@@ -178,6 +178,33 @@ describe("a live listing", () => {
     });
 });
 
+describe("the one-sale card's centre", () => {
+    it("says the community's agreed rate, not its share of the price (PBN's 8% read as 6%)", async () => {
+        const t = transport("community", { status: "ACTIVE" });
+        const base = t.listing;
+        t.listing = vi.fn(async () => ({ ...(await base()), commissionRate: 10 }));
+        drawer(t, "community");
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        const hole = await waitFor(() => {
+            const h = document.querySelector(".cbtl-dm .cbtl-ring-hole") as HTMLElement | null;
+            expect(h).not.toBeNull();
+            return h!;
+        });
+        expect(hole.textContent).toBe("10%commission");
+    });
+
+    it("keeps the seller's own share in the seller's centre", async () => {
+        drawer(transport("seller", { status: "ACTIVE" }), "seller");
+        await screen.findByRole("heading", { name: "Immersion to Austin Texas" });
+        const hole = await waitFor(() => {
+            const h = document.querySelector(".cbtl-dm .cbtl-ring-hole") as HTMLElement | null;
+            expect(h).not.toBeNull();
+            return h!;
+        });
+        expect(hole.textContent).toMatch(/^\d+%$/);
+    });
+});
+
 describe("closing", () => {
     it("closes from the head", async () => {
         const onClose = vi.fn();
