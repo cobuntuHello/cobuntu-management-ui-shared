@@ -476,11 +476,11 @@ a.cbtl-crumb-link:hover{opacity:.8}
 .cbtl-prem-ticks{display:flex;flex-direction:column;gap:7px;font-size:12.5px;line-height:1.35}
 .cbtl-prem-ticks>span{display:flex;align-items:center;gap:9px}
 .cbtl-prem-tick{width:20px;height:20px;flex:none;border-radius:50%;background:var(--cob-tick);color:var(--cob-navy);display:inline-flex;align-items:center;justify-content:center}
-.cbtl-prem-go{min-height:44px;padding:0 18px;border-radius:10px;border:none;background:var(--cob-terra);color:var(--cob-navy);font-family:var(--cob-label);font-weight:600;font-size:13.5px;letter-spacing:.07em;text-transform:uppercase;cursor:pointer;white-space:nowrap;transition:background-color .15s ease}
+.cbtl .cbtl-prem-go{min-height:44px;padding:0 18px;border-radius:10px;border:none;background:var(--cob-terra);color:var(--cob-navy);font-family:var(--cob-label);font-weight:600;font-size:13.5px;letter-spacing:.07em;text-transform:uppercase;cursor:pointer;white-space:nowrap;transition:background-color .15s ease}
 .cbtl-prem-go:hover{background:var(--cob-terra-hover)}
 .cbtl-prem-go:focus-visible{outline:3px solid var(--cob-navy);outline-offset:2px}
 .cbtl-prem-go:disabled{opacity:.55;cursor:default}
-.cbtl-prem-later{min-height:44px;border:none;background:transparent;font:inherit;font-size:13px;color:var(--cob-muted);cursor:pointer}
+.cbtl .cbtl-prem-later{min-height:44px;border:none;background:transparent;font:inherit;font-size:13px;color:var(--cob-muted);cursor:pointer}
 .cbtl-prem-card{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;align-items:center;gap:20px;padding:20px 22px}
 .cbtl-prem-main{display:flex;flex-direction:column;gap:10px;min-width:0}
 .cbtl-prem-acts{display:flex;flex-direction:column;gap:2px;min-width:170px}
@@ -517,7 +517,7 @@ a.cbtl-crumb-link:hover{opacity:.8}
 .cbtl-dh-pill[data-tone="paused"] i{background:var(--cbtl-blue-line)}
 .cbtl-dh-pill[data-tone="closed"]{background:var(--cbtl-sand);color:var(--cbtl-muted)}
 .cbtl-dh-pill[data-tone="closed"] i{background:var(--cbtl-faint)}
-.cbtl-dh-x{width:44px;height:44px;margin:-6px -6px 0 0;flex:none;border-radius:50%;border:none;background:transparent;color:var(--cbtl-muted);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.cbtl .cbtl-dh-x{width:44px;height:44px;margin:-6px -6px 0 0;flex:none;border-radius:50%;border:none;background:transparent;color:var(--cbtl-muted);display:flex;align-items:center;justify-content:center;cursor:pointer}
 .cbtl-dh-x:hover{background:var(--cbtl-sand)}
 .cbtl-db{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:12px 14px 16px}
 .cbtl-dd{display:flex;flex-direction:column;gap:8px;padding:14px;border-radius:16px;background:var(--cbtl-commit);color:#fff}
@@ -526,9 +526,12 @@ a.cbtl-crumb-link:hover{opacity:.8}
 .cbtl-dd[data-tone="closed"] .cbtl-dd-eyebrow,.cbtl-dd[data-tone="them"] .cbtl-dd-eyebrow{color:rgba(255,255,255,.6)}
 .cbtl-dd-title{font-family:var(--cbtl-display);font-size:19px;font-weight:var(--cbtl-strong);letter-spacing:-.01em;line-height:1.2}
 .cbtl-dd-sub{font-size:12.5px;line-height:1.45;color:rgba(255,255,255,.7)}
-.cbtl-dd-p{min-height:44px;border-radius:11px;border:none;background:#fff;color:var(--cbtl-commit);font-size:13.5px;font-weight:600;cursor:pointer}
+.cbtl .cbtl-dd-p{min-height:44px;border-radius:11px;border:none;background:#fff;color:var(--cbtl-commit);font-size:13.5px;font-weight:600;cursor:pointer}
 .cbtl-dd-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
 .cbtl-dd-s{min-height:44px;padding:0 10px;border-radius:11px;border:1px solid rgba(255,255,255,.24);background:transparent;color:#fff;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none}
+/* Scoped under .cbtl on purpose: ".cbtl button{color:inherit}" outranks a bare
+   class, and inherited the card's white into this white button (the primary
+   move rendered as a blank box, live, 26 Nov 2026). */
 .cbtl-dd-p:disabled,.cbtl-dd-s:disabled{opacity:.5;cursor:default}
 .cbtl-dd-p:focus-visible,.cbtl-dd-s:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .cbtl-dc{display:flex;flex-direction:column;gap:10px;padding:12px 14px;border-radius:16px;background:var(--cbtl-card);border:1px solid var(--cbtl-line-soft)}
