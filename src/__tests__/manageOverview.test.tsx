@@ -87,8 +87,8 @@ describe("whether it can be sold at all", () => {
     it("says so too when listings exist but none is live", () => {
         renderIt(stats({ listings: [listing({ status: "PENDING" })] }));
         expect(screen.getByText("Nobody can buy this yet")).toBeInTheDocument();
-        // "off the shelf", not "paused": one act, one word, across every screen.
-        expect(screen.getByText(/off the shelf or still under review/)).toBeInTheDocument();
+        // "paused", never "off the shelf": the word says what happened.
+        expect(screen.getByText(/has sales paused or is still reviewing it/)).toBeInTheDocument();
     });
 
     it("stays quiet when something is live", () => {
@@ -114,7 +114,7 @@ describe("whether it can be sold at all", () => {
             listings: [listing({ status: "PAUSED" })],
         }));
         expect(screen.getByText(/has not been published yet/)).toBeInTheDocument();
-        expect(screen.queryByText(/off the shelf or still under review/)).not.toBeInTheDocument();
+        expect(screen.queryByText(/has sales paused or is still reviewing it/)).not.toBeInTheDocument();
     });
 
     it("keeps the shelf wording for an event that WAS published and came down", () => {
@@ -124,7 +124,7 @@ describe("whether it can be sold at all", () => {
             everPublished: true,
             listings: [listing({ status: "PAUSED" })],
         }));
-        expect(screen.getByText(/off the shelf or still under review/)).toBeInTheDocument();
+        expect(screen.getByText(/has sales paused or is still reviewing it/)).toBeInTheDocument();
         expect(screen.queryByText(/has not been published yet/)).not.toBeInTheDocument();
     });
 
@@ -133,7 +133,7 @@ describe("whether it can be sold at all", () => {
         // "not published" there would tell a seller to press a button that does
         // not exist on their page.
         renderIt(stats({ listings: [listing({ status: "PAUSED" })] }));
-        expect(screen.getByText(/off the shelf or still under review/)).toBeInTheDocument();
+        expect(screen.getByText(/has sales paused or is still reviewing it/)).toBeInTheDocument();
     });
 
     it("still leads with no-listings when there is no listing at all", () => {
@@ -325,11 +325,11 @@ describe("the shelf control", () => {
         expect(screen.queryByRole("button", { name: /shelf/i })).not.toBeInTheDocument();
     });
 
-    /* One act, one word. "Paused" was mine, and it was a second vocabulary. */
-    it("calls the state off-shelf, as every other screen does", () => {
+    /* One act, one word, and the word says what happened: "Paused" (25 Nov 2026). */
+    it("calls the state Paused, as every other screen does", () => {
         renderIt(stats({ listings: [listing({ status: "PAUSED" })] }));
-        expect(screen.getByText("Off-shelf")).toBeInTheDocument();
-        expect(screen.queryByText("Paused")).not.toBeInTheDocument();
+        expect(screen.getAllByText("Paused").length).toBeGreaterThan(0);
+        expect(screen.queryByText(/shelf/i)).not.toBeInTheDocument();
     });
 });
 

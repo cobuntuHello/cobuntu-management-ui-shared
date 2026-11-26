@@ -24,32 +24,35 @@
  */
 
 /**
- * Cobuntu's mark: the open copper ring and its two dots.
+ * Cobuntu's mark: the open copper ring and its two slate dots.
  *
- * Geometry copied verbatim from the backoffice's CobuntuMark, which is itself
- * the landing page footer's. The dot colours are overridable there because the
- * mark has to read on dark chrome as well as light; this panel is always a
- * light card, so it takes the defaults.
+ * Traced from the live asset (https://cobuntu.com/icon.png, 512 x 512), not
+ * redrawn from memory: the copy this replaced (from the backoffice) had the
+ * big dot in sand and the ring's opening in the wrong place, and the user
+ * spotted it at a glance. Ring: centre 277,263, radius 185, stroke 37, round
+ * caps, open between 21 and 70 degrees (bottom right). Big dot 78.5,92 r 47.5
+ * outside its top left; small dot 426,409 r 13.5 in the opening. Copper
+ * #C68346, slate #4A5260.
  */
 export function CobuntuMark({ size = 20 }: { size?: number }) {
     return (
         <svg
             width={size}
             height={size}
-            viewBox="0 0 240 240"
+            viewBox="0 0 512 512"
             fill="none"
             role="img"
             aria-label="Cobuntu"
         >
             <path
-                d="M180.6 155A70 70 0 1 0 120 190"
+                d="M340.27 436.84A185 185 0 1 1 449.71 329.3"
                 fill="none"
                 stroke="#C68346"
-                strokeWidth="18"
+                strokeWidth="37"
                 strokeLinecap="round"
             />
-            <circle cx="62" cy="58" r="18" fill="#E8D4B8" />
-            <circle cx="175" cy="200" r="9" fill="#2E3A4B" />
+            <circle cx="78.5" cy="92" r="47.5" fill="#4A5260" />
+            <circle cx="426" cy="409" r="13.5" fill="#4A5260" />
         </svg>
     );
 }

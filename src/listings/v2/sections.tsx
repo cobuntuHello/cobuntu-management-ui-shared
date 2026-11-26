@@ -125,9 +125,9 @@ export function DecisionBar({ decision, onMove, busy }: { decision: Decision; on
 // Party marks: the community, Cobuntu and Stripe square; people round; no rings
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Who = "seller" | "community" | "cobuntu" | "stripe" | "owner";
+export type Who = "seller" | "community" | "cobuntu" | "stripe" | "owner";
 
-function Mark({ who, parties, size = 28 }: { who: Who; parties: Parties; size?: number }) {
+export function Mark({ who, parties, size = 28 }: { who: Who; parties: Parties; size?: number }) {
     const box = { width: size, height: size };
     if (who === "owner") {
         // The community that owns the item: square, its own icon.
@@ -165,7 +165,7 @@ export function cheapestPaid(prices: Price[]): number {
     return at < 0 ? 0 : at;
 }
 
-interface Row {
+export interface Row {
     key: string; who: Who; label: string; note?: string; amount: number; color: string; mine?: boolean;
     /** No figure to show yet (a commission before any package is picked): a dash, no slice. */
     blank?: boolean;
@@ -193,7 +193,7 @@ export function keepOf(seat: Seat, lines: MoneyLine[], parties?: Parties): numbe
 }
 
 /** The lines of one sale as this seat reads them, keep first (the ring's order). */
-function rowsFor(say: Say, seat: Seat, kind: "event" | "product", lines: MoneyLine[], parties: Parties, meta: PanelMeta, cur: string): Row[] {
+export function rowsFor(say: Say, seat: Seat, kind: "event" | "product", lines: MoneyLine[], parties: Parties, meta: PanelMeta, cur: string): Row[] {
     const community = parties.community.name;
     const seller = parties.owner?.name ?? parties.seller.name;
     const commission = amountOf(lines, "commission");
@@ -284,7 +284,7 @@ export function holeFontSize(text: string, ringSize: number): number {
     return Math.max(11, Math.min(20, Math.floor(room / (Math.max(1, text.length) * 0.6))));
 }
 
-function Ring({ rows, gross, center, sub, size = 176 }: { rows: Row[]; gross: number; center: string; sub: string; size?: number }) {
+export function Ring({ rows, gross, center, sub, size = 176 }: { rows: Row[]; gross: number; center: string; sub: string; size?: number }) {
     const total = Math.max(1, gross);
     const parts = rows.filter((r) => r.amount > 0);
     const gap = parts.length > 1 ? 2 : 0;

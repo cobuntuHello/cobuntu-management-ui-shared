@@ -209,8 +209,14 @@ describe("the seller: PBN asks 10% for this listing", () => {
             await screen.findByRole("heading", { level: 1 });
             fireEvent.click(within(bar()).getByRole("button", { name: "Accept 10% and go live" }));
             const dlg = await screen.findByRole("dialog", { name: "Accept 10% and go live?" });
-            expect(await within(dlg).findByText(/^Keep the \S*99\.98 too, with Premium$/)).toBeTruthy();
-            fireEvent.click(within(dlg).getByRole("button", { name: "Go Premium, then live" }));
+            expect(await within(dlg).findByText(/^Keep the \S*99\.98 too$/)).toBeTruthy();
+            // Cobuntu's fee going to 0% and the amount kept: never the seller's totals.
+            expect(within(dlg).getByText("Cobuntu fee today")).toBeTruthy();
+            expect(within(dlg).getByText("0%")).toBeTruthy();
+            expect(within(dlg).queryByText(/3,537|3,447\.\d\d.*Premium/)).toBeNull();
+            // No monthly amount from the host: "pays for itself" is never guessed.
+            expect(within(dlg).queryByText("Pays for itself on this one sale")).toBeNull();
+            fireEvent.click(within(dlg).getByRole("button", { name: "Go Premium, then go live" }));
             const go = within(dlg).getByRole("button", { name: "Continue to payment" }) as HTMLButtonElement;
             expect(go.disabled).toBe(true);
             fireEvent.click(within(dlg).getByRole("checkbox"));
@@ -237,9 +243,36 @@ describe("Cobuntu Premium on the seller's own item", () => {
         await screen.findByRole("heading", { level: 1 });
         openEarnings();
         expect(await screen.findByText(/^Keep the \S*99\.98 too$/)).toBeTruthy();
-        expect(screen.getByText(/3,936\.79/)).toBeTruthy();
+        // The fee going from 2.5% to 0%, not the seller's totals with and without.
+        const card = document.querySelector(".cbtl-prem-card") as HTMLElement;
+        expect(within(card).getByText("2.5%")).toBeTruthy();
+        expect(within(card).getByText("0%")).toBeTruthy();
+        expect(within(card).queryByText(/3,936\.79/)).toBeNull();
         fireEvent.click(screen.getByRole("button", { name: "Not now" }));
         expect(screen.queryByText(/^Keep the \S*99\.98 too$/)).toBeNull();
+    });
+
+    it("says it pays for itself only when that is certain", async () => {
+        const withAmount = { ...premium, monthlyAmount: { minor: 800, currency: "EUR" } };
+        mount(transport("seller", { ask: true }), "seller", { premiumCheckout: withAmount });
+        await screen.findByRole("heading", { level: 1 });
+        fireEvent.click(within(bar()).getByRole("button", { name: "Accept 10% and go live" }));
+        const dlg = await screen.findByRole("dialog", { name: "Accept 10% and go live?" });
+        // US$99.98 against €8: two close currencies, well past the 1.5x margin.
+        expect(await within(dlg).findByText("Pays for itself on this one sale")).toBeTruthy();
+    });
+
+    it("wears Cobuntu's brand: the real mark and the wordmark, never the community's", async () => {
+        mount(transport("seller"), "seller", { premiumCheckout: premium });
+        await screen.findByRole("heading", { level: 1 });
+        openEarnings();
+        const card = await waitFor(() => document.querySelector(".cbtl-prem-card") as HTMLElement);
+        expect(within(card).getByText("Cobuntu")).toBeTruthy();
+        expect(within(card).getByText("Premium")).toBeTruthy();
+        // The traced mark: copper ring, slate dots (cobuntu.com/icon.png).
+        const svg = card.querySelector('svg[aria-label="Cobuntu"]') as SVGElement;
+        expect(svg.querySelector("path")?.getAttribute("stroke")).toBe("#C68346");
+        expect(Array.from(svg.querySelectorAll("circle")).map((c) => c.getAttribute("fill"))).toEqual(["#4A5260", "#4A5260"]);
     });
 
     it("is not shown without a host that can sell Premium", async () => {

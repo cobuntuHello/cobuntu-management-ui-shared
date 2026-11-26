@@ -302,12 +302,14 @@ describe("the decision bar", () => {
         mount(t, "seller");
         await screen.findByRole("heading", { level: 1 });
         expect(within(bar()).getByText("Live")).toBeTruthy();
-        expect(screen.queryByRole("button", { name: "Take it off the shelf" })).toBeNull();
-        fireEvent.click(within(bar()).getByRole("button", { name: "Pause" }));
+        // Says what it does: "Pause sales", never "take it off the shelf".
+        expect(screen.queryByRole("button", { name: /shelf/i })).toBeNull();
+        fireEvent.click(within(bar()).getByRole("button", { name: "Pause sales" }));
         const dialog = await screen.findByRole("dialog");
+        expect(dialog.textContent).toContain("Pause sales on TEJÁ House?");
         expect(dialog.textContent).toContain("Nobody can buy it until you resume");
         expect(t.setStatus).not.toHaveBeenCalled();
-        fireEvent.click(within(dialog).getByRole("button", { name: "Pause" }));
+        fireEvent.click(within(dialog).getByRole("button", { name: "Pause sales" }));
         await waitFor(() => expect(t.setStatus).toHaveBeenCalledWith("PAUSED"));
     });
 
@@ -323,10 +325,11 @@ describe("the decision bar", () => {
         mount(t, "community");
         await screen.findByRole("heading", { level: 1 });
         expect(within(bar()).getByText("Paused")).toBeTruthy();
-        fireEvent.click(within(bar()).getByRole("button", { name: "Resume" }));
+        fireEvent.click(within(bar()).getByRole("button", { name: "Resume sales" }));
         expect(t.setHidden).not.toHaveBeenCalled();
         const dialog = await screen.findByRole("dialog");
-        fireEvent.click(within(dialog).getByRole("button", { name: "Resume" }));
+        expect(dialog.textContent).toContain("Resume sales on TEJÁ House?");
+        fireEvent.click(within(dialog).getByRole("button", { name: "Resume sales" }));
         await waitFor(() => expect(t.setHidden).toHaveBeenCalledWith(false));
     });
 

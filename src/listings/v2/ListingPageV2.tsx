@@ -37,6 +37,8 @@ import { DecisionBar, EarningsSection, NegotiationSection, OverviewSection, Pack
 import { Avatar, Confirm, type ConfirmSpec } from "./ui";
 import { AcceptDialog, AskCard, AskCompare, ChangeTermsSheet, PremiumCard, PremiumSheet, cheapestSale, type PremiumCheckout } from "./terms";
 import { PackageSwitchSheet, packagePoints } from "./packageSwitch";
+import { DrawerDecision, DrawerDetails, DrawerFooter, DrawerHead, DrawerMoney, DrawerTerms, FOOTER_MOVES, TERMS_MOVES } from "./drawer";
+import { imagesOf, pricesOf, cheapestPaid } from "./sections";
 import { normalizeListingState } from "../manageListingRows";
 import { ownerListingActions, reviewerListingActions } from "../listingTransitions";
 
@@ -78,6 +80,16 @@ export interface ListingPageV2Props {
     onChange?: () => void;
     /** Leaving the page (Stripe's card page): the browser's own navigation unless the host routes it. */
     navigate?: (url: string) => void;
+    /**
+     * "drawer": the listing beside its chat in /conversations (T-417): one
+     * narrow column (head, decision, money, terms, details, footer) instead of
+     * the page's trail, tiles and sections. Same loads, moves and dialogs.
+     */
+    layout?: "page" | "drawer";
+    /** Drawer: "Reply" focuses the chat's composer. */
+    onReply?: () => void;
+    /** Drawer: the close button. */
+    onClose?: () => void;
 }
 
 interface Loaded {
@@ -223,13 +235,13 @@ export function ListingPageV2(props: ListingPageV2Props) {
     const rootStyle = { ...themeVars(theme) } as CSSProperties;
     if (failed && !data) {
         return (
-            <div className="cbtl" style={rootStyle}><style>{LISTING_PAGE_CSS}</style>
+            <div className={props.layout === "drawer" ? "cbtl cbtl-drw" : "cbtl"} style={rootStyle}><style>{LISTING_PAGE_CSS}</style>
                 <div className="cbtl-inner"><p className="cbtl-empty">{say("notFound")} <a href={props.backHref}>{say("back")}</a></p></div>
             </div>
         );
     }
     if (!data) {
-        return <div className="cbtl" style={rootStyle}><style>{LISTING_PAGE_CSS}</style><div className="cbtl-inner"><p className="cbtl-empty">{say("loading")}</p></div></div>;
+        return <div className={props.layout === "drawer" ? "cbtl cbtl-drw" : "cbtl"} style={rootStyle}><style>{LISTING_PAGE_CSS}</style><div className="cbtl-inner"><p className="cbtl-empty">{say("loading")}</p></div></div>;
     }
 
     // ── what the page knows ──
@@ -341,6 +353,7 @@ export function ListingPageV2(props: ListingPageV2Props) {
                 setSheet("package");
                 return;
             case "reply":
+                if (props.layout === "drawer") { props.onReply?.(); return; }
                 setFocus("negotiation");
                 return;
             case "acceptOffer": {
@@ -376,12 +389,12 @@ export function ListingPageV2(props: ListingPageV2Props) {
                 lever({ title: say("confirmRemoveTitle", { community }), body: say("confirmRemoveBody", { community, seller }), confirm: say("barRemove"), danger: true, act: () => transport.setStatus("REVOKED") });
                 return;
             case "pause":
-                if (seat === "community") lever({ title: say("confirmPauseCommunityTitle"), body: say("confirmPauseCommunityBody", { community }), confirm: say("barPause"), act: () => transport.setHidden!(true) });
-                else lever({ title: say("confirmPauseSellerTitle"), body: say("confirmPauseSellerBody", { community }), confirm: say("barPause"), act: () => transport.setStatus("PAUSED") });
+                if (seat === "community") lever({ title: say("confirmPauseCommunityTitle", { community }), body: say("confirmPauseCommunityBody", { community }), confirm: say("barPause"), act: () => transport.setHidden!(true) });
+                else lever({ title: say("confirmPauseSellerTitle", { community }), body: say("confirmPauseSellerBody", { community }), confirm: say("barPause"), act: () => transport.setStatus("PAUSED") });
                 return;
             case "resume":
-                if (seat === "community") lever({ title: say("confirmResumeCommunityTitle"), body: say("confirmResumeCommunityBody", { community }), confirm: say("barResume"), act: () => transport.setHidden!(false) });
-                else lever({ title: say("confirmResumeSellerTitle"), body: say("confirmResumeSellerBody", { community }), confirm: say("barResume"), act: () => transport.setStatus("ACTIVE") });
+                if (seat === "community") lever({ title: say("confirmResumeCommunityTitle", { community }), body: say("confirmResumeCommunityBody", { community }), confirm: say("barResume"), act: () => transport.setHidden!(false) });
+                else lever({ title: say("confirmResumeSellerTitle", { community }), body: say("confirmResumeSellerBody", { community }), confirm: say("barResume"), act: () => transport.setStatus("ACTIVE") });
                 return;
             case "withdraw":
                 if (status === "PENDING") lever({ title: say("confirmWithdrawTitle"), body: say("confirmWithdrawBody"), confirm: say("withdrawRequest"), danger: true, act: () => transport.setStatus("CANCELLED") });
@@ -429,15 +442,15 @@ export function ListingPageV2(props: ListingPageV2Props) {
     const asking = !!pendingAsk && status === "PENDING";
     const viewSale = cheapestSale(asking ? askMoney : m);
     const viewFee = viewSale?.lines.find((l) => l.key === "cobuntu")?.amount ?? 0;
-    const viewKeep = viewSale?.lines.find((l) => l.key === "keep")?.amount ?? 0;
+    const viewFeePct = (asking ? askMoney : m)?.rates?.sellerFeePct ?? 0;
     /*
      * Premium is offered to the SELLER, on an item they own (not a community's),
      * while they still pay Cobuntu's platform fee, and only where the host can
      * sell it. The community never sees it.
      */
-    const premiumOffer = seat === "seller" && !parties.owner && !!props.premiumCheckout && viewFee > 0;
+    const premiumOffer = seat === "seller" && !parties.owner && !!props.premiumCheckout && viewFee > 0 && viewFeePct > 0;
     const premiumCard = premiumOffer && !premiumDismissed && viewSale
-        ? <PremiumCard say={say} keep={viewKeep} fee={viewFee} cur={(asking ? askMoney : m)?.currency ?? "EUR"} onGet={() => setSheet("premium")} onDismiss={dismissPremium} />
+        ? <PremiumCard say={say} fee={viewFee} feePct={viewFeePct} cur={(asking ? askMoney : m)?.currency ?? "EUR"} onGet={() => setSheet("premium")} onDismiss={dismissPremium} />
         : null;
     /** This listing page, for Premium checkout to come back to (with the offer to accept, if any). */
     const returnPathFor = (acceptId: string | null) =>
@@ -512,6 +525,123 @@ export function ListingPageV2(props: ListingPageV2Props) {
         );
     }
 
+    /** The listing beside its chat (T-417): one column, the same moves and dialogs as the page. */
+    function drawerView() {
+        const community = names.community;
+        const askRate = asking && pendingAsk ? Number(pendingAsk.commissionRate ?? 0) : null;
+        const hiddenLive = status === "ACTIVE" && !!listing.isHidden;
+        const shownStatus: ListingStatus | null = hiddenLive ? "PAUSED" : status;
+        const statusLabel = shownStatus === "ACTIVE" ? say("stateLive")
+            : shownStatus === "PAUSED" ? say("statePaused")
+                : shownStatus === "PENDING" ? (seat === "community" ? say("drwYourReview") : say("drwPending"))
+                    : status === "REVOKED" ? say("stateClosedRevoked") : say("stateClosedWithdrawn");
+
+        // Ending or pausing it: the footer. Text-styled terms moves: the terms card. The rest: the decision card.
+        const footer = decision.moves.filter((mv) => FOOTER_MOVES.includes(mv.id) && !mv.primary);
+        const termsMoves = decision.moves.filter((mv) => TERMS_MOVES.includes(mv.id) && mv.text);
+        const main = decision.moves
+            .filter((mv) => !footer.includes(mv) && !termsMoves.includes(mv))
+            .sort((a, b) => Number(a.id === "reply") - Number(b.id === "reply"));
+        const open = status === "PENDING" || status === "ACTIVE" || status === "PAUSED";
+        if (open && props.onReply && !main.some((mv) => mv.id === "reply")) main.push({ id: "reply", label: say("askReply") });
+
+        const liveUrl = props.links?.live ?? null;
+        const share = async () => {
+            if (!liveUrl) return;
+            try { await navigator.clipboard.writeText(liveUrl); setToast(say("linkCopied")); } catch { setToast(liveUrl); }
+        };
+        const extra = status === "ACTIVE" && !hiddenLive && liveUrl ? (
+            <>
+                <a className="cbtl-dd-s" href={liveUrl} target="_blank" rel="noreferrer">{say("drwViewOn", { community })}</a>
+                <button type="button" className="cbtl-dd-s" onClick={() => void share()}>{say("drwShare")}</button>
+            </>
+        ) : null;
+
+        const cur = m?.currency ?? "EUR";
+        const paidPrices = pricesOf(m).filter((x) => !x.free);
+        const cheapest = paidPrices.length ? paidPrices[cheapestPaid(paidPrices)] : null;
+        const priceText = !m ? "" : cheapest
+            ? (paidPrices.length > 1 ? say("ovPrices", { count: paidPrices.length, price: money(cheapest.gross, cur) }) : money(cheapest.gross, cur))
+            : say("free");
+        const kindKey = kind === "event" ? null
+            : item?.productType === "PHYSICAL" ? "drwKindPhysical"
+                : item?.productType === "COURSE" ? "drwKindCourse" : "drwKindDigital";
+
+        return (
+            <div className="cbtl cbtl-drw" style={rootStyle} data-seat={seat}>
+                <style>{LISTING_PAGE_CSS}</style>
+                <DrawerHead say={say} image={imagesOf(item)[0] ?? null} name={itemName} parties={parties}
+                    status={shownStatus} statusLabel={statusLabel} terms={asking ? termsLabel(say, rate ?? 0, packageName, kind) : terms}
+                    onClose={props.onClose} />
+                <div className="cbtl-db">
+                    <DrawerDecision decision={decision} moves={main} extra={extra} onMove={onMove} />
+                    <DrawerMoney say={say} seat={seat} kind={kind} parties={parties}
+                        m={asking ? (askMoney ?? m) : m} base={asking ? m : null} baseRate={rate ?? 0}
+                        rate={asking ? askRate : (rate ?? shownRate)} />
+                    <DrawerTerms say={say} now={asking ? termsLabel(say, rate ?? 0, packageName, kind) : terms} nowSub={asking ? "" : termsSub}
+                        ask={askRate != null ? percent(askRate) : null} askWho={community} actions={termsMoves} onMove={onMove} />
+                    <DrawerDetails say={say} items={[
+                        { label: say("ovPrice"), value: priceText },
+                        kind === "event"
+                            ? { label: say("drwDate"), value: item?.startDate ? shortDate(item.startDate, tz) : "" }
+                            : { label: say("drwKind"), value: kindKey ? say(kindKey) : "" },
+                        { label: say("drwSent"), value: listing.createdAt ? shortDate(listing.createdAt) : "" },
+                        seat === "community"
+                            ? { label: say("drwSeller"), value: owner.name }
+                            : { label: say("drwCommunity"), value: community },
+                    ]} />
+                </div>
+                <DrawerFooter moves={footer} onMove={onMove} />
+                {overlays}
+                {toast && <div className="cbtl-toast" role="status">{toast}</div>}
+            </div>
+        );
+    }
+
+    const overlays = (
+        <>
+            {confirm && <Confirm spec={confirm} onClose={() => setConfirm(null)} cancel={say("cancel")} failed={say("failed")} />}
+            {sheet === "package" && (
+                <PackageSwitchSheet say={say} transport={transport} names={names} parties={parties} currentId={onPackageId}
+                    live={status === "ACTIVE" || status === "PAUSED"}
+                    onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); void after(msg); }} />
+            )}
+            {sheet === "terms" && (
+                <ChangeTermsSheet say={say} kind={kind} transport={transport} names={names} parties={parties} now={rate} base={m}
+                    onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); void after(msg); }} />
+            )}
+            {sheet === "accept" && theirOffer && (
+                <AcceptDialog say={say} item={itemName} names={names} parties={parties} offer={theirOffer} ask={askMoney} now={rate ?? 0}
+                    premium={premiumOffer ? props.premiumCheckout : undefined} returnPath={returnPathFor(theirOffer.id)}
+                    onClose={() => setSheet(null)}
+                    onAccept={async () => { await transport.respond(theirOffer.id, "ACCEPTED"); setSheet(null); await after(say("saved")); }} />
+            )}
+            {sheet === "premium" && props.premiumCheckout && (
+                <PremiumSheet say={say} premium={props.premiumCheckout} returnPath={returnPathFor(null)} onClose={() => setSheet(null)} />
+            )}
+            {sheet === "card" && eventId && (
+                <CardSheet say={say} transport={transport} eventId={eventId} publishableKey={props.stripePublishableKey} returnUrl={returnUrl} navigate={props.navigate} onClose={() => setSheet(null)} />
+            )}
+            {sheet === "request" && eventId && booking && (
+                <RequestSheet say={say} transport={transport} eventId={eventId} booking={booking} guestCount={addons?.guestCount ?? booking.guestCount} locked={!!addons?.locked}
+                    community={names.community} currency={booking.currency} onClose={() => { setSheet(null); void after(); }} onSaved={(msg) => { setToast(msg); void load(); }} />
+            )}
+            {sheet && typeof sheet === "object" && "pkg" in sheet && (
+                <PackageSheet say={say} seat={seat} kind={kind} transport={transport} names={names} parties={parties}
+                    offer={theirOffer} initialId={sheet.pkg}
+                    onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); setFocus("earnings"); void after(msg); }} />
+            )}
+            {sheet && typeof sheet === "object" && "price" in sheet && eventId && transport.decideAddon && (
+                <PriceSheet say={say} name={sheet.price.name} currency={m?.currency ?? "EUR"} onClose={() => setSheet(null)}
+                    onSend={async (cents) => { await transport.decideAddon!(eventId, sheet.price.id, { decision: "PROPOSE_PRICE", priceCents: cents }); await after(say("saved")); }} />
+            )}
+        </>
+    );
+
+    if (props.layout === "drawer") {
+        return drawerView();
+    }
+
     const crumbs = props.breadcrumbs ?? [{ label: seat === "seller" ? say("crumbYours") : say("crumbRequests"), href: props.backHref }];
     const returnUrl = typeof window !== "undefined" ? (() => { const u = new URL(window.location.href); u.searchParams.set("card", "done"); return u.toString(); })() : "";
     const sectionName = { overview: say("secOverview"), earnings: say("secEarnings"), negotiation: say("secNegotiation") }[active];
@@ -582,41 +712,7 @@ export function ListingPageV2(props: ListingPageV2Props) {
                 <DecisionBar decision={decision} onMove={onMove} />
             </div>
 
-            {confirm && <Confirm spec={confirm} onClose={() => setConfirm(null)} cancel={say("cancel")} failed={say("failed")} />}
-            {sheet === "package" && (
-                <PackageSwitchSheet say={say} transport={transport} names={names} parties={parties} currentId={onPackageId}
-                    live={status === "ACTIVE" || status === "PAUSED"}
-                    onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); void after(msg); }} />
-            )}
-            {sheet === "terms" && (
-                <ChangeTermsSheet say={say} kind={kind} transport={transport} names={names} parties={parties} now={rate} base={m}
-                    onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); void after(msg); }} />
-            )}
-            {sheet === "accept" && theirOffer && (
-                <AcceptDialog say={say} item={itemName} names={names} parties={parties} offer={theirOffer} ask={askMoney} now={rate ?? 0}
-                    premium={premiumOffer ? props.premiumCheckout : undefined} returnPath={returnPathFor(theirOffer.id)}
-                    onClose={() => setSheet(null)}
-                    onAccept={async () => { await transport.respond(theirOffer.id, "ACCEPTED"); setSheet(null); await after(say("saved")); }} />
-            )}
-            {sheet === "premium" && props.premiumCheckout && (
-                <PremiumSheet say={say} premium={props.premiumCheckout} returnPath={returnPathFor(null)} onClose={() => setSheet(null)} />
-            )}
-            {sheet === "card" && eventId && (
-                <CardSheet say={say} transport={transport} eventId={eventId} publishableKey={props.stripePublishableKey} returnUrl={returnUrl} navigate={props.navigate} onClose={() => setSheet(null)} />
-            )}
-            {sheet === "request" && eventId && booking && (
-                <RequestSheet say={say} transport={transport} eventId={eventId} booking={booking} guestCount={addons?.guestCount ?? booking.guestCount} locked={!!addons?.locked}
-                    community={names.community} currency={booking.currency} onClose={() => { setSheet(null); void after(); }} onSaved={(msg) => { setToast(msg); void load(); }} />
-            )}
-            {sheet && typeof sheet === "object" && "pkg" in sheet && (
-                <PackageSheet say={say} seat={seat} kind={kind} transport={transport} names={names} parties={parties}
-                    offer={theirOffer} initialId={sheet.pkg}
-                    onClose={() => setSheet(null)} onDone={(msg) => { setSheet(null); setFocus("earnings"); void after(msg); }} />
-            )}
-            {sheet && typeof sheet === "object" && "price" in sheet && eventId && transport.decideAddon && (
-                <PriceSheet say={say} name={sheet.price.name} currency={m?.currency ?? "EUR"} onClose={() => setSheet(null)}
-                    onSend={async (cents) => { await transport.decideAddon!(eventId, sheet.price.id, { decision: "PROPOSE_PRICE", priceCents: cents }); await after(say("saved")); }} />
-            )}
+            {overlays}
             {toast && <div className="cbtl-toast" role="status">{toast}</div>}
         </div>
     );
