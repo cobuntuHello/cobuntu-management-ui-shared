@@ -10,10 +10,15 @@ import * as React from "react";
  */
 
 let cropPx = { x: 0, y: 0, width: 1500, height: 1500 };
+// The photo's own size, as the cropper reports it once loaded (square unless a test says).
+let mediaPx = { width: 340, height: 340, naturalWidth: 1500, naturalHeight: 1500 };
 vi.mock("react-easy-crop", () => ({
   default: (p: any) => {
-    React.useEffect(() => { p.onCropComplete?.({}, cropPx); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-    return <div data-testid="cropper" data-image={p.image} data-aspect={p.aspect} />;
+    React.useEffect(() => { p.onMediaLoaded?.(mediaPx); p.onCropComplete?.({}, cropPx); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    return (
+      <div data-testid="cropper" data-image={p.image} data-aspect={p.aspect}
+        data-zoom={p.zoom} data-min-zoom={p.minZoom} data-restrict={String(p.restrictPosition)} />
+    );
   },
 }));
 vi.mock("../media/mediaFrame", async (orig) => {
@@ -23,6 +28,7 @@ vi.mock("../media/mediaFrame", async (orig) => {
     readAsDataUrl: vi.fn(async (f: File) => `data:image/png;base64,${f.name}`),
     fileHasAiGeneratedLabel: vi.fn(async (f: File) => f.name.startsWith("ai")),
     frameToDataUrl: vi.fn(async (_src: string, a: any) => ({ dataUrl: "data:image/jpeg;base64,FRAMED", width: Math.round(a.width), height: Math.round(a.height) })),
+    edgeColour: vi.fn(async () => "rgb(74, 15, 26)"),
     dataUrlToFile: vi.fn(() => new File(["x"], "photo.jpg", { type: "image/jpeg" })),
   };
 });
@@ -54,7 +60,46 @@ function pick(files: File[]) {
   fireEvent.change(input, { target: { files } });
 }
 
-beforeEach(() => { cropPx = { x: 0, y: 0, width: 1500, height: 1500 }; });
+beforeEach(() => {
+  cropPx = { x: 0, y: 0, width: 1500, height: 1500 };
+  mediaPx = { width: 340, height: 340, naturalWidth: 1500, naturalHeight: 1500 };
+});
+
+describe("MediaManager: a photo of another shape than the frame", () => {
+  async function frameOne() {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: /Add photos/ }));
+    pick([photo("poster.jpg")]);
+    await screen.findByText("1 photo ready");
+    fireEvent.click(screen.getByRole("button", { name: "Continue to framing" }));
+    return screen.findByTestId("cropper");
+  }
+
+  it("a portrait poster in a square frame can zoom out until all of it shows, and back", async () => {
+    // 1080 × 1350 (4:5): the whole poster fits a square at zoom 0.8.
+    mediaPx = { width: 272, height: 340, naturalWidth: 1080, naturalHeight: 1350 };
+    const cropper = await frameOne();
+    await waitFor(() => expect(cropper.getAttribute("data-min-zoom")).toBe("0.8"));
+    expect(cropper.getAttribute("data-zoom")).toBe("1");
+    expect(cropper.getAttribute("data-restrict")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Show the whole photo" }));
+    await waitFor(() => expect(screen.getByTestId("cropper").getAttribute("data-zoom")).toBe("0.8"));
+    // Below "filled" the photo may sit inside the frame, centred.
+    expect(screen.getByTestId("cropper").getAttribute("data-restrict")).toBe("false");
+    expect((screen.getByLabelText("Zoom") as HTMLInputElement).min).toBe("0.8");
+
+    fireEvent.click(screen.getByRole("button", { name: "Fill the frame" }));
+    await waitFor(() => expect(screen.getByTestId("cropper").getAttribute("data-zoom")).toBe("1"));
+    expect(screen.getByTestId("cropper").getAttribute("data-restrict")).toBe("true");
+  });
+
+  it("a photo already the frame's shape offers nothing to zoom out to", async () => {
+    const cropper = await frameOne();
+    await waitFor(() => expect(cropper.getAttribute("data-min-zoom")).toBe("1"));
+    expect(screen.queryByRole("button", { name: "Show the whole photo" })).toBeNull();
+  });
+});
 
 describe("MediaManager", () => {
   it("starts as one wide drop area that opens the upload modal", () => {

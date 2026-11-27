@@ -11,7 +11,7 @@ import { Crop, Image as ImageIcon, Loader2, RefreshCw, Star, Upload, X } from "l
 import { ModalShell } from "../ui/ModalShell";
 import { useSharedT } from "../i18n";
 import {
-  dataUrlToFile, fileHasAiGeneratedLabel, frameToDataUrl, framedSize, readAsDataUrl, type FrameArea,
+  dataUrlToFile, edgeColour, fileHasAiGeneratedLabel, fitZoom, frameToDataUrl, framedSize, readAsDataUrl, type FrameArea,
 } from "./mediaFrame";
 
 /**
@@ -464,7 +464,25 @@ function Framer({
   const [area, setArea] = React.useState<FrameArea | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [failed, setFailed] = React.useState<string | null>(null);
+  /*
+   * THE WHOLE PHOTO. `fit` is the zoom at which all of the photo sits inside
+   * the frame (mediaFrame.fitZoom); below 1 the cropper may zoom out to it and
+   * the strips beside the photo take its edge colour (`ground`), here in the
+   * preview and in the framed file alike. Before this the zoom stopped at 1,
+   * so a portrait poster in a square frame always lost its top and bottom.
+   */
+  const [fit, setFit] = React.useState(1);
+  const [ground, setGround] = React.useState<string | null>(null);
+  const src = item?.src;
+  React.useEffect(() => {
+    if (!src) return;
+    let live = true;
+    edgeColour(src).then((c) => { if (live) setGround(c); }).catch(() => {});
+    return () => { live = false; };
+  }, [src]);
   if (!item) return null;
+  const zoomedOut = zoom < 1;
+  const showsWhole = fit < 1 && zoom <= fit + 0.001;
   const size = area ? framedSize(area) : null;
   const small = !!(minEdge && size && Math.min(size.width, size.height) < minEdge);
   const last = position + 1 >= total;
@@ -499,16 +517,27 @@ function Framer({
           <span className="text-[13px] text-zinc-500">{t("frameOf", { n: position + 1, total })}</span>
         </div>
       )}
-      <div className="relative w-full overflow-hidden rounded-xl bg-zinc-900" style={{ height: 340 }}>
+      <div className="relative w-full overflow-hidden rounded-xl bg-zinc-900" style={{ height: 340, ...(zoomedOut && ground ? { background: ground } : {}) }}>
+        {/* restrictPosition only while the photo fills the frame: below 1 it
+            would push a photo smaller than the frame off-centre. */}
         <Cropper image={item.src} crop={crop} zoom={zoom} aspect={aspect} showGrid={false}
+          minZoom={fit} restrictPosition={!zoomedOut}
+          onMediaLoaded={(m) => setFit(fitZoom(m.naturalWidth, m.naturalHeight, aspect))}
           onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_, px) => setArea(px)} />
       </div>
       <div className="flex items-center gap-3 text-[13px] text-zinc-500">
         <label htmlFor={`zoom-${item.key}`}>{t("zoom")}</label>
-        <input id={`zoom-${item.key}`} type="range" min={1} max={3} step={0.01} value={zoom}
+        <input id={`zoom-${item.key}`} type="range" min={fit} max={3} step={0.01} value={zoom}
           onChange={(e) => setZoom(Number(e.target.value))} className="flex-1 accent-[var(--brand-color,#18181b)]" />
         {size && <span className="tabular-nums">{t("size", { width: size.width, height: size.height })}</span>}
       </div>
+      {fit < 1 && (
+        <button type="button"
+          onClick={() => { setZoom(showsWhole ? 1 : fit); setCrop({ x: 0, y: 0 }); }}
+          className="min-h-[44px] w-full rounded-[var(--button-radius,10px)] border border-zinc-200 bg-white px-4 text-[14px] font-medium text-zinc-700 cursor-pointer hover:bg-zinc-50">
+          {showsWhole ? t("fillFrame") : t("fitWhole")}
+        </button>
+      )}
       {small && size && minEdge && (
         <p role="alert" className="rounded-lg bg-red-50 px-3 py-2.5 text-[13px] text-red-700">
           {t("tooSmall", { width: size.width, height: size.height, min: minEdge })}

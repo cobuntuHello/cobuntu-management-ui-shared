@@ -81,9 +81,98 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+/**
+ * The zoom at which the WHOLE photo fits inside the frame.
+ *
+ * WHY. The cropper's zoom 1 is "the frame filled": the photo covers it and the
+ * longer side spills over. A photo of another shape (a portrait poster in a
+ * square frame) therefore always lost its top and bottom, and the host had no
+ * way to keep them: the zoom stopped at 1. Zooming out to this value shows the
+ * whole photo, and the strips beside it are filled (frameToDataUrl). A photo
+ * already the frame's shape gives 1: there is nothing to zoom out to.
+ */
+export function fitZoom(imageWidth: number, imageHeight: number, aspect: number): number {
+  if (!(imageWidth > 0 && imageHeight > 0 && aspect > 0)) return 1;
+  const ratio = imageWidth / imageHeight;
+  return Math.min(1, aspect / ratio, ratio / aspect);
+}
+
+/**
+ * Does the frame reach past the photo's own edges (zoomed out below "filled")?
+ * A pixel of slack either way: rounding at zoom 1 can put a filled frame a
+ * fraction outside, and that must keep the ordinary path, not grow a strip.
+ */
+export function reachesPast(area: FrameArea, imageWidth: number, imageHeight: number): boolean {
+  return area.x < -1 || area.y < -1 || area.x + area.width > imageWidth + 1 || area.y + area.height > imageHeight + 1;
+}
+
+/**
+ * Where the photo lands on a framed canvas `outWidth` wide when the frame
+ * reaches past it: the part of the photo inside the frame (s*) and where it is
+ * drawn (d*). Null when the frame holds none of the photo.
+ */
+export function placement(area: FrameArea, imageWidth: number, imageHeight: number, outWidth: number) {
+  const scale = outWidth / area.width;
+  const sx = Math.max(0, area.x);
+  const sy = Math.max(0, area.y);
+  const ex = Math.min(imageWidth, area.x + area.width);
+  const ey = Math.min(imageHeight, area.y + area.height);
+  if (ex <= sx || ey <= sy) return null;
+  return {
+    sx, sy, sw: ex - sx, sh: ey - sy,
+    dx: (sx - area.x) * scale, dy: (sy - area.y) * scale, dw: (ex - sx) * scale, dh: (ey - sy) * scale,
+  };
+}
+
+/** What fills the strips when the colour cannot be read. */
+export const FALLBACK_GROUND = "rgb(0, 0, 0)";
+
+/**
+ * The average colour along the outer edge of an RGBA pixel grid, as
+ * "rgb(r, g, b)". A poster on a plain ground (most are) then carries on into
+ * the strips instead of meeting a bar of another colour. Mostly transparent
+ * edges give white: a JPEG has no transparency, and white is what a
+ * transparent PNG is usually meant to sit on.
+ */
+export function averageEdge(data: ArrayLike<number>, width: number, height: number): string {
+  let r = 0, g = 0, b = 0, a = 0, n = 0;
+  const add = (x: number, y: number) => {
+    const i = (y * width + x) * 4;
+    r += data[i]; g += data[i + 1]; b += data[i + 2]; a += data[i + 3]; n += 1;
+  };
+  for (let x = 0; x < width; x++) { add(x, 0); if (height > 1) add(x, height - 1); }
+  for (let y = 1; y < height - 1; y++) { add(0, y); if (width > 1) add(width - 1, y); }
+  if (n === 0) return FALLBACK_GROUND;
+  if (a / n < 128) return "rgb(255, 255, 255)";
+  return `rgb(${Math.round(r / n)}, ${Math.round(g / n)}, ${Math.round(b / n)})`;
+}
+
+/** The edge colour of a loaded photo; FALLBACK_GROUND when the browser keeps
+ *  its pixels closed (a cross-origin photo without CORS) or has no canvas. */
+function edgeColourOf(image: HTMLImageElement): string {
+  try {
+    const n = 48;
+    const canvas = document.createElement("canvas");
+    canvas.width = n;
+    canvas.height = n;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return FALLBACK_GROUND;
+    ctx.drawImage(image, 0, 0, n, n);
+    return averageEdge(ctx.getImageData(0, 0, n, n).data, n, n);
+  } catch {
+    return FALLBACK_GROUND;
+  }
+}
+
+/** The edge colour of a photo by its source, for the framing preview. */
+export async function edgeColour(src: string): Promise<string> {
+  return edgeColourOf(await loadImage(src));
+}
+
 /** Draw the selection at its framed size and encode it as a JPEG data URL. */
 export async function frameToDataUrl(src: string, area: FrameArea): Promise<{ dataUrl: string; width: number; height: number }> {
   const image = await loadImage(src);
+  if (reachesPast(area, image.naturalWidth, image.naturalHeight)) return frameBeyondPhoto(image, area);
   const x = Math.max(0, Math.round(area.x));
   const y = Math.max(0, Math.round(area.y));
   const w = Math.min(Math.round(area.width), image.naturalWidth - x);
@@ -97,6 +186,24 @@ export async function frameToDataUrl(src: string, area: FrameArea): Promise<{ da
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(image, x, y, w, h, 0, 0, out.width, out.height);
+  return { dataUrl: canvas.toDataURL("image/jpeg", IMAGE_QUALITY), width: out.width, height: out.height };
+}
+
+/** A frame zoomed out past the photo: the frame's whole size, filled with the
+ *  photo's edge colour, the photo drawn where it sits inside the frame. */
+function frameBeyondPhoto(image: HTMLImageElement, area: FrameArea): { dataUrl: string; width: number; height: number } {
+  const out = fitWithin({ width: Math.round(area.width), height: Math.round(area.height) });
+  const canvas = document.createElement("canvas");
+  canvas.width = out.width;
+  canvas.height = out.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("no canvas");
+  ctx.fillStyle = edgeColourOf(image);
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  const p = placement(area, image.naturalWidth, image.naturalHeight, out.width);
+  if (p) ctx.drawImage(image, p.sx, p.sy, p.sw, p.sh, p.dx, p.dy, p.dw, p.dh);
   return { dataUrl: canvas.toDataURL("image/jpeg", IMAGE_QUALITY), width: out.width, height: out.height };
 }
 

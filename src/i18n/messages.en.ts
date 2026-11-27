@@ -470,6 +470,8 @@ export const MANAGEMENT_UI_MESSAGES_EN = {
         frameTitle: "Frame your photo",
         frameOf: "{n} of {total}",
         zoom: "Zoom",
+        fitWhole: "Show the whole photo",
+        fillFrame: "Fill the frame",
         size: "{width} × {height} px",
         tooSmall: "This frame would be {width} × {height}. Photos here must be at least {min} × {min}: zoom out, or use a higher-resolution photo.",
         skip: "Skip this photo",
