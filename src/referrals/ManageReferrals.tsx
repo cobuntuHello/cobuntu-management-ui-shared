@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ArtifactReferralLink, ArtifactReferralCopy } from "./types";
 import { formatMoney } from "../overview/format";
 import { PricingSectionHeading } from "../ui/PricingSectionHeading";
+import { useSharedT, type SharedT } from "../i18n";
 
 /**
  * Who promotes this item, and what they have earned.
@@ -58,6 +59,10 @@ export function ManageReferrals({
     onCopyLink?: (link: ArtifactReferralLink) => void;
 }) {
     const [confirmingId, setConfirmingId] = useState<string | null>(null);
+    // Every word through the host's translations; `unit` picks the item kind's
+    // sentence (tickets, enrolments, purchases) so each language agrees its nouns.
+    const t = useSharedT("shared.managementUi.referrals");
+    const unit = copy.unit;
 
     const live = links.filter((l) => l.status !== "DISABLED");
     const totalSales = live.reduce((s, l) => s + l.sales, 0);
@@ -68,14 +73,13 @@ export function ManageReferrals({
     const muted = "color-mix(in srgb, var(--text-color, #18181b) 58%, transparent)";
     const line = "color-mix(in srgb, var(--text-color, #18181b) 10%, transparent)";
     const soft = "color-mix(in srgb, var(--text-color, #18181b) 6%, transparent)";
-    const one = singular(copy.unit);
     const heading = (
         <PricingSectionHeading
-            title="Referral links"
-            description={`Someone shares a link. Buyers pay you, and they earn an agreed share of each ${one}.`}
+            title={t("title")}
+            description={t("description", { unit })}
             action={links.length > 0 && canManage && onInvite ? (
                 <button type="button" onClick={onInvite} className={`${btn} text-white`} style={{ background: "var(--brand-color, #18181b)" }}>
-                    Invite someone
+                    {t("inviteSomeone")}
                 </button>
             ) : undefined}
         />
@@ -86,16 +90,14 @@ export function ManageReferrals({
             <div data-testid="referrals">
                 {heading}
                 <div className="rounded-2xl border border-dashed px-5 py-6 text-center" style={{ borderColor: "color-mix(in srgb, var(--text-color, #18181b) 25%, transparent)" }}>
-                    <p className="text-[14.5px] font-semibold" style={{ color: ink }}>No referral links yet</p>
+                    <p className="text-[14.5px] font-semibold" style={{ color: ink }}>{t("emptyTitle")}</p>
                     <p className="mx-auto mt-1 max-w-[46ch] text-[12.5px]" style={{ color: muted }}>
-                        {canManage
-                            ? `Let a partner or a member promote this without handing over the sale. You stay the seller, you invoice the buyer, and they earn an agreed share of each ${one}.`
-                            : "Nobody has a referral link for this yet."}
+                        {canManage ? t("emptyBody", { unit }) : t("emptyReadOnly")}
                     </p>
                     {canManage && onInvite ? (
                         <>
                             <ol className="mx-auto mt-4 mb-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-[12px]" style={{ color: muted }}>
-                                {["Pick a person", "Set their share", "They share the link"].map((step, i) => (
+                                {[t("stepPick"), t("stepShare"), t("stepLink")].map((step, i) => (
                                     <li key={step} className="flex items-center gap-1.5">
                                         <span className="grid h-5 w-5 place-items-center rounded-full text-[11px] font-semibold" style={{ background: soft, color: ink }}>{i + 1}</span>
                                         {step}
@@ -103,7 +105,7 @@ export function ManageReferrals({
                                 ))}
                             </ol>
                             <button type="button" onClick={onInvite} className={`${btn} text-white`} style={{ background: "var(--brand-color, #18181b)" }}>
-                                Invite someone
+                                {t("inviteSomeone")}
                             </button>
                         </>
                     ) : null}
@@ -117,17 +119,17 @@ export function ManageReferrals({
             {heading}
 
             <dl className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <Stat k="Active links" v={String(live.filter((l) => l.status === "ACTIVE").length)} sub={`of ${links.length}`} />
-                <Stat k={`${cap(copy.unit)} referred`} v={String(totalSales)} />
-                <Stat k="Held" v={formatMoney(totalHeld, currency)} sub="in the refund window" />
-                <Stat k="Paid" v={formatMoney(totalPaid, currency)} />
+                <Stat k={t("activeLinks")} v={String(live.filter((l) => l.status === "ACTIVE").length)} sub={t("ofTotal", { count: links.length })} />
+                <Stat k={t("referred", { unit })} v={String(totalSales)} />
+                <Stat k={t("held")} v={formatMoney(totalHeld, currency)} sub={t("heldSub")} />
+                <Stat k={t("paid")} v={formatMoney(totalPaid, currency)} />
             </dl>
 
             <ul className="overflow-hidden rounded-2xl border" style={{ borderColor: line }}>
                 {links.map((l, i) => {
                     const pending = l.status === "PENDING_STRIPE";
                     const disabled = l.status === "DISABLED";
-                    const name = l.owner.name || l.owner.usertag || "Someone";
+                    const name = l.owner.name || l.owner.usertag || t("someone");
                     return (
                         <li key={l.id} className={`px-4 py-3.5 ${i > 0 ? "border-t" : ""}`} style={{ borderColor: line }}>
                             <div className="flex flex-wrap items-center gap-3">
@@ -135,21 +137,21 @@ export function ManageReferrals({
                                 <div className={`min-w-[180px] flex-1 ${disabled ? "opacity-55" : ""}`}>
                                     <span className="block text-[14px] font-semibold" style={{ color: ink }}>{name}</span>
                                     <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]" style={{ color: muted }}>
-                                        <StatusPill status={l.status} />
-                                        <span>{formatPct(l.commissionPct)} per {one}</span>
+                                        <StatusPill status={l.status} t={t} />
+                                        <span>{t("perUnit", { unit, pct: formatPct(l.commissionPct) })}</span>
                                         {l.label ? <span>· {l.label}</span> : null}
                                     </span>
                                 </div>
                                 <div className={`flex gap-4 tabular-nums ${disabled ? "opacity-55" : ""}`}>
-                                    <Figure k={cap(copy.unit)} v={pending ? "–" : String(l.sales)} />
-                                    <Figure k="Held" v={pending ? "–" : formatMoney(l.earnedHeldCents, currency)} />
-                                    <Figure k="Paid" v={pending ? "–" : formatMoney(l.earnedPaidCents, currency)} />
+                                    <Figure k={t("unitColumn", { unit })} v={pending ? "–" : String(l.sales)} />
+                                    <Figure k={t("held")} v={pending ? "–" : formatMoney(l.earnedHeldCents, currency)} />
+                                    <Figure k={t("paid")} v={pending ? "–" : formatMoney(l.earnedPaidCents, currency)} />
                                 </div>
                                 <div className="ml-auto flex gap-1.5">
                                     {/* No copy control on a pending link. Not disabled: absent. */}
                                     {l.code && !disabled && onCopyLink ? (
                                         <button type="button" className={`${btnSm}`} style={{ background: soft, color: ink }} onClick={() => onCopyLink(l)}>
-                                            Copy link
+                                            {t("copyLink")}
                                         </button>
                                     ) : null}
                                     {canManage && !disabled && onDisable ? (
@@ -158,15 +160,15 @@ export function ManageReferrals({
                                                 <button type="button" className={`${btnSm} text-white`} style={{ background: "#b42318" }}
                                                         disabled={busyId === l.id}
                                                         onClick={() => { setConfirmingId(null); onDisable(l.id); }}>
-                                                    {busyId === l.id ? "Turning off…" : "Turn off"}
+                                                    {busyId === l.id ? t("turningOff") : t("turnOff")}
                                                 </button>
                                                 <button type="button" className={btnSm} style={{ color: muted }} onClick={() => setConfirmingId(null)}>
-                                                    Keep
+                                                    {t("keep")}
                                                 </button>
                                             </>
                                         ) : (
                                             <button type="button" className={btnSm} style={{ color: muted }} onClick={() => setConfirmingId(l.id)}>
-                                                Turn off
+                                                {t("turnOff")}
                                             </button>
                                         )
                                     ) : null}
@@ -174,7 +176,7 @@ export function ManageReferrals({
                                     {canManage && disabled && onEnable ? (
                                         <button type="button" className={btnSm} style={{ background: soft, color: ink }}
                                                 disabled={busyId === l.id} onClick={() => onEnable(l.id)}>
-                                            {busyId === l.id ? "Turning on…" : "Turn back on"}
+                                            {busyId === l.id ? t("turningOn") : t("turnBackOn")}
                                         </button>
                                     ) : null}
                                 </div>
@@ -182,14 +184,14 @@ export function ManageReferrals({
                             {pending ? (
                                 /* Says whose move it is: nothing is tracked until they connect. */
                                 <p className="mt-2 rounded-xl px-3 py-2 text-[12px] sm:ml-12" style={{ background: "#fdf4e3", color: "#8a5a12" }}>
-                                    <strong>This link is off.</strong>{" "}
-                                    {name} needs to connect a payout account before it can record a sale. Nothing is tracked until then, so there is nothing to share yet.
+                                    <strong>{t("linkOffTitle")}</strong>{" "}
+                                    {t("linkOffBody", { name })}
                                 </p>
                             ) : null}
                             {confirmingId === l.id ? (
                                 /* Says what does NOT happen: the money earned stays. */
                                 <p className="mt-2 text-[12px] sm:ml-12" style={{ color: muted }}>
-                                    {name}&rsquo;s link stops recording new {copy.unit}. Commission they have already earned is not affected.
+                                    {t("turnOffNote", { unit, name })}
                                 </p>
                             ) : null}
                         </li>
@@ -222,8 +224,8 @@ function Figure({ k, v }: { k: string; v: string }) {
     );
 }
 
-function StatusPill({ status }: { status: ArtifactReferralLink["status"] }) {
-    const label = status === "ACTIVE" ? "Active" : status === "PENDING_STRIPE" ? "Not connected" : "Off";
+function StatusPill({ status, t }: { status: ArtifactReferralLink["status"]; t: SharedT }) {
+    const label = status === "ACTIVE" ? t("statusActive") : status === "PENDING_STRIPE" ? t("statusNotConnected") : t("statusOff");
     const style = status === "ACTIVE"
         ? { background: "#e7f5ee", color: "#147a4b" }
         : status === "PENDING_STRIPE"
@@ -252,11 +254,3 @@ export function formatPct(fraction: number): string {
     return `${Number(pct.toFixed(2))}%`;
 }
 
-function cap(s: string): string {
-    return s ? s[0]!.toUpperCase() + s.slice(1) : s;
-}
-
-/** "tickets" -> "ticket". Good enough for the three nouns this takes. */
-function singular(plural: string): string {
-    return plural.endsWith("s") ? plural.slice(0, -1) : plural;
-}
