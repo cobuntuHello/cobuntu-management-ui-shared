@@ -825,7 +825,14 @@ describe("a community's own event carried by ANOTHER community, read by the carr
         prices: [{ productId: "t1", label: "Padrão", gross: 3690, vat: 690, free: false, lines: pbnLines as any }],
         rates: { cobuntuPct: 5, ownerCobuntuPct: 8, stream: "events", commissionPct: 8, commissionSource: "agreed", ownedByListingCommunity: false },
     } as ListingMoney);
-    const rowText = () => [...document.querySelectorAll(".cbtl-lines .cbtl-line")].map((r) => (r.textContent ?? "").replace(/\s+/g, " ").trim());
+    // "label note amount" per line, read from the line's own parts: the line also
+    // carries a mark (a community without an icon draws its initials), so its
+    // whole text would start with "IH", not with the label.
+    const rowText = () => [...document.querySelectorAll(".cbtl-lines .cbtl-line")].map((r) => [
+        r.querySelector(".cbtl-line-name b")?.textContent ?? "",
+        r.querySelector(".cbtl-line-name small")?.textContent ?? "",
+        r.querySelector(".cbtl-line-amt")?.textContent ?? "",
+    ].join(" ").replace(/\s+/g, " ").trim());
 
     it("names the OWNING community as the owner, never the carrier", async () => {
         const t = transport("community");
