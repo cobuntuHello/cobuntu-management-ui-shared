@@ -795,3 +795,82 @@ describe("a community's own item, in itself and in another community (25 Nov 202
         expect(row.querySelector(".cbtl-line-amt")?.textContent).toBe("—");
     });
 });
+
+describe("a community's own event carried by ANOTHER community, read by the carrier (27 Nov 2026)", () => {
+    /*
+     * PBN reviewing Impact Hub Porto's Food for Thought #2: EUR 30 + 23% VAT,
+     * PBN at 8%. The page called PBN the owner, showed EUR 36.90 as the price,
+     * had no VAT anywhere (so fees looked as if taken on the VAT) and said
+     * Cobuntu's share of the commission was 8% next to a 5% cut.
+     */
+    const ihp = { id: "ihp", name: "Impact Hub Porto", communityTag: "impact-hub-porto", iconUrl: null };
+    const pbn = { id: "pbn", name: "PBN | Porto Business Network", communityTag: "pbn", iconUrl: null };
+    const listing = (event: Record<string, unknown>) => ({
+        id: "lst", status: "PENDING", isHidden: false, commissionRate: 8, isPaid: true, listingPrice: { amount: 36.9, currency: "EUR" },
+        createdAt: "2026-11-27T14:21:00Z", approvedAt: null, community: pbn,
+        requestedBy: { id: "ana", name: "Impact Hub Porto", usertag: "impact-hub-porto", profileImage: null },
+        event: { id: "evt", name: "Food for Thought #2", slug: "food-for-thought-2", startDate: "2026-12-11T12:30:00Z", communityId: "ihp", ...event },
+    });
+    // PBN's seat: price 3690 (3000 + 690 VAT), Stripe 80, the owner's share 3370
+    // (incl. VAT), its fee 240 and net 3130, PBN's 240 of which Cobuntu 12, keeps 228.
+    const pbnLines = [
+        { key: "price", amount: 3690 }, { key: "stripe", amount: 80 }, { key: "seller", amount: 3370 },
+        { key: "sellerFee", amount: 240 }, { key: "sellerNet", amount: 3130 }, { key: "commission", amount: 240 },
+        { key: "cobuntu", amount: 12 }, { key: "keep", amount: 228 },
+    ];
+    const carriedMoney = (): ListingMoney => ({
+        kind: "event", listingId: "lst", seat: "community", status: "PENDING", live: false, currency: "EUR",
+        oneSale: { gross: 3690, vat: 690, commissionRate: 8, rateSource: "agreed", platformFeeRate: 0.05, ownerFeeRate: 0.08, memberSale: false, sellerPremium: false, lines: pbnLines as any },
+        soldSoFar: null, upfront: null, result: null, donation: null,
+        prices: [{ productId: "t1", label: "Padrão", gross: 3690, vat: 690, free: false, lines: pbnLines as any }],
+        rates: { cobuntuPct: 5, ownerCobuntuPct: 8, stream: "events", commissionPct: 8, commissionSource: "agreed", ownedByListingCommunity: false },
+    } as ListingMoney);
+    const rowText = () => [...document.querySelectorAll(".cbtl-lines .cbtl-line")].map((r) => (r.textContent ?? "").replace(/\s+/g, " ").trim());
+
+    it("names the OWNING community as the owner, never the carrier", async () => {
+        const t = transport("community");
+        (t.listing as any).mockImplementation(async () => listing({ community: ihp }));
+        (t.money as any).mockResolvedValue(carriedMoney());
+        mount(t, "community");
+        await screen.findByRole("heading", { level: 1 });
+        const top = document.querySelector(".cbtl-ov-top") as HTMLElement;
+        expect(within(top).getByText("Impact Hub Porto")).toBeTruthy();
+        expect(within(top).queryByText("PBN | Porto Business Network")).toBeNull();
+    });
+
+    it("an older backend that sends no owner name never shows the carrier as the owner", async () => {
+        const t = transport("community");
+        (t.listing as any).mockImplementation(async () => listing({}));
+        (t.money as any).mockResolvedValue(carriedMoney());
+        mount(t, "community");
+        await screen.findByRole("heading", { level: 1 });
+        const top = document.querySelector(".cbtl-ov-top") as HTMLElement;
+        expect(within(top).queryByText("PBN | Porto Business Network")).toBeNull();
+    });
+
+    it("states the price before VAT: EUR 30 + VAT", async () => {
+        const t = transport("community");
+        (t.listing as any).mockImplementation(async () => listing({ community: ihp }));
+        (t.money as any).mockResolvedValue(carriedMoney());
+        mount(t, "community");
+        await screen.findByRole("heading", { level: 1 });
+        const top = document.querySelector(".cbtl-ov-top") as HTMLElement;
+        expect(within(top).getByText("€30.00 + VAT")).toBeTruthy();
+        expect(within(top).queryByText("€36.90")).toBeNull();
+    });
+
+    it("splits the sale with VAT on its own line, the owner's line without it, the ring still the buyer's EUR 36.90", async () => {
+        const t = transport("community");
+        (t.listing as any).mockImplementation(async () => listing({ community: ihp }));
+        (t.money as any).mockResolvedValue(carriedMoney());
+        mount(t, "community");
+        await screen.findByRole("heading", { level: 1 });
+        openSection("Earnings");
+        const rows = rowText();
+        expect(rows.find((r) => r.startsWith("Impact Hub Porto"))).toMatch(/what they keep.*€24\.40/);
+        expect(rows.find((r) => r.startsWith("VAT"))).toMatch(/Impact Hub Porto pays it to the tax office.*€6\.90/);
+        expect(rows.some((r) => r.includes("PBN | Porto Business Network what they keep"))).toBe(false);
+        expect(rows.find((r) => r.startsWith("Cobuntu"))).toMatch(/€2\.40 from Impact Hub Porto, €0\.12 of the commission/);
+        expect(screen.getByText(/Cobuntu's share is 5% of the commission/)).toBeTruthy();
+    });
+});

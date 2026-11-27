@@ -36,7 +36,7 @@ import { Avatar, FallbackImg, ICON, Icon, StripeGlyph, personAvatarCandidates } 
 export type SectionId = "overview" | "earnings" | "negotiation";
 export const SECTIONS: SectionId[] = ["overview", "earnings", "negotiation"];
 
-const C = { keep: "#4e9c78", comm: "#c98a6b", cob: "#e0a94e", stripe: "#b9c4d6", them: "#d9d3ca" };
+const C = { keep: "#4e9c78", comm: "#c98a6b", cob: "#e0a94e", stripe: "#b9c4d6", them: "#d9d3ca", vat: "#ece8e1" };
 const amountOf = (lines: MoneyLine[] | undefined, key: MoneyLine["key"]) => lines?.find((l) => l.key === key)?.amount ?? 0;
 const has = (lines: MoneyLine[] | undefined, key: MoneyLine["key"]) => !!lines?.some((l) => l.key === key);
 
@@ -154,13 +154,13 @@ export function Mark({ who, parties, size = 28 }: { who: Who; parties: Parties; 
 // One sale: the ring, its lines, every price
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Price = { productId: string; label: string | null; gross: number; free: boolean; lines: MoneyLine[] };
+type Price = { productId: string; label: string | null; gross: number; free: boolean; lines: MoneyLine[]; vat: number };
 
 /** Every price the money carries, or the one sale an older backend sends. */
 export function pricesOf(m: ListingMoney | null): Price[] {
     if (!m) return [];
-    if (m.prices && m.prices.length > 0) return m.prices.map((p) => ({ productId: p.productId, label: p.label, gross: p.gross, free: p.free, lines: p.lines }));
-    if (m.oneSale) return [{ productId: "one", label: null, gross: m.oneSale.gross, free: false, lines: m.oneSale.lines }];
+    if (m.prices && m.prices.length > 0) return m.prices.map((p) => ({ productId: p.productId, label: p.label, gross: p.gross, free: p.free, lines: p.lines, vat: p.vat ?? 0 }));
+    if (m.oneSale) return [{ productId: "one", label: null, gross: m.oneSale.gross, free: false, lines: m.oneSale.lines, vat: m.oneSale.vat ?? 0 }];
     return [];
 }
 
@@ -178,8 +178,10 @@ export interface Row {
 }
 
 /** What Cobuntu takes from this stream, as the line's note: "8% of event sales". */
-function cobuntuRateNote(say: Say, kind: "event" | "product", meta: PanelMeta): string | undefined {
-    const pct = meta.cobuntuPct ?? (meta.platformFeeRate ? meta.platformFeeRate * 100 : null);
+function cobuntuRateNote(say: Say, kind: "event" | "product", meta: PanelMeta, onOwnersLeg = false): string | undefined {
+    // The owner's own leg of an item ANOTHER community carries pays the owner's
+    // plan (community-event-carriers.md); everything else the listing community's.
+    const pct = (onOwnersLeg ? meta.ownerCobuntuPct : undefined) ?? meta.cobuntuPct ?? (meta.platformFeeRate ? meta.platformFeeRate * 100 : null);
     if (pct == null) return undefined;
     const stream = say(kind === "event" ? "streamEvents" : "streamProducts");
     return pct === 0 ? say("lineCobuntuZero", { stream }) : say("lineCobuntuRate", { rate: percent(pct), stream });
@@ -198,10 +200,35 @@ export function keepOf(seat: Seat, lines: MoneyLine[], parties?: Parties): numbe
     return amountOf(lines, "keep");
 }
 
-/** The lines of one sale as this seat reads them, keep first (the ring's order). */
-export function rowsFor(say: Say, seat: Seat, kind: "event" | "product", lines: MoneyLine[], parties: Parties, meta: PanelMeta, cur: string): Row[] {
+/**
+ * The lines of one sale as this seat reads them, keep first (the ring's order).
+ *
+ * `vat`: the VAT inside the price, when the seller charges it. It used to sit
+ * inside the seller's line, so a EUR 30 + VAT ticket read as EUR 36.90 split
+ * with no VAT anywhere, and looked as if commission and fees were taken on the
+ * VAT (PBN reviewing Impact Hub Porto's event, 27 Nov 2026). They never are:
+ * both are computed on the price before VAT. The VAT now has its own line,
+ * taken out of the seller's, and the ring still adds up to what the buyer pays.
+ */
+export function rowsFor(say: Say, seat: Seat, kind: "event" | "product", lines: MoneyLine[], parties: Parties, meta: PanelMeta, cur: string, vat = 0): Row[] {
+    const rows = rowsForLines(say, seat, kind, lines, parties, meta, cur);
+    if (!(vat > 0)) return rows;
+    // The VAT is the seller's to pay over: inside their line on the community's
+    // seat ("seller"), inside "keep" on the seller's own seat.
+    const holder = rows.find((r) => r.key === "seller") ?? rows.find((r) => r.key === "keep");
+    if (!holder || holder.amount < vat) return rows;
+    const mineIsHolder = holder.key === "keep" && (seat === "seller" || !!(parties.owner && parties.listedOnOwner));
+    const who = parties.owner?.name || parties.seller.name;
+    const vatRow: Row = {
+        key: "vat", who: holder.who, label: say("lineVat"), amount: vat, color: C.vat,
+        note: mineIsHolder ? say("lineVatNoteYou") : say("lineVatNote", { who }),
+    };
+    return [...rows.map((r) => (r === holder ? { ...r, amount: r.amount - vat } : r)), vatRow];
+}
+
+function rowsForLines(say: Say, seat: Seat, kind: "event" | "product", lines: MoneyLine[], parties: Parties, meta: PanelMeta, cur: string): Row[] {
     const community = parties.community.name;
-    const seller = parties.owner?.name ?? parties.seller.name;
+    const seller = parties.owner?.name || parties.seller.name;
     const commission = amountOf(lines, "commission");
     const stripeRow: Row = { key: "stripe", who: "stripe", label: say("lineStripe"), note: say("lineStripeNote"), amount: amountOf(lines, "stripe"), color: C.stripe };
 
@@ -234,7 +261,7 @@ export function rowsFor(say: Say, seat: Seat, kind: "event" | "product", lines: 
                 key: "commission", who: "community", label: community, amount: commission, color: C.comm, blank: noTerms,
                 note: noTerms ? say("lineCommissionNotYet") : say("lineCommissionNote", { rate: percent(meta.commissionPct ?? meta.rate) }),
             },
-            { key: "cobuntu", who: "cobuntu", label: say("lineCobuntu"), note: cobuntuRateNote(say, kind, meta), amount: amountOf(lines, "cobuntu"), color: C.cob },
+            { key: "cobuntu", who: "cobuntu", label: say("lineCobuntu"), note: cobuntuRateNote(say, kind, meta, true), amount: amountOf(lines, "cobuntu"), color: C.cob },
             stripeRow,
         ];
     }
@@ -317,6 +344,8 @@ export interface PanelMeta {
     rate: number; premium: boolean; platformFeeRate: number;
     /** Cobuntu's rate on this stream, percent (ListingMoney.rates); works for a free item too. */
     cobuntuPct?: number | null;
+    /** Percent: the OWNER's rate on its own leg, when another community carries a community's item. */
+    ownerCobuntuPct?: number | null;
     /** The commission terms, percent; null when none are agreed or offered yet. */
     commissionPct?: number | null;
     commissionSource?: "agreed" | "matrix" | "proposed" | "none";
@@ -331,6 +360,7 @@ export function metaOf(m: ListingMoney | null, termsRate: number | null): PanelM
         premium: !!one?.sellerPremium,
         platformFeeRate: one?.platformFeeRate ?? (r ? r.cobuntuPct / 100 : 0),
         cobuntuPct: r?.cobuntuPct ?? (one ? one.platformFeeRate * 100 : null),
+        ownerCobuntuPct: r?.ownerCobuntuPct ?? (one?.ownerFeeRate != null ? one.ownerFeeRate * 100 : null),
         commissionPct: r ? r.commissionPct : one ? (one.rateSource === "none" ? null : one.commissionRate) : termsRate,
         commissionSource: r?.commissionSource ?? one?.rateSource,
     };
@@ -364,7 +394,7 @@ export function OneSalePanel({ say, seat, kind, m, parties, meta, title, subtitl
     if (!p) return null;
     const lines = rawLines.map((l) => ({ ...l, amount: glided[l.key] ?? l.amount }));
     const paid = prices.filter((x) => !x.free);
-    const rows = p.free ? [] : rowsFor(say, seat, kind, lines, parties, meta, cur);
+    const rows = p.free ? [] : rowsFor(say, seat, kind, lines, parties, meta, cur, p.vat);
     const community = parties.community.name;
     const labelOf = (x: Price) => x.label ?? (kind === "event" ? say("earnOneTicket") : say("earnOneSale"));
 
@@ -635,7 +665,7 @@ function SoFar({ say, seat, m, parties, links }: { say: Say; seat: Seat; m: List
         ]
         : [
             { label: say("earnInSales"), amount: amountOf(l, "price") },
-            { label: parties.owner?.name ?? parties.seller.name, amount: has(l, "sellerNet") ? amountOf(l, "sellerNet") : amountOf(l, "seller") },
+            { label: parties.owner?.name || parties.seller.name, amount: has(l, "sellerNet") ? amountOf(l, "sellerNet") : amountOf(l, "seller") },
             { label: say("earnStripeCobuntu"), amount: amountOf(l, "stripe") + amountOf(l, "cobuntu") + (has(l, "sellerNet") ? amountOf(l, "sellerFee") : 0) },
             { label: say("earnKept", { who: community }), amount: amountOf(l, "keep"), keep: true },
         ];
@@ -748,9 +778,20 @@ export function OverviewSection({ say, kind, item, m, listingPrice, owner, creat
     const prices = pricesOf(m);
     const paid = prices.filter((p) => !p.free);
     const single = m?.oneSale?.gross ?? (listingPrice ? Math.round(listingPrice.amount * (String(cur).toUpperCase() === "JPY" ? 1 : 100)) : null);
-    const priceText = prices.length > 1 && paid.length > 0
-        ? say("ovPrices", { count: prices.length, price: money(Math.min(...paid.map((p) => p.gross)), cur) })
-        : single ? money(single, cur) : say("free");
+    /*
+     * The price as the seller set it: BEFORE VAT, with "+ VAT" when the seller
+     * charges it. Showing the VAT-inclusive EUR 36.90 for a EUR 30 + VAT ticket
+     * read as if the price were 36.90 and everything were taken from it.
+     */
+    const cheapest = paid.length > 0 ? paid.reduce((lo, x) => (x.gross < lo.gross ? x : lo)) : null;
+    const singleVat = m?.oneSale ? (m.oneSale.vat ?? 0) : 0;
+    const priceText = prices.length > 1 && cheapest
+        ? cheapest.vat > 0
+            ? say("ovPricesPlusVat", { count: prices.length, price: money(cheapest.gross - cheapest.vat, cur) })
+            : say("ovPrices", { count: prices.length, price: money(cheapest.gross, cur) })
+        : single
+            ? singleVat > 0 ? say("ovPricePlusVat", { price: money(single - singleVat, cur) }) : money(single, cur)
+            : say("free");
     const category = [
         item?.category?.name ?? item?.categoryName,
         item?.subcategory?.name ?? item?.subCategory?.name ?? item?.subCategoryName,

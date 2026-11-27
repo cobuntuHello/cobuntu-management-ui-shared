@@ -64,7 +64,10 @@ export interface ListingMoney {
         vat: number;
         commissionRate: number;
         rateSource: "agreed" | "matrix" | "proposed" | "none";
+        /** The listing community's rate, 0..1: Cobuntu's cut of its commission. */
         platformFeeRate: number;
+        /** A community's own item carried by ANOTHER community: Cobuntu's rate on the owner's leg, 0..1. */
+        ownerFeeRate?: number;
         memberSale: boolean;
         sellerPremium: boolean;
         lines: MoneyLine[];
@@ -88,6 +91,8 @@ export interface ListingMoney {
     rates?: null | {
         /** Percent: 8 for 8%. The listing community's rate for the stream. */
         cobuntuPct: number;
+        /** Percent: Cobuntu's rate on the OWNER's leg when another community carries a community's item. */
+        ownerCobuntuPct?: number;
         stream: "events" | "products";
         /** Percent; null when nothing is agreed and no package is offered yet. */
         commissionPct: number | null;

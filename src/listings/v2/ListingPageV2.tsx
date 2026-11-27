@@ -320,7 +320,15 @@ export function ListingPageV2(props: ListingPageV2Props) {
     const ownedByCommunity = !!ownerCommunityId;
     const ownerCommunity = ownedByCommunity
         ? {
-            name: item?.community?.name ?? item?.communities?.name ?? (ownerCommunityId === comm?.id ? comm?.name : null) ?? names.community,
+            /*
+             * Never the LISTING community's name for an item it does not own.
+             * A community's own event can be carried by another community
+             * (backend community-event-carriers.md); falling back to the
+             * carrier's name called PBN the owner of Impact Hub Porto's event
+             * (27 Nov 2026). Unknown stays empty, and the requester's name
+             * stands in below.
+             */
+            name: item?.community?.name ?? item?.communities?.name ?? (ownerCommunityId === comm?.id ? comm?.name : null) ?? "",
             icon: item?.community?.iconUrl ?? item?.communities?.iconUrl ?? (ownerCommunityId === comm?.id ? comm?.iconUrl : null) ?? null,
         }
         : null;
