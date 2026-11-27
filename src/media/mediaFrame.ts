@@ -128,20 +128,40 @@ export function placement(area: FrameArea, imageWidth: number, imageHeight: numb
 export const FALLBACK_GROUND = "rgb(0, 0, 0)";
 
 /**
- * The average colour along the outer edge of an RGBA pixel grid, as
- * "rgb(r, g, b)". A poster on a plain ground (most are) then carries on into
- * the strips instead of meeting a bar of another colour. Mostly transparent
- * edges give white: a JPEG has no transparency, and white is what a
- * transparent PNG is usually meant to sit on.
+ * Which edges the strips touch: "x" for strips beside the photo (left and
+ * right, a tall poster in a square), "y" for strips above and below (a wide
+ * photo). Only those edges are sampled: a poster's header or footer on the
+ * OTHER edges (a logo, a cream bar) would otherwise tint strips that never
+ * meet it, and the seam shows.
  */
-export function averageEdge(data: ArrayLike<number>, width: number, height: number): string {
+export type StripSides = "x" | "y" | "all";
+
+/** The sides a frame's strips fall on: the axis the frame overhangs most. */
+export function stripSides(area: FrameArea, imageWidth: number, imageHeight: number): StripSides {
+  return area.width - imageWidth >= area.height - imageHeight ? "x" : "y";
+}
+
+/**
+ * The average colour along the outer edge of an RGBA pixel grid, as
+ * "rgb(r, g, b)", over the edges `sides` names. A poster on a plain ground
+ * (most are) then carries on into the strips instead of meeting a bar of
+ * another colour. Mostly transparent edges give white: a JPEG has no
+ * transparency, and white is what a transparent PNG is usually meant to sit on.
+ */
+export function averageEdge(data: ArrayLike<number>, width: number, height: number, sides: StripSides = "all"): string {
   let r = 0, g = 0, b = 0, a = 0, n = 0;
   const add = (x: number, y: number) => {
     const i = (y * width + x) * 4;
     r += data[i]; g += data[i + 1]; b += data[i + 2]; a += data[i + 3]; n += 1;
   };
-  for (let x = 0; x < width; x++) { add(x, 0); if (height > 1) add(x, height - 1); }
-  for (let y = 1; y < height - 1; y++) { add(0, y); if (width > 1) add(width - 1, y); }
+  if (sides === "x") {
+    for (let y = 0; y < height; y++) { add(0, y); if (width > 1) add(width - 1, y); }
+  } else if (sides === "y") {
+    for (let x = 0; x < width; x++) { add(x, 0); if (height > 1) add(x, height - 1); }
+  } else {
+    for (let x = 0; x < width; x++) { add(x, 0); if (height > 1) add(x, height - 1); }
+    for (let y = 1; y < height - 1; y++) { add(0, y); if (width > 1) add(width - 1, y); }
+  }
   if (n === 0) return FALLBACK_GROUND;
   if (a / n < 128) return "rgb(255, 255, 255)";
   return `rgb(${Math.round(r / n)}, ${Math.round(g / n)}, ${Math.round(b / n)})`;
@@ -149,7 +169,7 @@ export function averageEdge(data: ArrayLike<number>, width: number, height: numb
 
 /** The edge colour of a loaded photo; FALLBACK_GROUND when the browser keeps
  *  its pixels closed (a cross-origin photo without CORS) or has no canvas. */
-function edgeColourOf(image: HTMLImageElement): string {
+function edgeColourOf(image: HTMLImageElement, sides: StripSides): string {
   try {
     const n = 48;
     const canvas = document.createElement("canvas");
@@ -158,15 +178,15 @@ function edgeColourOf(image: HTMLImageElement): string {
     const ctx = canvas.getContext("2d");
     if (!ctx) return FALLBACK_GROUND;
     ctx.drawImage(image, 0, 0, n, n);
-    return averageEdge(ctx.getImageData(0, 0, n, n).data, n, n);
+    return averageEdge(ctx.getImageData(0, 0, n, n).data, n, n, sides);
   } catch {
     return FALLBACK_GROUND;
   }
 }
 
 /** The edge colour of a photo by its source, for the framing preview. */
-export async function edgeColour(src: string): Promise<string> {
-  return edgeColourOf(await loadImage(src));
+export async function edgeColour(src: string, sides: StripSides = "all"): Promise<string> {
+  return edgeColourOf(await loadImage(src), sides);
 }
 
 /** Draw the selection at its framed size and encode it as a JPEG data URL. */
@@ -198,7 +218,7 @@ function frameBeyondPhoto(image: HTMLImageElement, area: FrameArea): { dataUrl: 
   canvas.height = out.height;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("no canvas");
-  ctx.fillStyle = edgeColourOf(image);
+  ctx.fillStyle = edgeColourOf(image, stripSides(area, image.naturalWidth, image.naturalHeight));
   ctx.fillRect(0, 0, out.width, out.height);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";

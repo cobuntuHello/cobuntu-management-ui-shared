@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { averageEdge, FALLBACK_GROUND, fitZoom, placement, reachesPast } from "../media/mediaFrame";
+import { averageEdge, FALLBACK_GROUND, fitZoom, placement, reachesPast, stripSides } from "../media/mediaFrame";
 
 /*
  * Framing a photo of another shape than the frame (a portrait poster in the
@@ -71,5 +71,26 @@ describe("averageEdge", () => {
   });
   it("an empty grid gives the fallback", () => {
     expect(averageEdge([], 0, 0)).toBe(FALLBACK_GROUND);
+  });
+  it("samples only the edges the strips touch, so a header bar on the others does not tint them", () => {
+    // 6 × 6: maroon left and right columns, cream top and bottom rows (a
+    // poster's header and footer), maroon inside.
+    const d: number[] = [];
+    for (let y = 0; y < 6; y++) for (let x = 0; x < 6; x++) {
+      const cream = (y === 0 || y === 5) && x > 0 && x < 5;
+      d.push(...(cream ? [242, 230, 208, 255] : [74, 15, 26, 255]));
+    }
+    expect(averageEdge(d, 6, 6, "x")).toBe("rgb(74, 15, 26)");
+    expect(averageEdge(d, 6, 6, "all")).not.toBe("rgb(74, 15, 26)");
+    expect(averageEdge(d, 6, 6, "y")).not.toBe("rgb(74, 15, 26)");
+  });
+});
+
+describe("stripSides", () => {
+  it("a tall poster zoomed out in a square frame has its strips beside it", () => {
+    expect(stripSides({ x: -135, y: 0, width: 1350, height: 1350 }, 1080, 1350)).toBe("x");
+  });
+  it("a wide photo zoomed out has its strips above and below", () => {
+    expect(stripSides({ x: 0, y: -250, width: 1500, height: 1500 }, 1500, 1000)).toBe("y");
   });
 });

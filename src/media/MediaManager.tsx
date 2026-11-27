@@ -472,14 +472,17 @@ function Framer({
    * so a portrait poster in a square frame always lost its top and bottom.
    */
   const [fit, setFit] = React.useState(1);
+  // Strips beside a photo narrower than the frame ("x"), above and below a
+  // wider one ("y"): the edges the strips touch are the ones sampled.
+  const [sides, setSides] = React.useState<"x" | "y" | null>(null);
   const [ground, setGround] = React.useState<string | null>(null);
   const src = item?.src;
   React.useEffect(() => {
-    if (!src) return;
+    if (!src || !sides) return;
     let live = true;
-    edgeColour(src).then((c) => { if (live) setGround(c); }).catch(() => {});
+    edgeColour(src, sides).then((c) => { if (live) setGround(c); }).catch(() => {});
     return () => { live = false; };
-  }, [src]);
+  }, [src, sides]);
   if (!item) return null;
   const zoomedOut = zoom < 1;
   const showsWhole = fit < 1 && zoom <= fit + 0.001;
@@ -522,7 +525,10 @@ function Framer({
             would push a photo smaller than the frame off-centre. */}
         <Cropper image={item.src} crop={crop} zoom={zoom} aspect={aspect} showGrid={false}
           minZoom={fit} restrictPosition={!zoomedOut}
-          onMediaLoaded={(m) => setFit(fitZoom(m.naturalWidth, m.naturalHeight, aspect))}
+          onMediaLoaded={(m) => {
+            setFit(fitZoom(m.naturalWidth, m.naturalHeight, aspect));
+            setSides(m.naturalWidth / m.naturalHeight < aspect ? "x" : "y");
+          }}
           onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_, px) => setArea(px)} />
       </div>
       <div className="flex items-center gap-3 text-[13px] text-zinc-500">
